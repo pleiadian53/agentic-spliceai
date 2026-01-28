@@ -64,46 +64,17 @@ dmypy.json
 # Ruff
 .ruff_cache/
 
-# Data files (adjust as needed)
-data/*.tsv
-data/*.csv
-data/*.parquet
-data/*.vcf
-data/*.bam
-data/*.sam
-data/*.fa
-data/*.fasta
-data/*.gtf
-data/*.gff
-data/*.bed
-data/*.db
-data/*.xlsx
+# Data directory - exclude everything except docs
+data/*
 !data/README.md
 !data/.gitkeep
-
-# Symlinked genomic datasets (from meta-spliceai)
-# These are symlinks, but git may follow them - explicitly ignore
-data/ensembl/
-data/mane/
-data/GRCh38_MANE/
-data/models/
-data/spliceai_analysis/
-data/spliceai_eval/
-data/train_pc_1000_3mers/
-data/train_pc_100_3mers_diverse/
-data/test_pc_1000_3mers/
-data/test_quick/
-data/ORF/
-data/Han1/
-data/query_uorfs.fa
-data/query_uorfs.gtf
-data/gtex_uORFconnected_txs.csv
-data/gtex_uORFconnected_txs.w_utrs.csv
-data/supplementary-tables.xlsx
 
 # Keep local LLM data
 !data/llm/
 !data/llm/**
+
+# Backup directory from old symlinks
+data_backup_old_symlinks/
 
 # Output files
 output/

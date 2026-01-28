@@ -1,4 +1,0 @@
-gene_id	gene_name	requested	status	reason	num_positions	num_nucleotides	num_splice_sites	processing_time_sec	base_model	genomic_build	timestamp
-gene-MYC	MYC	true	processed		12	6721	0	0.0	spliceai	GRCh37	2025-12-12T15:26:15.824536
-gene-TP53	TP53	true	processed		38	19070	0	0.0	spliceai	GRCh37	2025-12-12T15:26:19.437500
-gene-EGFR	EGFR	true	processed		104	192612	0	0.0	spliceai	GRCh37	2025-12-12T15:26:55.492465
