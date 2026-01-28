@@ -1,0 +1,3 @@
+gene_id	gene_name	requested	status	reason	num_positions	num_nucleotides	num_splice_sites	processing_time_sec	base_model	genomic_build	timestamp
+gene-TP53	TP53	true	processed		38	19070	20	0.0	spliceai	GRCh37	2025-12-13T00:10:29.685588
+gene-BRCA1	BRCA1	true	processed		82	81070	44	0.0	spliceai	GRCh37	2025-12-13T00:10:50.666792

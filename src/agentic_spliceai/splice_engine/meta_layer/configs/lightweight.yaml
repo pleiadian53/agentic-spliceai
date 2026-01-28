@@ -1,0 +1,55 @@
+# Lightweight Meta-Layer Configuration
+# 
+# Optimized for M1 MacBook Pro with 16GB memory.
+# Uses CNN encoder (no pretrained LM) for fast iteration.
+
+base_model: openspliceai
+
+# Lightweight CNN encoder
+sequence_encoder: cnn
+sequence_encoder_config:
+  output_dim: 128
+  kernel_sizes: [3, 5, 7]
+  num_filters: 32
+
+# No variant data (simpler)
+variant_source: null
+
+# Smaller architecture
+hidden_dim: 128
+num_attention_heads: 4
+dropout: 0.1
+
+# Training - reduced for M1
+batch_size: 32
+learning_rate: 0.001
+weight_decay: 0.01
+max_epochs: 20
+patience: 5
+gradient_accumulation_steps: 2  # Effective batch = 64
+mixed_precision: false  # M1 doesn't benefit much
+
+# Subset for quick testing
+max_samples: 50000
+train_split: 0.8
+val_split: 0.1
+test_split: 0.1
+balance_classes: true
+
+# M1 specific
+device: mps  # Apple Silicon
+num_workers: 0  # Avoids multiprocessing issues on Mac
+seed: 42
+verbosity: 1
+
+
+
+
+
+
+
+
+
+
+
+

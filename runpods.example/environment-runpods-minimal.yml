@@ -1,0 +1,102 @@
+name: agenticspliceai
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  
+  # ============================================================================
+  # Core Scientific Computing
+  # ============================================================================
+  - numpy=1.26.4
+  - scipy=1.11.4
+  - pandas=2.1.4
+  - pyarrow=18.*
+  - polars=1.17.*
+  
+  # ============================================================================
+  # Machine Learning Frameworks
+  # ============================================================================
+  - scikit-learn=1.5.*
+  - xgboost>=1.7
+  - lightgbm>=4.0
+  - statsmodels=0.14.*
+  - optuna>=3.0  # Hyperparameter optimization
+  
+  # ============================================================================
+  # Deep Learning (PyTorch installed via pip with CUDA - see setup guide)
+  # ============================================================================
+  # NOTE: PyTorch is installed separately via pip for CUDA support:
+  #   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+  
+  # ============================================================================
+  # Visualization
+  # ============================================================================
+  - matplotlib-base>=3.8
+  - plotly>=6.0
+  
+  # ============================================================================
+  # Bioinformatics Tools (bioconda channel)
+  # ============================================================================
+  - bedtools  # For pybedtools
+  - htslib   # For BAM/VCF processing
+  
+  # ============================================================================
+  # System/Build Dependencies
+  # ============================================================================
+  - zlib  # Required for pybedtools compilation
+  - hdf5  # For h5py
+  
+  # ============================================================================
+  # Pip Packages
+  # ============================================================================
+  - pip:
+      # --- Core Utilities ---
+      - argcomplete>=3.0
+      - argh>=0.31
+      - python-dotenv>=1.0.0
+      - pyyaml>=6.0
+      - requests>=2.31
+      - rich>=13.0
+      - tqdm>=4.65
+      - tabulate>=0.9
+      - psutil>=5.9.0
+      
+      # --- Bioinformatics ---
+      - biopython>=1.80
+      - gffutils>=0.12
+      - h5py>=3.10
+      - pybedtools>=0.10.0
+      - pyfaidx>=0.8.0
+      
+      # --- Data Science & Visualization ---
+      - seaborn>=0.12.0
+      
+      # --- ML Interpretability (SHAP and related) ---
+      - shap>=0.45
+      - lime>=0.2
+      
+      # --- Deep Learning / GenAI ---
+      - transformers>=4.35  # HuggingFace transformers for HyenaDNA
+      - einops>=0.7        # Tensor operations for transformers
+      - accelerate>=0.25   # HuggingFace accelerate for distributed training
+      - safetensors>=0.4   # Safe model serialization
+      
+      # --- Experiment Tracking ---
+      - tensorboard>=2.15
+      - wandb>=0.16        # Weights & Biases (optional but useful)
+      
+      # --- Additional ML Tools ---
+      - imbalanced-learn>=0.11  # For handling imbalanced datasets
+      - hyperopt>=0.2           # Hyperparameter optimization
+      
+      # --- Numba for acceleration ---
+      - numba>=0.58
+      
+      # ============================================================================
+      # NOTE: The following are NOT included to avoid conflicts:
+      # - pyspark: Large footprint, not needed for meta_layer
+      # - tensorflow/spliceai: Only needed for base model inference, add if needed:
+      #     pip install tensorflow==2.17.0 spliceai==1.3.1
+      # ============================================================================

@@ -1,0 +1,225 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# Data files (adjust as needed)
+data/*.tsv
+data/*.csv
+data/*.parquet
+data/*.vcf
+data/*.bam
+data/*.sam
+data/*.fa
+data/*.fasta
+data/*.gtf
+data/*.gff
+data/*.bed
+data/*.db
+data/*.xlsx
+!data/README.md
+!data/.gitkeep
+
+# Symlinked genomic datasets (from meta-spliceai)
+# These are symlinks, but git may follow them - explicitly ignore
+data/ensembl/
+data/mane/
+data/GRCh38_MANE/
+data/models/
+data/spliceai_analysis/
+data/spliceai_eval/
+data/train_pc_1000_3mers/
+data/train_pc_100_3mers_diverse/
+data/test_pc_1000_3mers/
+data/test_quick/
+data/ORF/
+data/Han1/
+data/query_uorfs.fa
+data/query_uorfs.gtf
+data/gtex_uORFconnected_txs.csv
+data/gtex_uORFconnected_txs.w_utrs.csv
+data/supplementary-tables.xlsx
+
+# Keep local LLM data
+!data/llm/
+!data/llm/**
+
+# Output files
+output/
+*.pdf
+*.png
+*.jpg
+*.svg
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.svg
+
+# Nexus research agent outputs
+src/nexus/output/
+src/nexus/knowledge/
+
+# Development directory (NOT for public)
+dev/
+dev/**/*
+
+# Tests directory (NOT for public - development only)
+tests/
+tests/**/*
+
+# RunPods configuration (user-specific, NOT for public)
+# Contains local paths, SSH configs, and personal workflow
+runpods/
+runpods/**/*
+!runpods.example/
+!runpods.example/**/*
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.bak
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+*.lnk
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Sphinx documentation
+docs/_build/
+docs/.doctrees/
+
+# PyBuilder
+target/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/

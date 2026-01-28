@@ -1,0 +1,5 @@
+#!/bin/bash
+# Wrapper script for view_table_html.py that opens tables in browser
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+conda run -n agentic-spliceai python "${SCRIPT_DIR}/view_table_html.py" "$@"

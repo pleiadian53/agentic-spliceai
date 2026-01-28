@@ -1,0 +1,5 @@
+#!/bin/bash
+# Terminal-only table viewer (no browser)
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+conda run -n agentic-spliceai python "${SCRIPT_DIR}/view_table.py" "$@"

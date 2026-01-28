@@ -1,0 +1,65 @@
+# HyenaDNA Meta-Layer Configuration
+# 
+# Full configuration for GPU training with HyenaDNA sequence encoder.
+# Requires CUDA-capable GPU with sufficient memory (16GB+ recommended).
+# Suitable for RunPods or similar cloud GPU instances.
+
+base_model: openspliceai
+
+# HyenaDNA encoder (state space model)
+sequence_encoder: hyenadna
+sequence_encoder_config:
+  model_size: small  # 'tiny', 'small', 'medium', 'large'
+  output_dim: 256
+  pretrained: true
+  freeze: true  # Start frozen, can fine-tune later
+  max_length: 512  # 501nt windows fit nicely
+
+# Include SpliceVarDB for enhanced training
+variant_source: splicevardb
+variant_config:
+  use_soft_labels: true
+  low_frequency_weight: 0.5
+
+# Full architecture
+hidden_dim: 256
+num_attention_heads: 8
+dropout: 0.1
+
+# Training - optimized for GPU
+batch_size: 128
+learning_rate: 0.0001
+weight_decay: 0.01
+max_epochs: 100
+patience: 10
+gradient_accumulation_steps: 1
+mixed_precision: true  # Enable for faster training
+
+# Full dataset
+max_samples: null  # Use all data
+train_split: 0.8
+val_split: 0.1
+test_split: 0.1
+balance_classes: true
+
+# Evaluation
+top_k_values: [10, 50, 100, 500, 1000]
+threshold: 0.5
+
+# GPU settings
+device: cuda
+num_workers: 4
+seed: 42
+verbosity: 1
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,265 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-spliceai"
+version = "0.1.0"
+description = "AI-powered splice site analysis with integrated Nexus research agent for self-improvement"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Splice Agent Contributors"}
+]
+keywords = [
+    "splice-sites",
+    "genomics",
+    "bioinformatics",
+    "agentic-ai",
+    "llm",
+    "alternative-splicing",
+    "multi-omics",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# Core dependencies
+dependencies = [
+    # === Agent + LLM Tools ===
+    "anthropic",
+    "markdown",
+    "openai",
+    "tavily-python>=0.7.12",
+    
+    # === Web Framework + API ===
+    "fastapi",
+    "pydantic",
+    "pydantic[email]",
+    "python-dotenv",
+    "python-multipart",
+    "requests",
+    "uvicorn",
+    
+    # === Notebook Experience ===
+    "ipywidgets",
+    "jupyter_server",
+    "nbclassic",
+    "notebook",
+    
+    # === Data Analysis / Display ===
+    "duckdb",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "pyarrow",
+    "seaborn",
+    "tabulate",
+    "tinydb",
+    
+    # === Machine Learning / NLP ===
+    "jinja2",
+    "scikit-learn",
+]
+
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=0.21",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "ipython>=8.0",
+]
+
+# Testing only
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=0.21",
+]
+
+# Bioinformatics extensions
+bio = [
+    "biopython>=1.80",
+    "pysam>=0.20",
+    "pyvcf3>=1.0",
+]
+
+# Documentation
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=0.24",
+]
+
+# All optional dependencies
+all = [
+    "agentic-spliceai[dev,test,bio,docs]",
+]
+
+[project.urls]
+Homepage = "https://github.com/pleiadian53/agentic-spliceai"
+Repository = "https://github.com/pleiadian53/agentic-spliceai"
+Documentation = "https://github.com/pleiadian53/agentic-spliceai/tree/main/docs"
+Issues = "https://github.com/pleiadian53/agentic-spliceai/issues"
+
+[project.scripts]
+# CLI entry points
+agentic-spliceai = "agentic_spliceai.cli:main"
+agentic-spliceai-server = "agentic_spliceai.server.splice_service:main"
+agentic-spliceai-predict = "agentic_spliceai.splice_engine.cli:main"
+nexus = "nexus.cli.main:main"
+nexus-server = "nexus.server.app:main"
+
+[tool.setuptools]
+zip-safe = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+    "agentic_spliceai*",
+    "nexus*",
+]
+exclude = [
+    "tests*",
+    "docs*",
+]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md", "*.yml", "*.yaml", "*.json"]
+
+# ============================================================================
+# Tool Configurations
+# ============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=splice_agent",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "bio: marks tests requiring bioinformatics data",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | data
+  | output
+  | dev
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "data",
+    "output",
+    "dev",
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "anthropic.*",
+    "tavily.*",
+    "duckdb.*",
+    "biopython.*",
+]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/env/*",
+    "*/dev/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

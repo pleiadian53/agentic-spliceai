@@ -1,0 +1,141 @@
+name: agentic-spliceai
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  # Python version
+  - python=3.11
+
+  # ============================================================================
+  # AGENTIC WORKFLOW & RESEARCH (from Nexus)
+  # ============================================================================
+  
+  # === Agent + LLM Tools ===
+  - pip
+  - openai
+  - markdown
+  - requests
+  - weasyprint      # PDF generation (markdown without equations)
+  - pandoc          # Document converter (LaTeX to Markdown)
+  - tectonic        # Modern LaTeX engine for equation rendering
+  
+  # === Web Framework + API ===
+  - fastapi
+  - pydantic
+  - python-dotenv
+  - python-multipart
+  - sqlalchemy
+  - uvicorn
+  - beautifulsoup4  # HTML parsing for research tools
+  
+  # === Notebook Experience ===
+  - ipywidgets
+  - jupyter
+  - jupyter_server
+  - nbclassic
+  - notebook
+  - ipykernel
+  
+  # ============================================================================
+  # DATA ANALYSIS & VISUALIZATION
+  # ============================================================================
+  
+  - duckdb          # Efficient dataset loading
+  - matplotlib      # Plotting library
+  - numpy<2.0.0     # Numerical computing (constrained for TensorFlow)
+  - pandas          # Data manipulation
+  - seaborn         # Statistical visualization
+  - tabulate        # Pretty-print tables
+  - polars          # High-performance dataframes
+  - plotly          # Interactive visualizations
+  
+  # ============================================================================
+  # MACHINE LEARNING & DEEP LEARNING
+  # ============================================================================
+  
+  # === Core ML ===
+  - jinja2
+  - scikit-learn
+  - scipy
+  - joblib
+  - tqdm
+  
+  # === Deep Learning ===
+  - tensorflow      # For SpliceAI models
+  - pytorch         # Alternative DL framework
+  - keras           # High-level neural networks API
+  
+  # === ML Utilities ===
+  - lightgbm        # Gradient boosting
+  - xgboost         # Gradient boosting
+  - optuna          # Hyperparameter optimization
+  - shap            # Model explainability
+  - hdbscan         # Clustering
+  
+  # ============================================================================
+  # BIOINFORMATICS & GENOMICS
+  # ============================================================================
+  
+  - biopython       # Biological computation
+  - pysam           # SAM/BAM file handling
+  - pybedtools      # BED file operations
+  - pybigwig        # BigWig file handling
+  
+  # ============================================================================
+  # PIP-ONLY PACKAGES
+  # ============================================================================
+  
+  - pip:
+    # === Agent & LLM Tools ===
+    - aisuite==0.1.11
+    - anthropic
+    - mistralai
+    - tavily-python>=0.7.12
+    - vertexai
+    - docstring-parser
+    - textstat
+    - pypandoc        # Python wrapper for pandoc
+    
+    # === Pydantic Extensions ===
+    - pydantic[email]
+    
+    # === Research Tools ===
+    - tinydb
+    - wikipedia
+    - pdfminer.six
+    - pymupdf
+    - pyarrow
+    
+    # === Genomics Tools (pip-only) ===
+    - spliceai==1.3.1           # Base SpliceAI model
+    - bcbio-gff==0.7.1          # GFF file parsing
+    - bio==1.7.1                # Biological data structures
+    - gffutils==0.12            # GFF/GTF database
+    - gtftools==0.9.0           # GTF manipulation
+    - mappy==2.26               # Minimap2 Python binding
+    - orfipy==0.0.4             # ORF prediction
+    - pyfastx==2.1.0            # FASTA/FASTQ parsing
+    - twobitreader==3.1.7       # 2bit genome format
+    - pyvcf3>=1.0               # VCF file handling
+    
+    # === ML Extensions (pip-only) ===
+    - category-encoders==2.6.3  # Categorical encoding
+    - feature-engine==1.8.1     # Feature engineering
+    - fast-ml==3.68             # AutoML utilities
+    - hyperopt==0.2.7           # Hyperparameter optimization
+    - hpbandster==0.7.4         # Bayesian optimization
+    - hpbandster-sklearn==2.0.2 # sklearn integration
+    - sequence-model==0.6.0     # Sequence modeling
+    - umap-learn                # Dimensionality reduction
+    - pandarallel==1.6.5        # Parallel pandas
+    - numba>=0.60.0             # JIT compilation
+    
+    # === Utilities ===
+    - configspace==1.2.0        # Configuration spaces
+    - dask==2024.5.0            # Parallel computing
+    - distributed==2024.5.0     # Distributed computing
+    - fuzzywuzzy==0.18.0        # Fuzzy string matching
+    - progress==1.6             # Progress bars
+    - tenacity==8.5.0           # Retry logic
+    - qrcode                    # QR code generation

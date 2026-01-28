@@ -1,0 +1,87 @@
+species: homo_sapiens
+default_build: GRCh38
+default_release: "112"
+default_annotation_source: ensembl
+data_root: data
+
+# Derived datasets configuration
+derived_datasets:
+  splice_sites: "splice_sites_enhanced.tsv"
+  gene_features: "gene_features.tsv"
+  transcript_features: "transcript_features.tsv"
+  exon_features: "exon_features.tsv"
+  annotations_db: "annotations.db"
+  overlapping_genes: "overlapping_gene_counts.tsv"
+
+# Annotation sources
+annotation_sources:
+  ensembl:
+    name: "Ensembl"
+    description: "Comprehensive genome annotation from Ensembl"
+    url: "https://www.ensembl.org"
+    format: "GTF"
+    notes: "Primary annotation source for most analyses"
+    
+  mane:
+    name: "MANE RefSeq"
+    description: "Matched Annotation from NCBI and EMBL-EBI (RefSeq)"
+    url: "https://www.ncbi.nlm.nih.gov/refseq/MANE/"
+    format: "GFF3"
+    notes: "High-confidence transcript set, used by OpenSpliceAI"
+    
+  gencode:
+    name: "GENCODE"
+    description: "Encyclopedia of genes and gene variants"
+    url: "https://www.gencodegenes.org"
+    format: "GTF"
+    notes: "Comprehensive annotation, similar to Ensembl"
+
+# Base models and their training specifications
+base_models:
+  spliceai:
+    name: "SpliceAI"
+    training_build: "GRCh37"
+    training_annotation: "GENCODE V24lift37"
+    annotation_source: "ensembl"
+    paper: "Jaganathan et al., Cell 2019"
+    notes: "Trained on GRCh37, best evaluated on GRCh37 Ensembl annotations"
+    
+  openspliceai:
+    name: "OpenSpliceAI"
+    training_build: "GRCh38"
+    training_annotation: "MANE v1.3 RefSeq"
+    annotation_source: "mane"
+    paper: "OpenSpliceAI GitHub"
+    notes: "Trained on GRCh38 MANE, best evaluated on GRCh38 MANE annotations"
+
+builds:
+  GRCh38:
+    annotation_source: ensembl
+    gtf: "Homo_sapiens.GRCh38.{release}.gtf"
+    fasta: "Homo_sapiens.GRCh38.dna.primary_assembly.fa"
+    ensembl_base: "https://ftp.ensembl.org/pub/release-{release}"
+    subpaths:
+      gtf: "gtf/homo_sapiens"
+      fasta: "fasta/homo_sapiens/dna"
+    notes: "Standard Ensembl GRCh38 annotation"
+    
+  GRCh37:
+    annotation_source: ensembl
+    gtf: "Homo_sapiens.GRCh37.{release}.gtf"
+    fasta: "Homo_sapiens.GRCh37.dna.primary_assembly.fa"
+    ensembl_base: "https://ftp.ensembl.org/pub/grch37/release-{release}"
+    subpaths:
+      gtf: "gtf/homo_sapiens"
+      fasta: "fasta/homo_sapiens/dna"
+    notes: "Ensembl GRCh37 annotation, matches SpliceAI training build"
+    
+  GRCh38_MANE:
+    annotation_source: mane
+    gtf: "MANE.GRCh38.v{release}.refseq_genomic.gtf"
+    fasta: "Homo_sapiens.GRCh38.dna.primary_assembly.fa"
+    base_url: "https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_{release}"
+    subpaths:
+      gtf: ""
+      fasta: ""
+    notes: "MANE v1.3 RefSeq annotation (converted to GTF), matches OpenSpliceAI training"
+    format: "GTF"

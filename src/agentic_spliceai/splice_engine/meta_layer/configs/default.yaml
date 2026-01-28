@@ -1,0 +1,70 @@
+# Default Meta-Layer Configuration
+# 
+# This is the default configuration for the multimodal meta-layer.
+# For M1 Mac, use configs/lightweight.yaml
+# For GPU training, use configs/hyenadna.yaml
+
+# Base model selection
+# Automatically routes to correct artifacts and genome build
+base_model: openspliceai  # or 'spliceai', 'newmodel'
+
+# Sequence encoder configuration
+sequence_encoder: cnn  # 'hyenadna', 'dnabert2', 'cnn', 'none'
+sequence_encoder_config:
+  output_dim: 256
+  pretrained: true
+  freeze: true
+  # HyenaDNA-specific
+  model_size: small  # 'tiny', 'small', 'medium', 'large'
+  # CNN-specific
+  kernel_sizes: [3, 5, 7, 11]
+  num_filters: 64
+
+# Variant data integration
+variant_source: null  # 'splicevardb', 'clinvar', or null
+variant_config:
+  use_soft_labels: true
+  low_frequency_weight: 0.5
+
+# Model architecture
+hidden_dim: 256
+num_attention_heads: 8
+dropout: 0.1
+
+# Training hyperparameters
+batch_size: 64
+learning_rate: 0.0001
+weight_decay: 0.01
+max_epochs: 100
+patience: 10
+gradient_accumulation_steps: 1
+mixed_precision: false
+
+# Data configuration
+max_samples: null  # Set to integer for subset
+train_split: 0.8
+val_split: 0.1
+test_split: 0.1
+balance_classes: true
+
+# Evaluation
+top_k_values: [10, 50, 100, 500]
+threshold: 0.5
+
+# Runtime
+device: auto  # 'auto', 'cpu', 'cuda', 'mps'
+num_workers: 4
+seed: 42
+verbosity: 1
+
+
+
+
+
+
+
+
+
+
+
+
