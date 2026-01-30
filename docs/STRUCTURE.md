@@ -1,15 +1,16 @@
-# Splice Agent - Project Structure
+# Agentic-SpliceAI - Project Structure
 
-Complete overview of the agentic-spliceai project organization.
+**Complete overview of the agentic-spliceai project organization**
+
+> **Note**: This file is located at `docs/STRUCTURE.md`. For quick setup, see [`SETUP.md`](../SETUP.md) at the project root.
 
 ## 📁 Directory Structure
 
 ```
 agentic-spliceai/
-├── README.md                    # Project overview
+├── README.md                    # Project overview & vision
+├── SETUP.md                     # Setup instructions (root for quick access)
 ├── QUICKSTART.md                # 5-minute getting started
-├── MIGRATION.md                 # Moving to new projects
-├── STRUCTURE.md                 # This file
 ├── LICENSE                      # MIT License
 │
 ├── environment.yml              # Mamba environment definition
@@ -37,16 +38,28 @@ agentic-spliceai/
 │
 ├── docs/                        # Global documentation
 │   ├── README.md                # Documentation index
-│   ├── architecture/            # System architecture
-│   ├── tutorials/               # Step-by-step guides
+│   ├── STRUCTURE.md             # This file - Project structure overview
+│   ├── base_layer/              # Base layer documentation
+│   ├── isoform_discovery/       # Isoform discovery vision & roadmap
 │   ├── installation/            # Setup guides
-│   ├── api/                     # API reference
-│   ├── biology/                 # Biological background
-│   └── workflows/               # Analysis workflows
+│   ├── PACKAGE_ORGANIZATION.md  # Experimental package guidelines
+│   └── SPLICE_PREDICTION_GUIDE.md  # Splice prediction guide
 │
-├── examples/                    # Example scripts
-│   ├── quick_start.py           # Quick examples
-│   └── analyze_splice_sites.py  # Full CLI tool
+├── examples/                    # Driver scripts for development
+│   ├── _example_utils.py        # Path resolution utilities
+│   ├── README.md                # Examples overview
+│   ├── base_layer/              # Base layer prediction examples
+│   ├── data_preparation/        # Data prep workflow examples
+│   ├── meta_layer/              # Meta layer examples (Phase 5)
+│   └── variant_analysis/        # Variant analysis examples (Phase 6)
+│
+├── scripts/                     # Utility scripts & tools
+│   ├── setup/                   # Setup & verification
+│   │   └── verify_setup.py      # Verify installation
+│   ├── validation/              # Validation & testing
+│   │   └── compare_evaluation.py  # Comparison tools
+│   ├── docs/                    # Scripts documentation
+│   └── README.md                # Scripts overview
 │
 ├── tests/                       # Unit tests
 │   ├── test_data_access.py

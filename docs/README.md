@@ -4,6 +4,13 @@ Welcome to the Splice Agent documentation! This directory contains comprehensive
 
 ## 📚 Documentation Structure
 
+### Project Organization
+- **[PACKAGE_ORGANIZATION.md](PACKAGE_ORGANIZATION.md)** - Guide for organizing experimental features
+  - Where to put new packages (e.g., foundation models like Evo2)
+  - Parallel packages vs `src/` subdirectories
+  - Dependency isolation and deployment strategies
+  - Import patterns for examples and notebooks
+
 ### Core Documentation
 
 - **[architecture/](architecture/)** - System architecture and design patterns

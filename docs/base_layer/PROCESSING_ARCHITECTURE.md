@@ -1,6 +1,6 @@
-# SpliceAI Base Layer: Processing Architecture
+# Base Layer: Processing Architecture
 
-This document explains the core processing architecture of the Meta-SpliceAI base layer, which `agentic-spliceai` integrates for splice site prediction. Understanding this architecture is essential for:
+This document explains the core processing architecture of the base layer for splice site prediction. The base layer supports multiple foundational models (SpliceAI, OpenSpliceAI, and custom models) that predict splice sites from genomic sequences. Understanding this architecture is essential for:
 
 - Configuring prediction workflows
 - Optimizing memory usage for large-scale analyses
@@ -12,12 +12,13 @@ This document explains the core processing architecture of the Meta-SpliceAI bas
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Data Preparation Pipeline](#data-preparation-pipeline)
-3. [Three-Level Processing Loop](#three-level-processing-loop)
-4. [Memory Management Strategy](#memory-management-strategy)
-5. [Checkpoint and Resume](#checkpoint-and-resume)
-6. [Output Files](#output-files)
-7. [Configuration Options](#configuration-options)
+2. [Base Model Protocol](#base-model-protocol)
+3. [Data Preparation Pipeline](#data-preparation-pipeline)
+4. [Three-Level Processing Loop](#three-level-processing-loop)
+5. [Memory Management Strategy](#memory-management-strategy)
+6. [Checkpoint and Resume](#checkpoint-and-resume)
+7. [Output Files](#output-files)
+8. [Configuration Options](#configuration-options)
 
 ---
 
@@ -43,7 +44,158 @@ GTF annotations ──┐
                   ├──► Data Preparation ──► Nested Loop ──► Splice predictions
 FASTA genome ─────┤                         (3 levels)       Error analysis
                   │                                          Position features
-SpliceAI models ──┘                                          Sequence contexts
+Base models* ─────┘                                          Sequence contexts
+
+* Base models: SpliceAI, OpenSpliceAI, or any model with standard I/O protocol
+```
+
+---
+
+## Base Model Protocol
+
+The base layer is designed to support **any splice prediction model** that follows a standard input/output protocol. This enables extensibility and integration of new models as they become available.
+
+### Supported Base Models
+
+Currently supported models:
+
+1. **SpliceAI** (Keras/TensorFlow)
+   - Original splice prediction model
+   - Ensemble of 5 models
+   - Context windows: 80, 400, 2000, 10000 bp
+
+2. **OpenSpliceAI** (PyTorch)
+   - Reimplementation of SpliceAI in PyTorch
+   - Improved training and inference
+   - Compatible with SpliceAI architecture
+
+### Standard I/O Protocol
+
+Any base model can be integrated if it follows this protocol:
+
+#### Input Requirements
+
+**Format**: One-hot encoded DNA sequence
+- Shape: `(batch_size, sequence_length, 4)`
+- Channels: `[A, C, G, T]` in order
+- Data type: `float32`
+- Sequence structure: `[flanking_context] + [5000bp core] + [flanking_context]`
+
+**Example**:
+```python
+# Input: Gene sequence
+sequence = "ATCGATCG..."  # DNA string
+
+# Convert to one-hot encoding
+encoded = one_hot_encode(sequence)  # Shape: (length, 4)
+
+# Add context and create blocks
+blocks = prepare_input_sequence(sequence, context=10000)
+# Output shape: (num_blocks, 20000, 4)
+```
+
+#### Output Requirements
+
+**Format**: Splice site probabilities
+- Shape: `(batch_size, sequence_length, 3)`
+- Channels: `[donor_prob, acceptor_prob, neither_prob]`
+- Data type: `float32`
+- Range: `[0, 1]` (probabilities)
+- Constraint: `donor_prob + acceptor_prob + neither_prob ≈ 1.0` (per position)
+
+**Example**:
+```python
+# Model prediction
+predictions = model.predict(blocks)
+# Shape: (num_blocks, 5000, 3)
+
+# Extract probabilities
+donor_scores = predictions[:, :, 0]      # Donor splice site probability
+acceptor_scores = predictions[:, :, 1]   # Acceptor splice site probability
+neither_scores = predictions[:, :, 2]    # Neither (no splice site)
+```
+
+### Integration Requirements
+
+To add a new base model:
+
+1. **Model Loading**: Implement a loader function
+   ```python
+   def _load_custom_model(model_dir, verbosity):
+       """Load custom model from disk."""
+       # Load model weights, config, etc.
+       return model
+   ```
+
+2. **Prediction Interface**: Model must work with `predict_with_model()`
+   ```python
+   def predict_with_model(model, x):
+       """Universal prediction function."""
+       if hasattr(model, 'predict'):
+           # Keras-style model
+           return model.predict(x, verbose=0)
+       elif hasattr(model, 'forward'):
+           # PyTorch-style model
+           import torch
+           with torch.no_grad():
+               device = next(model.parameters()).device
+               x_tensor = torch.FloatTensor(x).to(device)
+               return model(x_tensor).cpu().numpy()
+       else:
+           # Add custom inference logic here
+           raise NotImplementedError(f"Unsupported model type: {type(model)}")
+   ```
+
+3. **Update Model Registry**: Add to `load_spliceai_models()`
+   ```python
+   def load_spliceai_models(model_dir=None, model_type='spliceai', verbosity=1):
+       if model_type.lower() == 'openspliceai':
+           return _load_openspliceai_models(model_dir, verbosity)
+       elif model_type.lower() == 'custom_model':
+           return _load_custom_model(model_dir, verbosity)
+       else:
+           return _load_spliceai_models(model_dir, verbosity)
+   ```
+
+### Model Compatibility Matrix
+
+| Model | Framework | Ensemble | Context | Status |
+|-------|-----------|----------|---------|--------|
+| SpliceAI | Keras | 5 models | 10k bp | ✅ Supported |
+| OpenSpliceAI | PyTorch | 5 models | 10k bp | ✅ Supported |
+| Your Model | Any | Optional | Flexible | 🔧 Easy to add |
+
+### Adding Your Own Model
+
+**Step 1**: Ensure your model follows the I/O protocol
+- Input: `(batch, seq_len, 4)` one-hot encoded DNA
+- Output: `(batch, seq_len, 3)` splice probabilities
+
+**Step 2**: Create a model loader
+```python
+# In base_layer/prediction/core.py
+def _load_my_model(model_dir, verbosity):
+    # Load your model
+    model = MyModelClass.from_pretrained(model_dir)
+    return [model]  # Return as list for consistency
+```
+
+**Step 3**: Update the model type switch
+```python
+# In load_spliceai_models()
+if model_type.lower() == 'mymodel':
+    return _load_my_model(model_dir, verbosity)
+```
+
+**Step 4**: Test with a gene
+```python
+from agentic_spliceai.splice_engine.base_layer import BaseModelRunner
+
+runner = BaseModelRunner()
+result = runner.run_single_model(
+    model_name='mymodel',
+    target_genes=['BRCA1']
+)
 ```
 
 ---
@@ -75,9 +227,10 @@ Step 5: determine_target_chromosomes()
         └── Determine which chromosomes to process
         └── Can infer from target genes if specified
 
-Step 6: load_spliceai_models()
-        └── Load 5 pre-trained Keras models (ensemble)
+Step 6: load_base_models()
+        └── Load pre-trained models (SpliceAI, OpenSpliceAI, or custom)
         └── Models predict donor/acceptor/neither probabilities
+        └── Supports both Keras and PyTorch frameworks
 ```
 
 ### Function Details

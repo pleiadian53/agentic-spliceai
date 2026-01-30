@@ -313,6 +313,22 @@ def extract_exon_annotations(
     
     records = []
     for record in iter_gtf_records(gtf_file, feature_types=['exon'], chromosomes=chromosomes):
+        # Handle RefSeq/MANE GTF format which lacks some metadata
+        # Default to protein_coding for MANE (curated protein-coding transcripts)
+        gene_biotype = record.get('gene_biotype', record.get('gene_type', ''))
+        if not gene_biotype:
+            gene_biotype = 'protein_coding'  # MANE default
+        
+        transcript_biotype = record.get('transcript_biotype', record.get('transcript_type', ''))
+        if not transcript_biotype:
+            transcript_biotype = 'protein_coding'  # MANE default
+        
+        # exon_id: MANE doesn't provide, generate synthetic or leave empty
+        exon_id = record.get('exon_id', '')
+        if not exon_id:
+            # Generate synthetic exon_id for MANE: transcript_id + exon coordinates
+            exon_id = f"{record.get('transcript_id', 'unknown')}:{record['start']}-{record['end']}"
+        
         records.append({
             'chrom': record['chrom'],
             'start': record['start'],
@@ -320,10 +336,10 @@ def extract_exon_annotations(
             'strand': record['strand'],
             'gene_id': record.get('gene_id', ''),
             'gene_name': record.get('gene_name', ''),
-            'gene_biotype': record.get('gene_biotype', record.get('gene_type', '')),
+            'gene_biotype': gene_biotype,
             'transcript_id': record.get('transcript_id', ''),
-            'transcript_biotype': record.get('transcript_biotype', record.get('transcript_type', '')),
-            'exon_id': record.get('exon_id', ''),
+            'transcript_biotype': transcript_biotype,
+            'exon_id': exon_id,
             'exon_number': int(record.get('exon_number', 0)) if str(record.get('exon_number', '')).isdigit() else 0,
             'exon_rank': int(record.get('exon_rank', record.get('exon_number', 0)))
             if str(record.get('exon_rank', record.get('exon_number', ''))).isdigit() else 0,
@@ -387,6 +403,14 @@ def extract_splice_sites_from_exons(
         transcript_biotype = exons[0].get('transcript_biotype', '')
         chrom = exons[0]['chrom']
         strand = exons[0]['strand']
+        
+        # Fix exon numbering for MANE/RefSeq (which doesn't provide explicit exon_number)
+        # Assign exon numbers based on position in sorted list
+        for i, exon in enumerate(exons):
+            if exon.get('exon_number', 0) == 0:
+                exon['exon_number'] = i + 1  # 1-based numbering
+            if exon.get('exon_rank', 0) == 0:
+                exon['exon_rank'] = i + 1
         
         for i, exon in enumerate(exons):
             # Donor site: end of exon (except last)

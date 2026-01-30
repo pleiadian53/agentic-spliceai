@@ -8,8 +8,10 @@ integrated from meta-spliceai.
 import sys
 from pathlib import Path
 
-# Add src to path for development
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add project to path - using marker-based root finding
+sys.path.insert(0, str(Path(__file__).parent))
+from _example_utils import setup_example_environment
+setup_example_environment()
 
 
 def example_1_basic_prediction():

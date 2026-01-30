@@ -95,7 +95,7 @@ class Registry:
             else:
                 # Fallback to defaults if not in config
                 mapping = {
-                    "splice_sites": "splice_sites.tsv",
+                    "splice_sites": "splice_sites_enhanced.tsv",  # Updated to enhanced format
                     "gene_features": "gene_features.tsv",
                     "transcript_features": "transcript_features.tsv",
                     "exon_features": "exon_features.tsv",

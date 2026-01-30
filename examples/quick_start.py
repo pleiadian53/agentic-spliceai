@@ -21,10 +21,14 @@ from agentic_spliceai.splice_analysis import (
 # Load environment variables
 load_dotenv()
 
-# Paths
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_PATH = PROJECT_ROOT / "data" / "splice_sites_enhanced.tsv"
-OUTPUT_DIR = PROJECT_ROOT / "output" / "quick_start"
+# Paths - using marker-based root finding for consistency
+import sys
+sys.path.insert(0, str(Path(__file__).parent))
+from _example_utils import get_project_root, get_data_dir, get_output_dir
+
+PROJECT_ROOT = get_project_root()
+DATA_PATH = get_data_dir() / "splice_sites_enhanced.tsv"
+OUTPUT_DIR = get_output_dir() / "quick_start"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 

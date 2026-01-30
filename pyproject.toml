@@ -119,7 +119,8 @@ Issues = "https://github.com/pleiadian53/agentic-spliceai/issues"
 # CLI entry points
 agentic-spliceai = "agentic_spliceai.cli:main"
 agentic-spliceai-server = "agentic_spliceai.server.splice_service:main"
-agentic-spliceai-predict = "agentic_spliceai.splice_engine.cli:main"
+agentic-spliceai-predict = "agentic_spliceai.splice_engine.cli.predict:main"
+agentic-spliceai-prepare = "agentic_spliceai.splice_engine.cli.prepare:main"
 nexus = "nexus.cli.main:main"
 nexus-server = "nexus.server.app:main"
 
@@ -184,6 +185,14 @@ extend-exclude = '''
   | dev
 )/
 '''
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agentic_spliceai*"]
+namespaces = false
 
 [tool.ruff]
 line-length = 100

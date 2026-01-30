@@ -63,6 +63,7 @@ runpods/environment-runpods-minimal.yml  # Minimal conda env for pods
 
 ```
 runpods/docs/                            # Setup guides
+runpods/docs/GITHUB_SSH_SETUP.md        # GitHub SSH access (essential!)
 runpods/AGENTIC_SPLICEAI_QUICK_START.md # Complete workflow
 runpods/CUSTOMIZATION_NOTES.md          # How to customize
 ```
@@ -94,9 +95,26 @@ These run **ON the pod**:
 # After SSH'ing to pod
 ssh runpod-agentic-spliceai-a40-48gb
 
-# Now on pod - run these commands:
+# 1. Setup GitHub SSH (for cloning private repos and pushing)
+# See: runpods.example/docs/GITHUB_SSH_SETUP.md for detailed guide
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_github -N ""
+cat ~/.ssh/id_ed25519_github.pub  # Add this to https://github.com/settings/ssh/new
+
+# 2. Configure SSH and Git
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_github
+  StrictHostKeyChecking no
+EOF
+
+git config --global user.name "pleiadian53"
+git config --global user.email "pleiadian53@users.noreply.github.com"
+
+# 3. Clone and setup environment
 cd /workspace
-git clone https://github.com/USER/agentic-spliceai.git
+git clone git@github.com:pleiadian53/agentic-spliceai.git
 cd agentic-spliceai
 mamba env create -f runpods/environment-runpods-minimal.yml
 mamba activate agenticspliceai
@@ -169,9 +187,25 @@ cd runpods/scripts
 # On local machine
 ssh runpod-agentic-spliceai-a40-48gb
 
-# Now on pod
+# Now on pod - setup GitHub SSH access first (see docs/GITHUB_SSH_SETUP.md)
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_github -N ""
+cat ~/.ssh/id_ed25519_github.pub  # Add to GitHub: https://github.com/settings/ssh/new
+
+# Configure SSH and Git
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_github
+  StrictHostKeyChecking no
+EOF
+
+git config --global user.name "pleiadian53"
+git config --global user.email "pleiadian53@users.noreply.github.com"
+
+# Clone and setup
 cd /workspace
-git clone <your-repo>
+git clone git@github.com:pleiadian53/agentic-spliceai.git
 cd agentic-spliceai
 mamba env create -f runpods/environment-runpods-minimal.yml
 mamba activate agenticspliceai

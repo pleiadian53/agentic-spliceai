@@ -1,12 +1,14 @@
 # Agentic-SpliceAI Setup Guide
 
+**Quick setup instructions for development and deployment**
+
 ## Overview
 
-**Agentic-SpliceAI** combines three powerful capabilities:
+**Agentic-SpliceAI** builds upon the [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) framework, combining:
 
-1. **Nexus Research Agent** - Literature review and synthesis of SoA splice site prediction
-2. **Meta-SpliceAI** - Advanced splice site prediction via meta-learning
-3. **Agentic Workflow** - LLM-powered analysis and insight generation
+1. **Extensible Base Layer** - Foundation models (SpliceAI, OpenSpliceAI, + extensible)
+2. **Adaptive Meta-Learning** - Foundation-Adaptor framework via multimodal deep learning
+3. **Agentic Workflows** - AI agents for validation and evidence synthesis
 
 ## Environment Setup
 
@@ -172,8 +174,26 @@ Large models may require significant RAM:
 - Recommended: 32GB RAM
 - With GPU: 64GB+ RAM for large-scale training
 
+## Verify Installation
+
+Run the setup verification script:
+
+```bash
+python scripts/setup/verify_setup.py
+```
+
+This checks:
+- Required packages installed
+- Import paths working
+- Data directories accessible
+- Environment variables set
+
 ## Resources
 
-- **Nexus Research**: `/Users/pleiadian53/work/agentic-ai-lab/src/nexus/agents/research/`
-- **Meta-SpliceAI**: `/Users/pleiadian53/work/meta-spliceai/`
-- **Documentation**: See `QUICKSTART.md` and `README.md`
+- **Documentation**: 
+  - [`README.md`](README.md) - Project overview and vision
+  - [`QUICKSTART.md`](QUICKSTART.md) - Quick start guide
+  - [`docs/STRUCTURE.md`](docs/STRUCTURE.md) - Complete project structure
+  - [`docs/`](docs/) - Comprehensive documentation
+- **Meta-SpliceAI**: https://github.com/pleiadian53/meta-spliceai
+- **Agentic AI Lab**: https://github.com/pleiadian53/agentic-ai-lab

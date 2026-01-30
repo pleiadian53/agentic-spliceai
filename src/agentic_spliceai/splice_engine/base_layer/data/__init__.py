@@ -61,6 +61,20 @@ from .position_types import (
     convert_positions_batch,
 )
 
+from .preparation import (
+    prepare_gene_data,
+    prepare_splice_site_annotations,
+    load_gene_annotations,
+    extract_sequences,
+    filter_by_genes,
+    filter_by_chromosomes,
+    normalize_chromosome_names,
+    get_gene_count,
+    get_genes_by_chromosome,
+    get_missing_sequences,
+    validate_gene_data,
+)
+
 __all__ = [
     # Data types
     'GeneManifestEntry',
@@ -90,4 +104,16 @@ __all__ = [
     'reverse_complement',
     'one_hot_encode',
     'load_chromosome_sequences',
+    # Data preparation (Phase 2)
+    'prepare_gene_data',
+    'prepare_splice_site_annotations',
+    'load_gene_annotations',
+    'extract_sequences',
+    'filter_by_genes',
+    'filter_by_chromosomes',
+    'normalize_chromosome_names',
+    'get_gene_count',
+    'get_genes_by_chromosome',
+    'get_missing_sequences',
+    'validate_gene_data',
 ]

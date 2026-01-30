@@ -1,8 +1,46 @@
 # Scripts Directory
 
-Utility scripts for the Agentic SpliceAI project.
+**Utility scripts for the Agentic SpliceAI project**
+
+## 📁 Organization
+
+```
+scripts/
+├── setup/              # Setup & verification scripts
+├── validation/         # Validation & testing utilities
+├── docs/               # Scripts documentation
+└── README.md           # This file
+```
 
 ## Available Scripts
+
+### 📦 `setup/` - Installation & Verification
+
+**Purpose**: Verify installation and environment setup
+
+**Scripts**:
+- `verify_setup.py` - Comprehensive setup verification
+
+**Usage**:
+```bash
+# Verify installation after setup
+python scripts/setup/verify_setup.py
+```
+
+**See**: [`setup/README.md`](setup/README.md) for details
+
+---
+
+### ✅ `validation/` - Validation & Testing
+
+**Purpose**: Validation scripts for base layer and predictions
+
+**Scripts**:
+- `compare_evaluation.py` - Compare prediction evaluation metrics
+
+**See**: [`validation/README.md`](validation/README.md) for details
+
+---
 
 ### 📄 `md_to_pdf.py` - Markdown to PDF Converter
 
