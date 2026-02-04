@@ -31,6 +31,7 @@ from agentic_spliceai.splice_engine.base_layer.data.preparation import (
     load_gene_annotations,
     filter_by_chromosomes,
 )
+from agentic_spliceai.splice_engine.resources.registry import get_genomic_registry
 import polars as pl
 
 
@@ -80,18 +81,24 @@ def main():
     
     # Load gene annotations for chromosome
     print(f"📂 Loading gene annotations for {args.chromosome}...")
+    
+    # Get GTF path using resource registry
+    registry = get_genomic_registry(build=config.genomic_build)
+    gtf_path = registry.get_gtf_path()
+    
+    print(f"   GTF: {gtf_path}")
+    
+    # Load annotations filtered to target chromosome (more efficient)
     genes_df = load_gene_annotations(
-        build=config.genomic_build,
-        annotation_source=config.annotation_source
+        gtf_path=gtf_path,
+        chromosomes=[args.chromosome],
+        verbosity=1
     )
     
-    # Filter by chromosome
-    chrom_genes = filter_by_chromosomes(genes_df, [args.chromosome])
-    
     # Select N genes
-    gene_list = chrom_genes['gene_name'].head(args.genes).to_list()
+    gene_list = genes_df['gene_name'].head(args.genes).to_list()
     
-    print(f"✓ Found {len(chrom_genes)} genes on {args.chromosome}")
+    print(f"✓ Found {len(genes_df)} genes on {args.chromosome}")
     print(f"✓ Selected {len(gene_list)} genes for prediction:")
     print(f"   {', '.join(gene_list)}")
     print()

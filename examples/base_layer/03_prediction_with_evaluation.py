@@ -39,15 +39,20 @@ from _example_utils import setup_example_environment
 setup_example_environment()
 
 from agentic_spliceai.splice_engine.base_layer.models.runner import BaseModelRunner
-from agentic_spliceai.splice_engine.base_layer.data.preparation import prepare_splice_site_annotations
+from agentic_spliceai.splice_engine.base_layer.data.preparation import (
+    prepare_splice_site_annotations,
+    prepare_gene_data
+)
 from agentic_spliceai.splice_engine.base_layer.prediction.evaluation import (
     evaluate_splice_site_predictions,
-    compute_pr_metrics
+    compute_pr_metrics,
+    compute_topk_accuracy,
+    compute_windowed_recall
 )
-from agentic_spliceai.splice_engine.base_layer.prediction.core import predict_splice_sites_for_genes
-from agentic_spliceai.splice_engine.base_layer.prediction.core import load_spliceai_models
-from agentic_spliceai.splice_engine.base_layer.data.preparation import load_gene_annotations, extract_sequences
-import polars as pl
+from agentic_spliceai.splice_engine.base_layer.prediction.core import (
+    predict_splice_sites_for_genes,
+    load_spliceai_models
+)
 
 
 def main():
@@ -138,14 +143,21 @@ def main():
     
     # Step 2: Prepare gene data and run predictions
     print("🧬 Preparing gene data...")
-    genes_df = load_gene_annotations()
-    genes_df = genes_df.filter(pl.col('gene_name').is_in(gene_list))
-    genes_df = extract_sequences(genes_df)
+    genes_df = prepare_gene_data(
+        genes=gene_list,
+        build=build,
+        annotation_source=annotation_source,
+        verbosity=1
+    )
     print(f"✓ Prepared {len(genes_df)} genes")
     print()
     
     print("🔧 Loading models...")
-    models = load_spliceai_models(model_type=args.model, verbosity=1)
+    models = load_spliceai_models(
+        model_type=args.model,
+        build=build,
+        verbosity=1
+    )
     print()
     
     print("🧬 Running predictions...")
@@ -171,6 +183,26 @@ def main():
         return_pr_metrics=True
     )
     
+    # Step 3b: Compute top-k accuracy (SpliceAI paper - ranking-based)
+    print("\n📐 Computing top-k accuracy (ranking-based)...")
+    topk_accuracy = compute_topk_accuracy(
+        predictions=predictions,
+        annotations_df=annotations_df,
+        k_multipliers=[0.5, 1.0, 2.0, 4.0],
+        min_score=0.1,
+        verbosity=1
+    )
+    
+    # Step 3c: Compute windowed recall (position tolerance)
+    print("\n📍 Computing windowed recall (position tolerance)...")
+    windowed_recall = compute_windowed_recall(
+        predictions=predictions,
+        annotations_df=annotations_df,
+        k_values=[1, 2, 5, 10, 20],
+        min_score=0.1,
+        verbosity=1
+    )
+    
     # Step 4: Display results
     print("\n" + "=" * 80)
     print("Results")
@@ -190,8 +222,8 @@ def main():
         fn = len(site_df.filter(pl.col('pred_type') == 'FN'))
         tn = len(site_df.filter(pl.col('pred_type') == 'TN'))
         
-        detected = tp + fp
-        true_total = tp + fn
+        detected = tp  # Only true positives are correctly detected true sites
+        true_total = tp + fn  # Total true sites in ground truth
         
         print(f"\n   {site_type.capitalize()} sites:")
         print(f"      True positives (TP):  {tp:>6}")
@@ -244,6 +276,32 @@ def main():
         print(f"   ─────────────────────────")
         print(f"   Macro AP: {pr_metrics['macro_ap']:.4f}")
         print(f"   Macro PR-AUC: {pr_metrics['macro_pr_auc']:.4f}")
+    
+    # Top-k accuracy (SpliceAI paper - ranking-based)
+    if topk_accuracy:
+        print(f"\n📐 Top-k Accuracy (SpliceAI paper - ranking-based):")
+        print(f"   k = k_multiplier × n_true_sites (rank cutoff)")
+        print(f"   Accuracy = % of true sites in top-k ranked predictions")
+        print(f"\n   {'k_mult':<8} {'Donor':>8} {'Acceptor':>10} {'Overall':>10}")
+        print(f"   {'-'*8} {'-'*8} {'-'*10} {'-'*10}")
+        for m in [0.5, 1.0, 2.0, 4.0]:
+            donor_acc = topk_accuracy['donor'].get(m, 0.0)
+            acceptor_acc = topk_accuracy['acceptor'].get(m, 0.0)
+            overall_acc = topk_accuracy['overall'].get(m, 0.0)
+            print(f"   {m:<8.1f} {donor_acc:>7.2%} {acceptor_acc:>10.2%} {overall_acc:>10.2%}")
+    
+    # Windowed recall (position tolerance)
+    if windowed_recall:
+        print(f"\n📍 Windowed Recall (position tolerance):")
+        print(f"   k = ±k nucleotides around true site")
+        print(f"   Recall = % of true sites with prediction in ±k window")
+        print(f"\n   {'k (bp)':<8} {'Donor':>8} {'Acceptor':>10} {'Overall':>10}")
+        print(f"   {'-'*8} {'-'*8} {'-'*10} {'-'*10}")
+        for k in [1, 2, 5, 10, 20]:
+            donor_recall = windowed_recall['donor'].get(k, 0.0)
+            acceptor_recall = windowed_recall['acceptor'].get(k, 0.0)
+            overall_recall = windowed_recall['overall'].get(k, 0.0)
+            print(f"   {k:<8} {donor_recall:>7.2%} {acceptor_recall:>10.2%} {overall_recall:>10.2%}")
     
     # Sample predictions
     if all_fp > 0:

@@ -448,6 +448,307 @@ def _print_evaluation_summary(positions_df: pl.DataFrame):
         print(f"  F1 Score: {f1:.4f}")
 
 
+def compute_topk_accuracy(
+    predictions: Dict[str, Dict],
+    annotations_df: pl.DataFrame,
+    k_multipliers: List[float] = [0.5, 1.0, 2.0, 4.0],
+    min_score: float = 0.1,
+    verbosity: int = 1
+) -> Dict[str, Dict[float, float]]:
+    """
+    Compute top-k accuracy as defined in the SpliceAI paper.
+    
+    Top-k accuracy: For each gene, rank positions by score and check if true
+    splice sites appear in the top-k predictions, where k = k_multiplier * k_true.
+    
+    This is the ranking-based metric from: Jaganathan et al., Cell 2019
+    
+    Definition:
+    1. For each gene and splice type (donor/acceptor)
+    2. Rank all positions by predicted score (descending)
+    3. Take top k = k_multiplier * n_true_sites positions
+    4. Top-k accuracy = fraction of true sites in that top-k set
+    
+    This measures: "Do true sites rank highly when we're allowed to predict
+    as many (or more) sites as truly exist?"
+    
+    Parameters
+    ----------
+    predictions : Dict[str, Dict]
+        Output from predict_splice_sites_for_genes()
+    annotations_df : pl.DataFrame
+        Ground truth splice site annotations
+    k_multipliers : List[float], default=[0.5, 1.0, 2.0, 4.0]
+        Multipliers for k_true to determine top-k cutoff
+        k = k_multiplier * n_true_sites in gene
+        Common values: 0.5 (strict), 1.0 (match true count), 2.0, 4.0 (lenient)
+    min_score : float, default=0.1
+        Minimum score threshold for considering a prediction
+        Prevents trivially high accuracy from "any positive probability"
+    verbosity : int, default=1
+        Verbosity level
+        
+    Returns
+    -------
+    Dict[str, Dict[float, float]]
+        Nested dict with structure:
+        {
+            'donor': {0.5: 0.65, 1.0: 0.85, 2.0: 0.95, 4.0: 0.98},
+            'acceptor': {0.5: 0.63, 1.0: 0.83, 2.0: 0.94, 4.0: 0.97},
+            'overall': {0.5: 0.64, 1.0: 0.84, 2.0: 0.945, 4.0: 0.975}
+        }
+        Keys are k_multipliers, values are accuracies
+        
+    Examples
+    --------
+    >>> topk = compute_topk_accuracy(predictions, annotations, k_multipliers=[1.0, 2.0])
+    >>> print(f"Top-k (k=1.0x true) accuracy (donor): {topk['donor'][1.0]:.2%}")
+    Top-k (k=1.0x true) accuracy (donor): 85.00%
+    
+    Notes
+    -----
+    This implements the SpliceAI paper metric where k is a rank cutoff,
+    not a nucleotide window. For each gene:
+    - Count true sites: n_true
+    - Rank all positions by score (descending)
+    - Take top k = k_multiplier * n_true positions
+    - Accuracy = fraction of true sites in that top-k set
+    """
+    if verbosity >= 1:
+        print("[eval] Computing top-k accuracy (ranking-based)...")
+    
+    # Standardize annotations
+    annotations_df = _standardize_annotations(annotations_df)
+    
+    results = {
+        'donor': {m: [] for m in k_multipliers},  # Store per-gene accuracies
+        'acceptor': {m: [] for m in k_multipliers},
+        'overall': {}
+    }
+    
+    # Group annotations by gene
+    gene_annotations = {}
+    for row in annotations_df.iter_rows(named=True):
+        gene_id = row['gene_id']
+        if gene_id not in gene_annotations:
+            gene_annotations[gene_id] = {'donor': set(), 'acceptor': set()}
+        splice_type = row['splice_type']
+        gene_annotations[gene_id][splice_type].add(row['position'])
+    
+    # Process each gene
+    for gene_id, gene_pred in predictions.items():
+        if gene_id not in gene_annotations:
+            continue
+        
+        positions = gene_pred.get('positions', [])
+        if len(positions) == 0:
+            continue
+        
+        # Process each splice type
+        for splice_type in ['donor', 'acceptor']:
+            true_sites = gene_annotations[gene_id][splice_type]
+            n_true = len(true_sites)
+            
+            if n_true == 0:
+                continue
+            
+            # Get scores for this splice type
+            score_key = f'{splice_type}_prob'
+            scores = gene_pred.get(score_key, [])
+            
+            if len(scores) == 0:
+                # No predictions for this gene - 0% accuracy for all k
+                for m in k_multipliers:
+                    results[splice_type][m].append(0.0)
+                continue
+            
+            # Filter by minimum score threshold
+            scored_positions = [
+                (pos, score) for pos, score in zip(positions, scores)
+                if score >= min_score
+            ]
+            
+            if len(scored_positions) == 0:
+                # No predictions above threshold - 0% accuracy
+                for m in k_multipliers:
+                    results[splice_type][m].append(0.0)
+                continue
+            
+            # Sort by score (descending)
+            scored_positions.sort(key=lambda x: x[1], reverse=True)
+            
+            # For each k multiplier
+            for m in k_multipliers:
+                k = int(m * n_true)
+                k = max(1, k)  # At least top-1
+                
+                # Take top-k positions
+                top_k_positions = set(pos for pos, score in scored_positions[:k])
+                
+                # Count how many true sites are in top-k
+                hits = len(true_sites & top_k_positions)
+                accuracy = hits / n_true
+                
+                results[splice_type][m].append(accuracy)
+    
+    # Average across genes for each multiplier
+    final_results = {
+        'donor': {},
+        'acceptor': {},
+        'overall': {}
+    }
+    
+    for splice_type in ['donor', 'acceptor']:
+        for m in k_multipliers:
+            accuracies = results[splice_type][m]
+            avg_accuracy = np.mean(accuracies) if len(accuracies) > 0 else 0.0
+            final_results[splice_type][m] = avg_accuracy
+    
+    # Compute overall (macro-average of donor and acceptor)
+    for m in k_multipliers:
+        donor_acc = final_results['donor'].get(m, 0.0)
+        acceptor_acc = final_results['acceptor'].get(m, 0.0)
+        final_results['overall'][m] = (donor_acc + acceptor_acc) / 2.0
+    
+    if verbosity >= 1:
+        print(f"[eval] Top-k accuracy computed for k_multipliers={k_multipliers}")
+    
+    return final_results
+
+
+def compute_windowed_recall(
+    predictions: Dict[str, Dict],
+    annotations_df: pl.DataFrame,
+    k_values: List[int] = [1, 2, 5, 10, 20, 50],
+    min_score: float = 0.1,
+    verbosity: int = 1
+) -> Dict[str, Dict[int, float]]:
+    """
+    Compute windowed recall (tolerance-based metric).
+    
+    Windowed recall: For each true splice site, check if there's a predicted
+    site within ±k nucleotides with score >= min_score.
+    
+    This is a position-tolerance metric (NOT the SpliceAI top-k accuracy).
+    
+    Definition:
+    - For each true splice site at position p
+    - Check if ANY prediction in window [p-k, p+k] has score >= min_score
+    - Windowed recall = fraction of true sites with nearby prediction
+    
+    Parameters
+    ----------
+    predictions : Dict[str, Dict]
+        Output from predict_splice_sites_for_genes()
+    annotations_df : pl.DataFrame
+        Ground truth splice site annotations
+    k_values : List[int], default=[1, 2, 5, 10, 20, 50]
+        List of window sizes (±k nucleotides) to compute recall for
+    min_score : float, default=0.1
+        Minimum score threshold for a prediction to count
+    verbosity : int, default=1
+        Verbosity level
+        
+    Returns
+    -------
+    Dict[str, Dict[int, float]]
+        Nested dict with structure:
+        {
+            'donor': {1: 0.75, 2: 0.85, 5: 0.92, ...},
+            'acceptor': {1: 0.72, 2: 0.83, 5: 0.90, ...},
+            'overall': {1: 0.735, 2: 0.84, 5: 0.91, ...}
+        }
+        
+    Examples
+    --------
+    >>> windowed = compute_windowed_recall(predictions, annotations, k_values=[2, 5])
+    >>> print(f"Recall within ±5bp: {windowed['donor'][5]:.2%}")
+    Recall within ±5bp: 92.00%
+    
+    Notes
+    -----
+    This metric is useful for understanding localization ability and
+    practical tolerance, but is NOT the SpliceAI paper's top-k accuracy.
+    """
+    if verbosity >= 1:
+        print("[eval] Computing windowed recall (position tolerance)...")
+    
+    # Standardize annotations
+    annotations_df = _standardize_annotations(annotations_df)
+    
+    results = {
+        'donor': {},
+        'acceptor': {},
+        'overall': {}
+    }
+    
+    # Process each splice type
+    for splice_type in ['donor', 'acceptor']:
+        type_annotations = annotations_df.filter(
+            pl.col('splice_type') == splice_type
+        )
+        
+        if type_annotations.height == 0:
+            for k in k_values:
+                results[splice_type][k] = 0.0
+            continue
+        
+        # For each k value
+        for k in k_values:
+            correct = 0
+            total = 0
+            
+            # Check each true splice site
+            for row in type_annotations.iter_rows(named=True):
+                gene_id = row['gene_id']
+                true_pos = row['position']
+                
+                if gene_id not in predictions:
+                    total += 1
+                    continue
+                
+                gene_pred = predictions[gene_id]
+                positions = gene_pred.get('positions', [])
+                
+                # Get scores for this splice type
+                score_key = f'{splice_type}_prob'
+                scores = gene_pred.get(score_key, [])
+                
+                if len(positions) == 0 or len(scores) == 0:
+                    total += 1
+                    continue
+                
+                # Find predictions within ±k window above threshold
+                window_start = true_pos - k
+                window_end = true_pos + k
+                
+                found = False
+                for pos, score in zip(positions, scores):
+                    if window_start <= pos <= window_end and score >= min_score:
+                        found = True
+                        break
+                
+                if found:
+                    correct += 1
+                
+                total += 1
+            
+            # Calculate recall for this k
+            recall = correct / total if total > 0 else 0.0
+            results[splice_type][k] = recall
+    
+    # Compute overall (macro-average of donor and acceptor)
+    for k in k_values:
+        donor_recall = results['donor'].get(k, 0.0)
+        acceptor_recall = results['acceptor'].get(k, 0.0)
+        results['overall'][k] = (donor_recall + acceptor_recall) / 2.0
+    
+    if verbosity >= 1:
+        print(f"[eval] Windowed recall computed for k_values={k_values}")
+    
+    return results
+
+
 def add_derived_features(
     positions_df: pl.DataFrame,
     verbosity: int = 1

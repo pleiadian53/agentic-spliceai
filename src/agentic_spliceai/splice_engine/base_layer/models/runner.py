@@ -202,7 +202,15 @@ class BaseModelRunner:
             
             # 2. Load models
             from ..prediction.core import load_spliceai_models
-            models = load_spliceai_models(model_type=model_name, verbosity=verbosity)
+            
+            # Determine build from model name
+            build = 'GRCh38' if model_name.lower() == 'openspliceai' else 'GRCh37'
+            
+            models = load_spliceai_models(
+                model_type=model_name,
+                build=build,
+                verbosity=verbosity
+            )
             
             if not models:
                 runtime = time.time() - start_time

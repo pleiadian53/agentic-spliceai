@@ -355,6 +355,7 @@ def _convert_to_dataframe(merged_results: Dict) -> pl.DataFrame:
 def load_spliceai_models(
     model_dir: Optional[str] = None,
     model_type: str = 'spliceai',
+    build: Optional[str] = None,
     verbosity: int = 1
 ) -> List:
     """
@@ -363,9 +364,11 @@ def load_spliceai_models(
     Parameters
     ----------
     model_dir : str, optional
-        Directory containing model files
+        Directory containing model files. If None, uses resource registry.
     model_type : str, default='spliceai'
         Model type: 'spliceai' or 'openspliceai'
+    build : str, optional
+        Genome build (e.g., 'GRCh38', 'GRCh37'). Used to initialize registry if model_dir is None.
     verbosity : int, default=1
         Verbosity level
         
@@ -373,9 +376,28 @@ def load_spliceai_models(
     -------
     List
         List of loaded models
+        
+    Examples
+    --------
+    >>> # Use resource registry (recommended)
+    >>> models = load_spliceai_models(model_type='openspliceai', build='GRCh38')
+    >>> 
+    >>> # Explicit path
+    >>> models = load_spliceai_models(
+    ...     model_type='openspliceai',
+    ...     model_dir='/path/to/models/openspliceai'
+    ... )
     """
-    import os
-    import glob
+    # Resolve model directory using registry if not explicitly provided
+    if model_dir is None:
+        from ...resources.registry import get_genomic_registry
+        
+        # Use build if provided, otherwise use config default
+        registry = get_genomic_registry(build=build)
+        model_dir = str(registry.get_model_weights_dir(model_type))
+        
+        if verbosity >= 2:
+            print(f"[load] Resolved model directory from registry: {model_dir}")
     
     if model_type.lower() == 'openspliceai':
         return _load_openspliceai_models(model_dir, verbosity)
