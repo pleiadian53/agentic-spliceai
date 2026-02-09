@@ -40,6 +40,11 @@ class Registry:
         self.cfg = load_config()
         if build:
             self.cfg.build = build
+            # If build is overridden but release is not, use build-specific default
+            if release is None and build in self.cfg.builds:
+                build_config = self.cfg.builds[build]
+                if 'default_release' in build_config:
+                    self.cfg.release = build_config['default_release']
         if release:
             self.cfg.release = release
         

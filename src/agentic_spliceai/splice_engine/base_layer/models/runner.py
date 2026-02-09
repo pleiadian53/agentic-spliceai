@@ -163,6 +163,12 @@ class BaseModelRunner:
         try:
             # Import here to avoid circular imports
             from .config import BaseModelConfig
+            from ...resources import get_model_resources
+            
+            # Get model-specific resources (build + annotation source)
+            model_resources = get_model_resources(model_name)
+            build = model_resources.build
+            annotation_source = model_resources.annotation_source
             
             # Create configuration
             config = BaseModelConfig(
@@ -186,7 +192,13 @@ class BaseModelRunner:
                 print(f"{'='*60}")
             
             # 1. Prepare gene data (load annotations + extract sequences)
-            gene_df = self._prepare_gene_data(config, target_genes=target_genes, verbosity=verbosity)
+            gene_df = self._prepare_gene_data(
+                config, 
+                build=build,
+                annotation_source=annotation_source,
+                target_genes=target_genes, 
+                verbosity=verbosity
+            )
             
             if gene_df is None or len(gene_df) == 0:
                 runtime = time.time() - start_time
@@ -202,9 +214,6 @@ class BaseModelRunner:
             
             # 2. Load models
             from ..prediction.core import load_spliceai_models
-            
-            # Determine build from model name
-            build = 'GRCh38' if model_name.lower() == 'openspliceai' else 'GRCh37'
             
             models = load_spliceai_models(
                 model_type=model_name,
@@ -351,20 +360,35 @@ class BaseModelRunner:
     def _prepare_gene_data(
         self,
         config: BaseModelConfig,
+        build: str,
+        annotation_source: str,
         target_genes: Optional[List[str]] = None,
         verbosity: int = 1
     ) -> Optional[pl.DataFrame]:
-        """Load gene annotations and extract sequences."""
+        """Load gene annotations and extract sequences.
+        
+        Parameters
+        ----------
+        config : BaseModelConfig
+            Model configuration
+        build : str
+            Genomic build (e.g., 'GRCh37', 'GRCh38_MANE')
+        annotation_source : str
+            Annotation source (e.g., 'ensembl', 'mane')
+        target_genes : Optional[List[str]]
+            Specific genes to process (None = all)
+        verbosity : int
+            Verbosity level
+        """
         from ...resources import get_genomic_registry
         from ..data.sequence_extraction import extract_gene_sequences
         
-        # Get registry for path resolution (use the build from config)
-        build = config.genomic_build  # This is a property, not a method
-        # For OpenSpliceAI, use MANE annotations with correct release
-        if config.base_model.lower() == 'openspliceai':
-            registry = get_genomic_registry(build='GRCh38_MANE', release='1.3')
-        else:
-            registry = get_genomic_registry(build='GRCh37', release='87')
+        # Get registry for path resolution using provided build and annotation source
+        # For MANE, build string already includes '_MANE' suffix (e.g., 'GRCh38_MANE')
+        if annotation_source.lower() == 'mane':
+            registry = get_genomic_registry(build=build, release='1.3')
+        else:  # Ensembl
+            registry = get_genomic_registry(build=build, release='87')
         gtf_path = registry.get_gtf_path(validate=True)
         fasta_path = registry.get_fasta_path(validate=True)
         

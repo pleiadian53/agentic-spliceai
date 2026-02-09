@@ -269,10 +269,19 @@ def load_config(path: str = None) -> Config:
         # Make relative to project root
         data_root = project_root / data_root
     
+    # Determine release: use build-specific default if available, otherwise global default
+    build = os.getenv("SS_BUILD", y["default_build"])
+    if "SS_RELEASE" in os.environ:
+        release = os.environ["SS_RELEASE"]
+    else:
+        # Check if build has its own default_release
+        build_config = y["builds"].get(build, {})
+        release = build_config.get("default_release", y["default_release"])
+    
     return Config(
         species=os.getenv("SS_SPECIES", y["species"]),
-        build=os.getenv("SS_BUILD", y["default_build"]),
-        release=os.getenv("SS_RELEASE", y["default_release"]),
+        build=build,
+        release=release,
         data_root=data_root,
         builds=y["builds"],
         derived_datasets=y.get("derived_datasets", {}),

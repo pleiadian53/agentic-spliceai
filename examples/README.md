@@ -22,6 +22,7 @@ examples/
 ├── base_layer/                        ← Base model prediction examples
 │   ├── 01_phase1_prediction.py       ← Phase 1: Single gene prediction
 │   ├── 02_chromosome_prediction.py   ← Phase 1: Chromosome-wide prediction
+│   ├── 03_prediction_with_evaluation.py  ← Phase 1: Prediction + Evaluation
 │   └── README.md
 │
 ├── data_preparation/                  ← Data prep workflows
@@ -29,6 +30,10 @@ examples/
 │   ├── 02_prepare_splice_sites.py    ← Phase 2: Splice site annotation
 │   ├── 03_full_data_pipeline.py      ← Phase 2: Complete pipeline
 │   ├── validate_mane_metadata.py     ← Validation: MANE vs Ensembl
+│   └── README.md
+│
+├── diagnostics/                       ← Diagnostic & troubleshooting tools
+│   ├── check_coordinate_consistency.py  ← Detect position offset issues
 │   └── README.md
 │
 ├── meta_layer/                        ← Meta-layer examples (Phase 5)
@@ -86,6 +91,21 @@ python validate_mane_metadata.py
 
 ---
 
+### Diagnostics
+
+**Check Coordinate Consistency**
+```bash
+cd examples/diagnostics
+
+# Check specific genes
+python check_coordinate_consistency.py --model spliceai --genes TP53 BRCA1
+
+# Quick check with sample
+python check_coordinate_consistency.py --model openspliceai --sample 20
+```
+
+---
+
 ## 📊 What vs Where
 
 ### "I want to predict splice sites for a gene"
@@ -103,6 +123,12 @@ python validate_mane_metadata.py
 
 ### "I want to test the complete Phase 2 workflow"
 → `data_preparation/03_full_data_pipeline.py`
+
+### "My model shows poor performance - is it a coordinate issue?"
+→ `diagnostics/check_coordinate_consistency.py`
+
+### "I'm adding a new base model - how do I validate it?"
+→ `diagnostics/check_coordinate_consistency.py`
 
 ---
 

@@ -20,6 +20,8 @@ from .core import (
 from .evaluation import (
     evaluate_splice_site_predictions,
     add_derived_features,
+    filter_annotations_by_transcript,
+    splice_site_gap_analysis,
 )
 
 __all__ = [
@@ -34,4 +36,6 @@ __all__ = [
     # Evaluation
     'evaluate_splice_site_predictions',
     'add_derived_features',
+    'filter_annotations_by_transcript',
+    'splice_site_gap_analysis',
 ]

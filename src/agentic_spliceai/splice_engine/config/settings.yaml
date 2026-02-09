@@ -70,10 +70,11 @@ builds:
     gtf: "Homo_sapiens.GRCh37.{release}.gtf"
     fasta: "Homo_sapiens.GRCh37.dna.primary_assembly.fa"
     ensembl_base: "https://ftp.ensembl.org/pub/grch37/release-{release}"
+    default_release: "87"  # Last Ensembl release for GRCh37
     subpaths:
       gtf: "gtf/homo_sapiens"
       fasta: "fasta/homo_sapiens/dna"
-    notes: "Ensembl GRCh37 annotation, matches SpliceAI training build"
+    notes: "Ensembl GRCh37 annotation, matches SpliceAI training build (release 87)"
     
   GRCh38_MANE:
     annotation_source: mane

@@ -749,6 +749,439 @@ def compute_windowed_recall(
     return results
 
 
+def filter_annotations_by_transcript(
+    annotations_df: pl.DataFrame,
+    mode: str = 'canonical',
+    transcript_ids: Optional[List[str]] = None,
+    verbosity: int = 1
+) -> pl.DataFrame:
+    """
+    Filter annotations to specific transcript(s).
+    
+    Many genes have multiple transcripts, each contributing splice site
+    annotations. SpliceAI primarily predicts canonical splice sites from the
+    major transcript. Evaluating against ALL transcripts inflates the
+    denominator and deflates recall.
+    
+    This function filters annotations to reduce evaluation to the most
+    relevant splice sites for a given analysis context.
+    
+    Parameters
+    ----------
+    annotations_df : pl.DataFrame
+        Full annotations with columns: gene_id, transcript_id, position, 
+        site_type/splice_type, etc.
+    mode : str, default='canonical'
+        Filtering mode:
+        - 'all': No filtering (return as-is)
+        - 'canonical': Keep only the transcript with the most splice sites
+          per gene (proxy for canonical/principal transcript)
+        - 'shared': Keep only positions that appear in 2+ transcripts
+          (high-confidence sites shared across isoforms)
+        - 'custom': Use the transcript_ids parameter
+    transcript_ids : list of str, optional
+        Explicit transcript IDs to keep (only used when mode='custom')
+    verbosity : int, default=1
+        Verbosity level
+        
+    Returns
+    -------
+    pl.DataFrame
+        Filtered annotations
+        
+    Notes
+    -----
+    The 'canonical' mode uses heuristics (most splice sites = likely
+    principal transcript). For precise filtering, use MANE Select or
+    APPRIS principal annotations if available.
+    """
+    # Standardize column names for internal processing
+    site_col = 'splice_type' if 'splice_type' in annotations_df.columns else 'site_type'
+    
+    if mode == 'all':
+        if verbosity >= 1:
+            print("[filter] Using all transcripts (no filtering)")
+        return annotations_df
+    
+    if mode == 'custom':
+        if transcript_ids is None:
+            raise ValueError("transcript_ids required when mode='custom'")
+        filtered = annotations_df.filter(pl.col('transcript_id').is_in(transcript_ids))
+        if verbosity >= 1:
+            print(f"[filter] Custom transcript filter: {annotations_df.height} -> {filtered.height} annotations")
+        return filtered
+    
+    if mode == 'canonical':
+        # For each gene, find the transcript with the most annotated sites
+        # This is a heuristic proxy for the canonical/principal transcript
+        if 'transcript_id' not in annotations_df.columns or 'gene_id' not in annotations_df.columns:
+            if verbosity >= 1:
+                print("[filter] Cannot filter: missing transcript_id or gene_id column")
+            return annotations_df
+        
+        # Count unique positions per (gene, transcript)
+        gene_transcript_counts = (
+            annotations_df
+            .group_by(['gene_id', 'transcript_id'])
+            .agg(pl.col('position').n_unique().alias('n_sites'))
+        )
+        
+        # For each gene, keep the transcript with the most sites
+        canonical_transcripts = (
+            gene_transcript_counts
+            .sort(['gene_id', 'n_sites'], descending=[False, True])
+            .group_by('gene_id')
+            .first()
+            .select(['gene_id', 'transcript_id'])
+        )
+        
+        # Join back to filter annotations
+        filtered = annotations_df.join(
+            canonical_transcripts, on=['gene_id', 'transcript_id'], how='inner'
+        )
+        
+        if verbosity >= 1:
+            n_genes = canonical_transcripts.height
+            print(f"[filter] Canonical transcript filter: {annotations_df.height} -> {filtered.height} annotations "
+                  f"({n_genes} gene(s), 1 transcript each)")
+            for row in canonical_transcripts.iter_rows(named=True):
+                gene_sites = filtered.filter(pl.col('gene_id') == row['gene_id'])
+                n_unique = gene_sites['position'].n_unique()
+                print(f"   {row['gene_id']}: {row['transcript_id']} ({n_unique} unique sites)")
+        
+        return filtered
+    
+    if mode == 'shared':
+        # Keep only positions that appear in 2+ transcripts
+        # These are high-confidence sites shared across isoforms
+        if 'transcript_id' not in annotations_df.columns:
+            if verbosity >= 1:
+                print("[filter] Cannot filter: missing transcript_id column")
+            return annotations_df
+        
+        # Count transcripts per (gene, position, site_type)
+        pos_transcript_counts = (
+            annotations_df
+            .group_by(['gene_id', 'position', site_col])
+            .agg(pl.col('transcript_id').n_unique().alias('n_transcripts'))
+        )
+        
+        # Keep positions with 2+ transcripts
+        shared_positions = pos_transcript_counts.filter(pl.col('n_transcripts') >= 2)
+        
+        filtered = annotations_df.join(
+            shared_positions.select(['gene_id', 'position', site_col]),
+            on=['gene_id', 'position', site_col],
+            how='inner'
+        )
+        
+        if verbosity >= 1:
+            n_unique_before = annotations_df.select(['gene_id', 'position', site_col]).unique().height
+            n_unique_after = shared_positions.height
+            print(f"[filter] Shared-position filter: {n_unique_before} -> {n_unique_after} unique sites "
+                  f"(positions in 2+ transcripts)")
+        
+        return filtered
+    
+    raise ValueError(f"Unknown filter mode: {mode}. Use 'all', 'canonical', 'shared', or 'custom'.")
+
+
+def splice_site_gap_analysis(
+    predictions: Dict[str, Dict],
+    annotations_df: pl.DataFrame,
+    threshold: float = 0.5,
+    nearby_window: int = 5,
+    verbosity: int = 1
+) -> Dict[str, Any]:
+    """
+    Analyze the gap between base model predictions and ground truth annotations.
+    
+    For each gene, categorizes missed splice sites by:
+    - How many transcripts share that position (canonical vs alternative)
+    - Whether ANY nearby signal exists (meta-layer recovery potential)
+    - Score distribution at missed sites
+    
+    This analysis directly informs what the meta/agentic layers need to address.
+    
+    Parameters
+    ----------
+    predictions : Dict[str, Dict]
+        Output from predict_splice_sites_for_genes()
+    annotations_df : pl.DataFrame
+        Ground truth annotations (all transcripts)
+    threshold : float, default=0.5
+        Score threshold for detection
+    nearby_window : int, default=5
+        Window (bp) to search for nearby signals at missed sites
+        
+    Returns
+    -------
+    Dict with keys:
+        'summary': Overall summary dict
+        'per_gene': Per-gene breakdown dicts
+        'missed_sites': DataFrame of missed sites with metadata
+        'recovery_potential': Assessment of what meta/agentic layers can address
+    
+    Notes
+    -----
+    This is designed to produce the kind of analysis shown in the example:
+    
+        "The 14 missed donor positions:
+         - 8 from a single minor transcript (score = 0.0 within ±5bp)
+         - 6 from 2-4 alternative transcripts with non-canonical patterns"
+    
+    It also assesses recovery potential for the meta layer by checking if there
+    is ANY signal (however weak) near missed sites that could serve as features.
+    """
+    # Standardize column names
+    annotations_df = _standardize_annotations(annotations_df)
+    site_col = 'splice_type'
+    
+    all_missed_sites = []
+    per_gene_results = {}
+    
+    # Build transcript mapping for each position
+    pos_transcript_map = {}  # (gene_id, position, splice_type) -> set of transcript_ids
+    for row in annotations_df.iter_rows(named=True):
+        key = (row['gene_id'], row['position'], row[site_col])
+        if key not in pos_transcript_map:
+            pos_transcript_map[key] = set()
+        if 'transcript_id' in row and row['transcript_id']:
+            pos_transcript_map[key].add(row['transcript_id'])
+    
+    for gene_id, gene_data in predictions.items():
+        positions = gene_data.get('positions', [])
+        strand = gene_data.get('strand', '+')
+        gene_name = gene_data.get('gene_name', gene_id)
+        
+        if len(positions) == 0:
+            continue
+        
+        pos_to_idx = {p: i for i, p in enumerate(positions)}
+        gene_result = {'gene_name': gene_name, 'strand': strand}
+        
+        for splice_type in ['donor', 'acceptor']:
+            probs = np.array(gene_data.get(f'{splice_type}_prob', []))
+            if len(probs) == 0:
+                continue
+            
+            # Get unique true positions for this gene/type
+            gene_annots = annotations_df.filter(
+                (pl.col('gene_id') == gene_id) &
+                (pl.col(site_col).str.to_lowercase() == splice_type)
+            )
+            unique_positions = sorted(set(gene_annots['position'].to_list()))
+            
+            detected = []
+            missed = []
+            
+            for true_pos in unique_positions:
+                key = (gene_id, true_pos, splice_type)
+                transcripts = pos_transcript_map.get(key, set())
+                n_transcripts = len(transcripts)
+                
+                # Check score at this position and nearby
+                score_at_pos = 0.0
+                max_nearby_score = 0.0
+                max_nearby_offset = 0
+                nearby_signals = []  # Positions with score >= 0.01
+                
+                if true_pos in pos_to_idx:
+                    idx = pos_to_idx[true_pos]
+                    score_at_pos = float(probs[idx])
+                
+                for off in range(-nearby_window, nearby_window + 1):
+                    check_pos = true_pos + off
+                    if check_pos in pos_to_idx:
+                        s = float(probs[pos_to_idx[check_pos]])
+                        if s > max_nearby_score:
+                            max_nearby_score = s
+                            max_nearby_offset = off
+                        if s >= 0.01:
+                            nearby_signals.append((off, s))
+                
+                site_info = {
+                    'gene_id': gene_id,
+                    'gene_name': gene_name,
+                    'strand': strand,
+                    'splice_type': splice_type,
+                    'position': true_pos,
+                    'score_at_position': score_at_pos,
+                    'max_nearby_score': max_nearby_score,
+                    'max_nearby_offset': max_nearby_offset,
+                    'n_transcripts': n_transcripts,
+                    'n_nearby_signals': len(nearby_signals),
+                    'has_weak_signal': max_nearby_score >= 0.01,
+                    'has_moderate_signal': max_nearby_score >= 0.1,
+                }
+                
+                if score_at_pos >= threshold:
+                    detected.append(site_info)
+                else:
+                    missed.append(site_info)
+                    all_missed_sites.append(site_info)
+            
+            # Categorize missed sites
+            single_transcript_missed = [m for m in missed if m['n_transcripts'] <= 1]
+            multi_transcript_missed = [m for m in missed if m['n_transcripts'] >= 2]
+            no_signal_missed = [m for m in missed if not m['has_weak_signal']]
+            weak_signal_missed = [m for m in missed if m['has_weak_signal'] and not m['has_moderate_signal']]
+            moderate_signal_missed = [m for m in missed if m['has_moderate_signal'] and m['score_at_position'] < threshold]
+            
+            gene_result[splice_type] = {
+                'total_unique': len(unique_positions),
+                'detected': len(detected),
+                'missed': len(missed),
+                'recall': len(detected) / len(unique_positions) if unique_positions else 0,
+                'single_transcript_missed': len(single_transcript_missed),
+                'multi_transcript_missed': len(multi_transcript_missed),
+                'no_signal': len(no_signal_missed),
+                'weak_signal_only': len(weak_signal_missed),
+                'moderate_signal': len(moderate_signal_missed),
+                'missed_details': missed,
+            }
+        
+        per_gene_results[gene_id] = gene_result
+    
+    # Overall summary
+    total_unique = sum(g.get(st, {}).get('total_unique', 0) 
+                       for g in per_gene_results.values() for st in ['donor', 'acceptor'])
+    total_detected = sum(g.get(st, {}).get('detected', 0) 
+                         for g in per_gene_results.values() for st in ['donor', 'acceptor'])
+    total_missed = sum(g.get(st, {}).get('missed', 0) 
+                       for g in per_gene_results.values() for st in ['donor', 'acceptor'])
+    total_no_signal = sum(g.get(st, {}).get('no_signal', 0) 
+                          for g in per_gene_results.values() for st in ['donor', 'acceptor'])
+    total_weak = sum(g.get(st, {}).get('weak_signal_only', 0) 
+                     for g in per_gene_results.values() for st in ['donor', 'acceptor'])
+    total_moderate = sum(g.get(st, {}).get('moderate_signal', 0) 
+                         for g in per_gene_results.values() for st in ['donor', 'acceptor'])
+    total_single_tx = sum(g.get(st, {}).get('single_transcript_missed', 0) 
+                          for g in per_gene_results.values() for st in ['donor', 'acceptor'])
+    total_multi_tx = sum(g.get(st, {}).get('multi_transcript_missed', 0) 
+                         for g in per_gene_results.values() for st in ['donor', 'acceptor'])
+    
+    summary = {
+        'total_unique_sites': total_unique,
+        'detected': total_detected,
+        'missed': total_missed,
+        'overall_recall': total_detected / total_unique if total_unique > 0 else 0,
+        'missed_no_signal': total_no_signal,
+        'missed_weak_signal': total_weak,
+        'missed_moderate_signal': total_moderate,
+        'missed_single_transcript': total_single_tx,
+        'missed_multi_transcript': total_multi_tx,
+    }
+    
+    # Recovery potential assessment
+    recovery = {
+        'score_based_recoverable': total_moderate,
+        'context_feature_potential': total_weak + total_no_signal,
+        'no_base_model_signal': total_no_signal,
+        'assessment': [],
+    }
+    
+    if total_moderate > 0:
+        recovery['assessment'].append(
+            f"{total_moderate} site(s) have moderate signal (0.1-{threshold}) - "
+            f"meta layer can likely recover these using score-based features"
+        )
+    if total_weak > 0:
+        recovery['assessment'].append(
+            f"{total_weak} site(s) have only weak signal (0.01-0.1) - "
+            f"meta layer may recover with contextual sequence features"
+        )
+    if total_no_signal > 0:
+        recovery['assessment'].append(
+            f"{total_no_signal} site(s) have NO base model signal (<0.01 within ±{nearby_window}bp) - "
+            f"requires external evidence (conservation, epigenomics, variant data) or "
+            f"alternative base models"
+        )
+    
+    # Create missed sites DataFrame
+    missed_df = pl.DataFrame(all_missed_sites) if all_missed_sites else pl.DataFrame()
+    
+    # Print report if verbose
+    if verbosity >= 1:
+        _print_gap_analysis_report(summary, per_gene_results, recovery, threshold, nearby_window)
+    
+    return {
+        'summary': summary,
+        'per_gene': per_gene_results,
+        'missed_sites': missed_df,
+        'recovery_potential': recovery,
+    }
+
+
+def _print_gap_analysis_report(
+    summary: Dict,
+    per_gene: Dict,
+    recovery: Dict,
+    threshold: float,
+    nearby_window: int
+):
+    """Print formatted gap analysis report."""
+    print(f"\n{'='*70}")
+    print(f"  Splice Site Gap Analysis (Base Model vs All Transcripts)")
+    print(f"{'='*70}")
+    
+    total = summary['total_unique_sites']
+    detected = summary['detected']
+    missed = summary['missed']
+    recall = summary['overall_recall']
+    
+    print(f"\n  Overall: {detected}/{total} unique sites detected ({recall:.1%})")
+    print(f"  Missed:  {missed} sites")
+    
+    if missed > 0:
+        print(f"\n  Missed site breakdown:")
+        st = summary['missed_single_transcript']
+        mt = summary['missed_multi_transcript']
+        ns = summary['missed_no_signal']
+        ws = summary['missed_weak_signal']
+        ms = summary['missed_moderate_signal']
+        
+        print(f"    By transcript sharing:")
+        print(f"      Single-transcript only: {st:>3} ({100*st/missed:.0f}%) - alternative isoform-specific")
+        print(f"      Multi-transcript (2+):  {mt:>3} ({100*mt/missed:.0f}%) - shared but below threshold")
+        print(f"    By base model signal (within ±{nearby_window}bp):")
+        print(f"      No signal (<0.01):      {ns:>3} ({100*ns/missed:.0f}%) - invisible to base model")
+        print(f"      Weak (0.01-0.1):        {ws:>3} ({100*ws/missed:.0f}%) - faint hint exists")
+        print(f"      Moderate (0.1-{threshold}):     {ms:>3} ({100*ms/missed:.0f}%) - near threshold")
+    
+    # Per-gene details
+    for gene_id, gene_data in per_gene.items():
+        gene_name = gene_data.get('gene_name', gene_id)
+        strand = gene_data.get('strand', '?')
+        print(f"\n  --- {gene_name} ({gene_id}, {strand} strand) ---")
+        
+        for splice_type in ['donor', 'acceptor']:
+            if splice_type not in gene_data:
+                continue
+            st_data = gene_data[splice_type]
+            total_st = st_data['total_unique']
+            det_st = st_data['detected']
+            recall_st = st_data['recall']
+            
+            print(f"    {splice_type.capitalize()}: {det_st}/{total_st} ({recall_st:.0%})")
+            
+            missed_details = st_data.get('missed_details', [])
+            if missed_details:
+                for m in missed_details:
+                    sig = "no signal" if not m['has_weak_signal'] else \
+                          f"weak ({m['max_nearby_score']:.3f}@{m['max_nearby_offset']:+d})" if not m['has_moderate_signal'] else \
+                          f"moderate ({m['score_at_position']:.3f}, nearby max {m['max_nearby_score']:.3f}@{m['max_nearby_offset']:+d})"
+                    print(f"      {m['position']:>10}: {m['n_transcripts']} transcript(s), {sig}")
+    
+    # Recovery potential
+    if recovery['assessment']:
+        print(f"\n  Meta/Agentic Layer Recovery Potential:")
+        for line in recovery['assessment']:
+            print(f"    - {line}")
+    
+    print(f"\n{'='*70}")
+
+
 def add_derived_features(
     positions_df: pl.DataFrame,
     verbosity: int = 1
