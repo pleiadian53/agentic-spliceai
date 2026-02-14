@@ -1,0 +1,3004 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Context-Aware Novel Isoform Discovery for Drug Target Identification">
+      
+      
+        <meta name="author" content="pleiadian53">
+      
+      
+        <link rel="canonical" href="https://pleiadian53.github.io/agentic-spliceai/isoform_discovery/">
+      
+      
+        <link rel="prev" href="../base_layer/PROCESSING_ARCHITECTURE/">
+      
+      
+        <link rel="next" href="../agency/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Overview - Agentic-SpliceAI</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#isoform-discovery-context-aware-splice-prediction" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Agentic-SpliceAI" class="md-header__button md-logo" aria-label="Agentic-SpliceAI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Agentic-SpliceAI
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pleiadian53/agentic-spliceai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pleiadian53/agentic-spliceai
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../QUICKSTART/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../PACKAGE_ORGANIZATION/" class="md-tabs__link">
+          
+  
+  
+  Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../base_layer/DATA_PREPARATION_CLI/" class="md-tabs__link">
+          
+  
+  
+  Base Layer
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Isoform Discovery
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../agency/" class="md-tabs__link">
+          
+  
+  
+  Agency
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../installation/LATEX_SETUP/" class="md-tabs__link">
+          
+  
+  
+  Installation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../CONTRIBUTING/" class="md-tabs__link">
+          
+  
+  
+  About
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Agentic-SpliceAI" class="md-nav__button md-logo" aria-label="Agentic-SpliceAI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Agentic-SpliceAI
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pleiadian53/agentic-spliceai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pleiadian53/agentic-spliceai
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../QUICKSTART/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../SETUP/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../PACKAGE_ORGANIZATION/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Package Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../STRUCTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../SPLICE_PREDICTION_GUIDE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splice Prediction Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../RUNPODS_SETUP/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RunPods Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Base Layer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Base Layer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../base_layer/DATA_PREPARATION_CLI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Preparation CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../base_layer/PROCESSING_ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processing Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Isoform Discovery
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Isoform Discovery
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#vision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🎯 Vision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-state-vs-future-vision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📊 Current State vs Future Vision
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📊 Current State vs Future Vision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#current-canonical-isoform-prediction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current: Canonical Isoform Prediction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#future-context-aware-isoform-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future: Context-Aware Isoform Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🏗️ Proposed Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🏗️ Proposed Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-1-meta-layer-novel-splice-site-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 1: Meta Layer - Novel Splice Site Detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-2-agentic-layer-evidence-aggregation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 2: Agentic Layer - Evidence Aggregation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-integration-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🔬 Data Integration Strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🔬 Data Integration Strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#primary-data-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Primary Data Sources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-processing-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Processing Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📋 Use Cases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📋 Use Cases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-disease-specific-isoforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Disease-Specific Isoforms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-variant-induced-splicing-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Variant-Induced Splicing Changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-tissue-specific-isoform-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Tissue-Specific Isoform Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🛠️ Implementation Roadmap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🛠️ Implementation Roadmap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-meta-layer-foundation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 (Meta Layer) - Foundation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-8-new-isoform-discovery-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 8 (NEW) - Isoform Discovery &amp; Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#success-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📊 Success Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📊 Success Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#discovery-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovery Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#research-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🔬 Research Questions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🔬 Research Questions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#biological-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Biological Questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technical-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technical Questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📚 Related Work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📚 Related Work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#literature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Literature
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#databases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Databases
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-innovations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        💡 Key Innovations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="💡 Key Innovations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-context-aware-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Context-Aware Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-multi-modal-evidence-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Multi-Modal Evidence Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-agentic-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Agentic Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🎯 Next Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🎯 Next Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#immediate-research-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Immediate (Research Phase)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#short-term-phase-5-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Short Term (Phase 5 Integration)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#long-term-phase-8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long Term (Phase 8)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📁 Documentation Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#collaboration-opportunities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🤝 Collaboration Opportunities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🤝 Collaboration Opportunities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#academic-partners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Academic Partners
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clinical-partners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clinical Partners
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#industry-partners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Industry Partners
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agency
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agency
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agency/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agency/AGENTIC_MEMORY_TUTORIAL/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agency/MEMORY_PATTERNS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/LATEX_SETUP/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LaTeX Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    About
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#vision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🎯 Vision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-state-vs-future-vision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📊 Current State vs Future Vision
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📊 Current State vs Future Vision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#current-canonical-isoform-prediction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current: Canonical Isoform Prediction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#future-context-aware-isoform-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future: Context-Aware Isoform Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🏗️ Proposed Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🏗️ Proposed Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-1-meta-layer-novel-splice-site-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 1: Meta Layer - Novel Splice Site Detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-2-agentic-layer-evidence-aggregation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 2: Agentic Layer - Evidence Aggregation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-integration-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🔬 Data Integration Strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🔬 Data Integration Strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#primary-data-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Primary Data Sources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-processing-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Processing Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📋 Use Cases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📋 Use Cases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-disease-specific-isoforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Disease-Specific Isoforms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-variant-induced-splicing-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Variant-Induced Splicing Changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-tissue-specific-isoform-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Tissue-Specific Isoform Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🛠️ Implementation Roadmap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🛠️ Implementation Roadmap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-meta-layer-foundation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 (Meta Layer) - Foundation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-8-new-isoform-discovery-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 8 (NEW) - Isoform Discovery &amp; Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#success-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📊 Success Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📊 Success Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#discovery-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovery Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#research-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🔬 Research Questions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🔬 Research Questions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#biological-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Biological Questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technical-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technical Questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📚 Related Work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📚 Related Work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#literature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Literature
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#databases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Databases
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-innovations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        💡 Key Innovations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="💡 Key Innovations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-context-aware-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Context-Aware Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-multi-modal-evidence-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Multi-Modal Evidence Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-agentic-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Agentic Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🎯 Next Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🎯 Next Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#immediate-research-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Immediate (Research Phase)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#short-term-phase-5-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Short Term (Phase 5 Integration)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#long-term-phase-8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long Term (Phase 8)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        📁 Documentation Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#collaboration-opportunities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        🤝 Collaboration Opportunities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🤝 Collaboration Opportunities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#academic-partners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Academic Partners
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clinical-partners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clinical Partners
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#industry-partners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Industry Partners
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/pleiadian53/agentic-spliceai/edit/main/docs/isoform_discovery/README.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="isoform-discovery-context-aware-splice-prediction">Isoform Discovery: Context-Aware Splice Prediction<a class="headerlink" href="#isoform-discovery-context-aware-splice-prediction" title="Permanent link">&para;</a></h1>
+<p><strong>Status</strong>: Research &amp; Planning Phase<br />
+<strong>Goal</strong>: Discover novel isoforms induced by variants, disease, stress, and other external factors</p>
+<hr />
+<h2 id="vision">🎯 Vision<a class="headerlink" href="#vision" title="Permanent link">&para;</a></h2>
+<p><strong>Problem</strong>: Current annotations (MANE, Ensembl) capture known isoforms, but miss:
+- Disease-specific isoforms
+- Variant-induced alternative splicing
+- Stress-response transcripts
+- Tissue-specific rare isoforms
+- Developmental stage-specific variants
+- Environmental condition-specific splicing</p>
+<p><strong>Solution</strong>: Use Meta-SpliceAI's adaptive prediction to discover novel isoforms by:
+1. <strong>Meta Layer</strong>: Detect context-dependent splice sites beyond canonical annotations
+2. <strong>Agentic Layer</strong>: Validate predictions with literature and experimental evidence
+3. <strong>Integration</strong>: Combine with RNA-seq, clinical variants, and disease databases</p>
+<hr />
+<h2 id="current-state-vs-future-vision">📊 Current State vs Future Vision<a class="headerlink" href="#current-state-vs-future-vision" title="Permanent link">&para;</a></h2>
+<h3 id="current-canonical-isoform-prediction">Current: Canonical Isoform Prediction<a class="headerlink" href="#current-canonical-isoform-prediction" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Base Layer (MANE)
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    ↓
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Predict 1-2 canonical transcripts per gene
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    ↓
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Validated against known annotations
+</span></code></pre></div>
+<p><strong>Coverage</strong>: ~44 splice sites per gene (BRCA1 example)</p>
+<hr />
+<h3 id="future-context-aware-isoform-discovery">Future: Context-Aware Isoform Discovery<a class="headerlink" href="#future-context-aware-isoform-discovery" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Base Layer (MANE baseline)
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    ↓
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Meta Layer (adaptive refinement)
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    ↓
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>Novel Splice Site Detection
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    ↓
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>Isoform Reconstruction
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    ↓
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>Agentic Validation (literature + experimental)
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    ↓
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>Novel Isoform Catalog
+</span></code></pre></div>
+<p><strong>Potential Coverage</strong>: 1,218+ splice sites per gene (Ensembl-level + novel discoveries)</p>
+<hr />
+<h2 id="proposed-architecture">🏗️ Proposed Architecture<a class="headerlink" href="#proposed-architecture" title="Permanent link">&para;</a></h2>
+<h3 id="layer-1-meta-layer-novel-splice-site-detection">Layer 1: Meta Layer - Novel Splice Site Detection<a class="headerlink" href="#layer-1-meta-layer-novel-splice-site-detection" title="Permanent link">&para;</a></h3>
+<p><strong>Goal</strong>: Identify high-confidence splice sites beyond MANE canonical set</p>
+<p><strong>Components</strong>:</p>
+<ol>
+<li><strong>Delta Score Analysis</strong></li>
+<li>Compare meta-layer predictions to base-layer</li>
+<li>High delta = context-dependent splice site</li>
+<li>
+<p>Flag sites with high confidence but not in MANE</p>
+</li>
+<li>
+<p><strong>Context Clustering</strong></p>
+</li>
+<li>Group similar contexts (same variants, disease, tissue)</li>
+<li>Identify context-specific splice patterns</li>
+<li>
+<p>Discover condition-dependent isoforms</p>
+</li>
+<li>
+<p><strong>Isoform Reconstruction</strong></p>
+</li>
+<li>Assemble detected splice sites into full transcripts</li>
+<li>Validate transcript structure (ORF, NMD rules)</li>
+<li>
+<p>Generate novel isoform annotations</p>
+</li>
+<li>
+<p><strong>Confidence Scoring</strong></p>
+</li>
+<li>Multi-factor confidence score:<ul>
+<li>Meta-layer prediction strength</li>
+<li>Conservation across species</li>
+<li>RNA-seq evidence (if available)</li>
+<li>Splice motif strength</li>
+<li>Consistency with biological rules</li>
+</ul>
+</li>
+</ol>
+<p><strong>Output</strong>:
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Novel Splice Sites:
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>- Position: chr17:43,067,608 (donor)
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>- Confidence: 0.92
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>- Context: BRCA1-c.68_69del variant
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>- Evidence: High delta score (0.45), strong motif
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>- Status: Candidate for validation
+</span></code></pre></div></p>
+<hr />
+<h3 id="layer-2-agentic-layer-evidence-aggregation">Layer 2: Agentic Layer - Evidence Aggregation<a class="headerlink" href="#layer-2-agentic-layer-evidence-aggregation" title="Permanent link">&para;</a></h3>
+<p><strong>Goal</strong>: Validate novel isoforms with external evidence</p>
+<p><strong>Components</strong>:</p>
+<ol>
+<li><strong>Literature Research Agent</strong></li>
+<li>Query PubMed for reports of:<ul>
+<li>Novel isoforms in gene of interest</li>
+<li>Disease-associated alternative splicing</li>
+<li>Functional impact of splice variants</li>
+</ul>
+</li>
+<li>Extract evidence from papers</li>
+<li>
+<p>Build evidence graph</p>
+</li>
+<li>
+<p><strong>Database Integration Agent</strong></p>
+</li>
+<li><strong>RNA-seq Data</strong>:<ul>
+<li>GTEX (tissue-specific expression)</li>
+<li>Cancer atlases (tumor-specific isoforms)</li>
+<li>Disease cohorts</li>
+</ul>
+</li>
+<li><strong>Variant Databases</strong>:<ul>
+<li>ClinVar (pathogenic splice variants)</li>
+<li>gnomAD (population-level splice variants)</li>
+</ul>
+</li>
+<li>
+<p><strong>Isoform Databases</strong>:</p>
+<ul>
+<li>GENCODE (comprehensive annotations)</li>
+<li>RefSeq (curated transcripts)</li>
+</ul>
+</li>
+<li>
+<p><strong>Validation Workflow Agent</strong></p>
+</li>
+<li>Propose validation experiments:<ul>
+<li>RT-PCR primers for novel junction</li>
+<li>Minigene assay design</li>
+<li>CRISPR screens for splice modifiers</li>
+</ul>
+</li>
+<li>
+<p>Prioritize candidates by:</p>
+<ul>
+<li>Clinical relevance</li>
+<li>Functional impact</li>
+<li>Validation feasibility</li>
+</ul>
+</li>
+<li>
+<p><strong>Evidence Aggregation</strong></p>
+</li>
+<li>Combine predictions with external evidence</li>
+<li>Score novel isoforms by evidence strength:<ul>
+<li>RNA-seq support: High (direct evidence)</li>
+<li>Literature support: Medium (indirect evidence)</li>
+<li>Prediction only: Low (needs validation)</li>
+</ul>
+</li>
+</ol>
+<p><strong>Output</strong>:
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Novel Isoform Report:
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>- Gene: BRCA1
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>- Novel Junction: chr17:43,067,608-43,082,575
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>- Context: Tumor samples, BRCA1-mutant
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>- Meta-Layer Confidence: 0.92
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>- RNA-seq Evidence: 15/120 tumor samples (12.5%)
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>- Literature: 3 papers report similar junction
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>- Validation Priority: HIGH (clinical relevance)
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>- Proposed Experiment: RT-PCR primers designed
+</span></code></pre></div></p>
+<hr />
+<h2 id="data-integration-strategy">🔬 Data Integration Strategy<a class="headerlink" href="#data-integration-strategy" title="Permanent link">&para;</a></h2>
+<h3 id="primary-data-sources">Primary Data Sources<a class="headerlink" href="#primary-data-sources" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>RNA-seq Data</strong></li>
+<li><strong>GTEX</strong>: Tissue-specific isoforms (53 tissues, 17,382 samples)</li>
+<li><strong>TCGA</strong>: Cancer-specific isoforms (33 cancer types)</li>
+<li><strong>GTEx + TCGA junction files</strong>: Direct evidence of novel splice junctions</li>
+<li>
+<p><strong>Custom cohorts</strong>: Disease-specific RNA-seq</p>
+</li>
+<li>
+<p><strong>Variant Data</strong></p>
+</li>
+<li><strong>ClinVar</strong>: Pathogenic splice variants</li>
+<li><strong>gnomAD</strong>: Population-level splice variants</li>
+<li><strong>COSMIC</strong>: Cancer-associated mutations</li>
+<li>
+<p><strong>Personal genomes</strong>: Individual-level predictions</p>
+</li>
+<li>
+<p><strong>Epigenetic Data</strong></p>
+</li>
+<li><strong>ENCODE</strong>: Histone marks, chromatin state</li>
+<li><strong>Roadmap Epigenomics</strong>: Tissue-specific epigenomes</li>
+<li>
+<p><strong>ChIP-seq</strong>: Splicing factor binding</p>
+</li>
+<li>
+<p><strong>Conservation Data</strong></p>
+</li>
+<li><strong>PhyloP</strong>: Evolutionary conservation</li>
+<li><strong>PhastCons</strong>: Conserved elements</li>
+<li><strong>Cross-species comparison</strong>: Mouse, zebrafish homologs</li>
+</ol>
+<hr />
+<h3 id="data-processing-pipeline">Data Processing Pipeline<a class="headerlink" href="#data-processing-pipeline" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>1. Load Base Predictions (MANE canonical)
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>   ↓
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>2. Load Meta Predictions (context-aware)
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>   ↓
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>3. Compute Delta Scores
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>   ↓
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>4. Filter High-Confidence Novel Sites
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>   ↓
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>5. Cross-reference with RNA-seq Junctions
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>   ↓
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>6. Query Literature for Evidence
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>   ↓
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>7. Score and Rank Candidates
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>   ↓
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>8. Generate Discovery Reports
+</span></code></pre></div>
+<hr />
+<h2 id="use-cases">📋 Use Cases<a class="headerlink" href="#use-cases" title="Permanent link">&para;</a></h2>
+<h3 id="1-disease-specific-isoforms">1. Disease-Specific Isoforms<a class="headerlink" href="#1-disease-specific-isoforms" title="Permanent link">&para;</a></h3>
+<p><strong>Scenario</strong>: Identify breast cancer-specific BRCA1 isoforms</p>
+<p><strong>Workflow</strong>:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Predict on tumor samples with BRCA1 variants</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>agentic-spliceai<span class="w"> </span>meta<span class="w"> </span>predict<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>--gene<span class="w"> </span>BRCA1<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>--variants<span class="w"> </span>tumor_variants.vcf<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span>--context<span class="w"> </span>tumor<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span>--discover-isoforms
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># Validate with TCGA RNA-seq</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>agentic-spliceai<span class="w"> </span>isoform<span class="w"> </span>validate<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span>--predictions<span class="w"> </span>brca1_novel_isoforms.tsv<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span>--rnaseq-cohort<span class="w"> </span>TCGA-BRCA<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span>--output<span class="w"> </span>validation_report.html
+</span></code></pre></div></p>
+<p><strong>Expected Output</strong>:
+- 10-20 high-confidence novel splice sites
+- 3-5 novel isoforms with RNA-seq support
+- Literature evidence for functional impact
+- Clinical relevance scores</p>
+<hr />
+<h3 id="2-variant-induced-splicing-changes">2. Variant-Induced Splicing Changes<a class="headerlink" href="#2-variant-induced-splicing-changes" title="Permanent link">&para;</a></h3>
+<p><strong>Scenario</strong>: Patient has VUS (variant of uncertain significance) near splice site</p>
+<p><strong>Workflow</strong>:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Predict impact of variant on splicing</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>agentic-spliceai<span class="w"> </span>variant<span class="w"> </span>predict<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--vcf<span class="w"> </span>patient_vus.vcf<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span>--gene-list<span class="w"> </span>candidate_genes.txt<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span>--detect-novel-junctions
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Research evidence</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>agentic-spliceai<span class="w"> </span>agentic<span class="w"> </span>research<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span>--novel-junctions<span class="w"> </span>detected_junctions.tsv<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span>--query<span class="w"> </span><span class="s2">&quot;pathogenic splicing impact&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">  </span>--sources<span class="w"> </span>pubmed,clinvar,splicevardb
+</span></code></pre></div></p>
+<p><strong>Expected Output</strong>:
+- Novel splice junctions induced by variant
+- Predicted functional impact (NMD, truncation, etc.)
+- Literature evidence for similar variants
+- Clinical interpretation (likely pathogenic, benign, etc.)</p>
+<hr />
+<h3 id="3-tissue-specific-isoform-discovery">3. Tissue-Specific Isoform Discovery<a class="headerlink" href="#3-tissue-specific-isoform-discovery" title="Permanent link">&para;</a></h3>
+<p><strong>Scenario</strong>: Discover brain-specific isoforms relevant to neurological disease</p>
+<p><strong>Workflow</strong>:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Compare across tissues</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>agentic-spliceai<span class="w"> </span>isoform<span class="w"> </span>discover<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--gene-list<span class="w"> </span>neurological_genes.txt<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span>--tissues<span class="w"> </span>brain,cerebellum,cortex<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span>--reference-tissues<span class="w"> </span>heart,liver,kidney<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span>--rnaseq-source<span class="w"> </span>GTEX
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># Validate with brain RNA-seq</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>agentic-spliceai<span class="w"> </span>isoform<span class="w"> </span>validate<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">  </span>--candidates<span class="w"> </span>brain_specific_isoforms.tsv<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">  </span>--rnaseq-cohort<span class="w"> </span>GTEX-Brain<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">  </span>--min-samples<span class="w"> </span><span class="m">5</span>
+</span></code></pre></div></p>
+<p><strong>Expected Output</strong>:
+- Brain-specific isoforms not in MANE
+- Expression patterns across brain regions
+- Developmental trajectories
+- Disease associations</p>
+<hr />
+<h2 id="implementation-roadmap">🛠️ Implementation Roadmap<a class="headerlink" href="#implementation-roadmap" title="Permanent link">&para;</a></h2>
+<h3 id="phase-5-meta-layer-foundation">Phase 5 (Meta Layer) - Foundation<a class="headerlink" href="#phase-5-meta-layer-foundation" title="Permanent link">&para;</a></h3>
+<p><strong>Add to existing meta-layer work</strong>:
+- ✅ Delta score computation (already exists in ValidatedDeltaPredictor)
+- 🆕 Novel splice site detector
+- 🆕 Confidence scoring module
+- 🆕 Context clustering</p>
+<p><strong>Deliverables</strong>:
+- Detect novel splice sites with high confidence
+- Score sites by multiple evidence lines
+- Group by context (variants, disease, tissue)</p>
+<hr />
+<h3 id="phase-8-new-isoform-discovery-validation">Phase 8 (NEW) - Isoform Discovery &amp; Validation<a class="headerlink" href="#phase-8-new-isoform-discovery-validation" title="Permanent link">&para;</a></h3>
+<p><strong>Dedicated phase for isoform discovery</strong>:</p>
+<h4 id="81-meta-layer-extensions">8.1: Meta Layer Extensions<a class="headerlink" href="#81-meta-layer-extensions" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Isoform reconstruction from splice sites</li>
+<li>Transcript structure validation (ORF, NMD)</li>
+<li>Novel isoform annotation format</li>
+<li>Integration with base predictions</li>
+</ul>
+<h4 id="82-rna-seq-integration">8.2: RNA-seq Integration<a class="headerlink" href="#82-rna-seq-integration" title="Permanent link">&para;</a></h4>
+<ul>
+<li>GTEX junction file parser</li>
+<li>TCGA junction file parser</li>
+<li>Custom cohort support</li>
+<li>Junction-level validation</li>
+</ul>
+<h4 id="83-agentic-validation">8.3: Agentic Validation<a class="headerlink" href="#83-agentic-validation" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Isoform research agent (literature mining)</li>
+<li>Evidence aggregation (multi-source)</li>
+<li>Validation workflow generator</li>
+<li>Discovery report generation</li>
+</ul>
+<h4 id="84-clinical-applications">8.4: Clinical Applications<a class="headerlink" href="#84-clinical-applications" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Variant-induced isoform prediction</li>
+<li>Disease-specific isoform catalog</li>
+<li>VUS interpretation workflow</li>
+<li>Therapeutic target identification</li>
+</ul>
+<p><strong>Estimated Timeline</strong>: 4-6 weeks (after Phase 7)</p>
+<hr />
+<h2 id="success-metrics">📊 Success Metrics<a class="headerlink" href="#success-metrics" title="Permanent link">&para;</a></h2>
+<h3 id="discovery-metrics">Discovery Metrics<a class="headerlink" href="#discovery-metrics" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Novel isoforms discovered</strong>: Target 100+ across 50 genes</li>
+<li><strong>RNA-seq validation rate</strong>: &gt;70% with junction support</li>
+<li><strong>Literature confirmation</strong>: &gt;50% with supporting papers</li>
+<li><strong>Functional impact</strong>: &gt;30% affect protein function</li>
+</ul>
+<h3 id="validation-metrics">Validation Metrics<a class="headerlink" href="#validation-metrics" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Precision</strong>: % of predictions with RNA-seq support</li>
+<li><strong>Recall</strong>: % of known rare isoforms detected</li>
+<li><strong>Clinical utility</strong>: Impact on VUS interpretation</li>
+<li><strong>Novel discoveries</strong>: Isoforms not in any database</li>
+</ul>
+<hr />
+<h2 id="research-questions">🔬 Research Questions<a class="headerlink" href="#research-questions" title="Permanent link">&para;</a></h2>
+<h3 id="biological-questions">Biological Questions<a class="headerlink" href="#biological-questions" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>How common are context-dependent isoforms?</strong></li>
+<li>Proportion of genes with disease-specific isoforms</li>
+<li>Tissue-specificity of alternative splicing</li>
+<li>
+<p>Variant-induced splicing changes</p>
+</li>
+<li>
+<p><strong>What contexts induce novel splicing?</strong></p>
+</li>
+<li>Stress response</li>
+<li>Developmental stages</li>
+<li>Disease progression</li>
+<li>
+<p>Therapeutic interventions</p>
+</li>
+<li>
+<p><strong>Can we predict functional impact?</strong></p>
+</li>
+<li>NMD escape</li>
+<li>Protein domain loss/gain</li>
+<li>Clinical significance</li>
+</ol>
+<h3 id="technical-questions">Technical Questions<a class="headerlink" href="#technical-questions" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>What confidence threshold for novel sites?</strong></li>
+<li>Balance precision vs recall</li>
+<li>Context-dependent thresholds</li>
+<li>
+<p>Multi-factor scoring</p>
+</li>
+<li>
+<p><strong>How to reconstruct full isoforms?</strong></p>
+</li>
+<li>Splice site pairing</li>
+<li>Exon inclusion/exclusion</li>
+<li>
+<p>ORF prediction</p>
+</li>
+<li>
+<p><strong>How to validate computationally?</strong></p>
+</li>
+<li>RNA-seq evidence strength</li>
+<li>Conservation requirements</li>
+<li>Motif scoring</li>
+</ol>
+<hr />
+<h2 id="related-work">📚 Related Work<a class="headerlink" href="#related-work" title="Permanent link">&para;</a></h2>
+<h3 id="literature">Literature<a class="headerlink" href="#literature" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Disease-specific splicing</strong>:</li>
+<li>Cancer-specific isoforms (TCGA studies)</li>
+<li>Neurological disease splicing (autism, ALS)</li>
+<li>
+<p>Cardiac disease isoforms (cardiomyopathy)</p>
+</li>
+<li>
+<p><strong>Computational approaches</strong>:</p>
+</li>
+<li>LeafCutter (differential splicing)</li>
+<li>MAJIQ (local splice variation)</li>
+<li>rMATS (alternative splicing events)</li>
+<li>
+<p>SUPPA2 (isoform quantification)</p>
+</li>
+<li>
+<p><strong>Validation methods</strong>:</p>
+</li>
+<li>RT-PCR validation</li>
+<li>Long-read sequencing (PacBio, Nanopore)</li>
+<li>Minigene assays</li>
+</ol>
+<h3 id="databases">Databases<a class="headerlink" href="#databases" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>GENCODE</strong>: Comprehensive gene annotations</li>
+<li><strong>RefSeq</strong>: Curated transcript sequences</li>
+<li><strong>APPRIS</strong>: Principal isoform annotations</li>
+<li><strong>IsoformAtlas</strong>: Tissue-specific isoforms</li>
+<li><strong>SpliceVault</strong>: Alternative splicing database</li>
+</ul>
+<hr />
+<h2 id="key-innovations">💡 Key Innovations<a class="headerlink" href="#key-innovations" title="Permanent link">&para;</a></h2>
+<h3 id="1-context-aware-discovery">1. Context-Aware Discovery<a class="headerlink" href="#1-context-aware-discovery" title="Permanent link">&para;</a></h3>
+<p><strong>Beyond static annotations</strong>: Predict isoforms specific to:
+- Individual genetic backgrounds
+- Disease states
+- Tissue/cell types
+- Environmental conditions</p>
+<h3 id="2-multi-modal-evidence-integration">2. Multi-Modal Evidence Integration<a class="headerlink" href="#2-multi-modal-evidence-integration" title="Permanent link">&para;</a></h3>
+<p><strong>Combine</strong>:
+- Base-layer predictions (canonical)
+- Meta-layer predictions (adaptive)
+- RNA-seq data (direct evidence)
+- Literature (biological context)
+- Conservation (evolutionary support)</p>
+<h3 id="3-agentic-validation">3. Agentic Validation<a class="headerlink" href="#3-agentic-validation" title="Permanent link">&para;</a></h3>
+<p><strong>LLM-powered</strong>:
+- Hypothesis generation
+- Evidence synthesis
+- Experimental design
+- Report generation</p>
+<hr />
+<h2 id="next-steps">🎯 Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
+<h3 id="immediate-research-phase">Immediate (Research Phase)<a class="headerlink" href="#immediate-research-phase" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Literature review</strong>:</li>
+<li>Survey isoform discovery methods</li>
+<li>Identify key use cases</li>
+<li>
+<p>Define success criteria</p>
+</li>
+<li>
+<p><strong>Data inventory</strong>:</p>
+</li>
+<li>Available RNA-seq datasets</li>
+<li>Variant databases</li>
+<li>
+<p>Existing novel isoform catalogs</p>
+</li>
+<li>
+<p><strong>Prototype design</strong>:</p>
+</li>
+<li>Novel splice site detector</li>
+<li>Confidence scoring</li>
+<li>Validation workflow</li>
+</ol>
+<h3 id="short-term-phase-5-integration">Short Term (Phase 5 Integration)<a class="headerlink" href="#short-term-phase-5-integration" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Extend meta layer</strong>:</li>
+<li>Add delta score analysis</li>
+<li>Implement confidence scoring</li>
+<li>
+<p>Create novel site detector</p>
+</li>
+<li>
+<p><strong>Test on known cases</strong>:</p>
+</li>
+<li>Disease-associated isoforms</li>
+<li>Variant-induced changes</li>
+<li>Tissue-specific examples</li>
+</ol>
+<h3 id="long-term-phase-8">Long Term (Phase 8)<a class="headerlink" href="#long-term-phase-8" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Full implementation</strong>:</li>
+<li>Isoform reconstruction</li>
+<li>RNA-seq integration</li>
+<li>Agentic validation</li>
+<li>
+<p>Clinical workflows</p>
+</li>
+<li>
+<p><strong>Validation study</strong>:</p>
+</li>
+<li>Experimental validation</li>
+<li>Clinical cohorts</li>
+<li>Publication</li>
+</ol>
+<hr />
+<h2 id="documentation-structure">📁 Documentation Structure<a class="headerlink" href="#documentation-structure" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>docs/isoform_discovery/
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>├── README.md                          ← This file - Vision &amp; overview
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>├── ARCHITECTURE.md                    ← Technical architecture
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>├── USE_CASES.md                       ← Detailed use cases
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>├── DATA_INTEGRATION.md                ← Data sources &amp; formats
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>├── VALIDATION_METHODS.md              ← How to validate discoveries
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>└── RESEARCH_QUESTIONS.md              ← Open questions &amp; experiments
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>dev/research/isoform_discovery/
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>├── brainstorming/                     ← Ideas, sketches
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>├── literature_review/                 ← Paper summaries
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>├── prototype/                         ← Experimental code
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>└── experiments/                       ← Pilot studies
+</span></code></pre></div>
+<hr />
+<h2 id="collaboration-opportunities">🤝 Collaboration Opportunities<a class="headerlink" href="#collaboration-opportunities" title="Permanent link">&para;</a></h2>
+<h3 id="academic-partners">Academic Partners<a class="headerlink" href="#academic-partners" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Tissue-specific isoform experts</li>
+<li>Disease cohort access</li>
+<li>Experimental validation labs</li>
+</ul>
+<h3 id="clinical-partners">Clinical Partners<a class="headerlink" href="#clinical-partners" title="Permanent link">&para;</a></h3>
+<ul>
+<li>VUS interpretation needs</li>
+<li>Patient cohorts</li>
+<li>Clinical validation</li>
+</ul>
+<h3 id="industry-partners">Industry Partners<a class="headerlink" href="#industry-partners" title="Permanent link">&para;</a></h3>
+<ul>
+<li>RNA-seq datasets</li>
+<li>Therapeutic target discovery</li>
+<li>Diagnostic development</li>
+</ul>
+<hr />
+<p><strong>Status</strong>: 🔬 Research &amp; Planning<br />
+<strong>Next</strong>: Extend meta layer (Phase 5) with novel site detection<br />
+<strong>Long-term</strong>: Dedicated isoform discovery phase (Phase 8)</p>
+<p><strong>Questions? Ideas? Add to</strong>: <code>dev/research/isoform_discovery/brainstorming/</code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 pleiadian53
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/pleiadian53/agentic-spliceai" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
