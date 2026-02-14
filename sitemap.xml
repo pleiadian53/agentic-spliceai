@@ -33,6 +33,10 @@
          <lastmod>2026-02-14</lastmod>
     </url>
     <url>
+         <loc>https://pleiadian53.github.io/agentic-spliceai/test_math/</loc>
+         <lastmod>2026-02-14</lastmod>
+    </url>
+    <url>
          <loc>https://pleiadian53.github.io/agentic-spliceai/agency/</loc>
          <lastmod>2026-02-14</lastmod>
     </url>
@@ -45,6 +49,14 @@
          <lastmod>2026-02-14</lastmod>
     </url>
     <url>
+         <loc>https://pleiadian53.github.io/agentic-spliceai/api/</loc>
+         <lastmod>2026-02-14</lastmod>
+    </url>
+    <url>
+         <loc>https://pleiadian53.github.io/agentic-spliceai/architecture/</loc>
+         <lastmod>2026-02-14</lastmod>
+    </url>
+    <url>
          <loc>https://pleiadian53.github.io/agentic-spliceai/base_layer/DATA_PREPARATION_CLI/</loc>
          <lastmod>2026-02-14</lastmod>
     </url>
@@ -53,11 +65,35 @@
          <lastmod>2026-02-14</lastmod>
     </url>
     <url>
+         <loc>https://pleiadian53.github.io/agentic-spliceai/bioinformatics/</loc>
+         <lastmod>2026-02-14</lastmod>
+    </url>
+    <url>
+         <loc>https://pleiadian53.github.io/agentic-spliceai/biology/</loc>
+         <lastmod>2026-02-14</lastmod>
+    </url>
+    <url>
          <loc>https://pleiadian53.github.io/agentic-spliceai/installation/LATEX_SETUP/</loc>
          <lastmod>2026-02-14</lastmod>
     </url>
     <url>
          <loc>https://pleiadian53.github.io/agentic-spliceai/isoform_discovery/</loc>
+         <lastmod>2026-02-14</lastmod>
+    </url>
+    <url>
+         <loc>https://pleiadian53.github.io/agentic-spliceai/meta_layer/</loc>
+         <lastmod>2026-02-14</lastmod>
+    </url>
+    <url>
+         <loc>https://pleiadian53.github.io/agentic-spliceai/tutorials/</loc>
+         <lastmod>2026-02-14</lastmod>
+    </url>
+    <url>
+         <loc>https://pleiadian53.github.io/agentic-spliceai/variant_analysis/</loc>
+         <lastmod>2026-02-14</lastmod>
+    </url>
+    <url>
+         <loc>https://pleiadian53.github.io/agentic-spliceai/workflows/</loc>
          <lastmod>2026-02-14</lastmod>
     </url>
 </urlset>
