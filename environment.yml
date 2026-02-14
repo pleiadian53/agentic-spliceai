@@ -139,3 +139,9 @@ dependencies:
     - progress==1.6             # Progress bars
     - tenacity==8.5.0           # Retry logic
     - qrcode                    # QR code generation
+    
+    # === Documentation Tools ===
+    - mkdocs>=1.5.3             # Documentation generator
+    - mkdocs-material>=9.5.3    # Material theme for MkDocs
+    - pymdown-extensions>=10.7  # Markdown extensions
+    - mkdocs-jupyter>=0.24.6    # Jupyter notebook support

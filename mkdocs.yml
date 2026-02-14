@@ -1,0 +1,150 @@
+site_name: Agentic-SpliceAI
+site_description: Context-Aware Novel Isoform Discovery for Drug Target Identification
+site_author: pleiadian53
+site_url: https://pleiadian53.github.io/agentic-spliceai/
+
+repo_name: pleiadian53/agentic-spliceai
+repo_url: https://github.com/pleiadian53/agentic-spliceai
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2026 pleiadian53
+
+# Theme configuration
+theme:
+  name: material
+  language: en
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+
+# Markdown extensions
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  
+  # Python Markdown Extensions (pymdownx)
+  - pymdownx.arithmatex:
+      generic: true  # CRITICAL for MathJax
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Extra JavaScript for MathJax
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+# Extra CSS
+extra_css:
+  - stylesheets/extra.css
+
+# Plugins
+plugins:
+  - search:
+      lang: en
+      separator: '[\s\-\.]+'
+  - mkdocs-jupyter:
+      include_source: True
+      execute: False
+      allow_errors: False
+      ignore_h1_titles: True
+      theme: light
+      include_requirejs: True
+      show_input: True
+      no_input: False
+
+# Navigation
+nav:
+  - Home: README.md
+  - Getting Started:
+      - Quick Start: QUICKSTART.md
+      - Setup Guide: SETUP.md
+  - Documentation:
+      - Package Organization: PACKAGE_ORGANIZATION.md
+      - Structure: STRUCTURE.md
+      - Splice Prediction Guide: SPLICE_PREDICTION_GUIDE.md
+      - RunPods Setup: RUNPODS_SETUP.md
+  - Base Layer:
+      - Data Preparation CLI: base_layer/DATA_PREPARATION_CLI.md
+      - Processing Architecture: base_layer/PROCESSING_ARCHITECTURE.md
+  - Isoform Discovery:
+      - Overview: isoform_discovery/README.md
+  - Agency:
+      - Overview: agency/README.md
+      - Memory Tutorial: agency/AGENTIC_MEMORY_TUTORIAL.md
+      - Memory Patterns: agency/MEMORY_PATTERNS.md
+  - Installation:
+      - LaTeX Setup: installation/LATEX_SETUP.md
+  - About:
+      - Contributing: CONTRIBUTING.md
+      - Math Test Page: test_math.md
+
+# Extra configuration
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/pleiadian53/agentic-spliceai
