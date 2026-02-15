@@ -128,15 +128,37 @@ nav:
       - Structure: STRUCTURE.md
       - Splice Prediction Guide: SPLICE_PREDICTION_GUIDE.md
       - RunPods Setup: RUNPODS_SETUP.md
+  - Architecture:
+      - Overview: architecture/README.md
+  - System Design:
+      - Overview: system_design/README.md
+      - Resource Management: system_design/resource_management.md
+      - Output & Artifact Management: system_design/output_management.md
+      - Configuration System: system_design/configuration_system.md
+      - Base Layer Architecture: system_design/base_layer_architecture.md
   - Base Layer:
       - Data Preparation CLI: base_layer/DATA_PREPARATION_CLI.md
       - Processing Architecture: base_layer/PROCESSING_ARCHITECTURE.md
+  - Meta Layer:
+      - Overview: meta_layer/README.md
   - Isoform Discovery:
       - Overview: isoform_discovery/README.md
+  - Variant Analysis:
+      - Overview: variant_analysis/README.md
   - Agency:
       - Overview: agency/README.md
       - Memory Tutorial: agency/AGENTIC_MEMORY_TUTORIAL.md
       - Memory Patterns: agency/MEMORY_PATTERNS.md
+  - API Reference:
+      - Overview: api/README.md
+  - Tutorials:
+      - Overview: tutorials/README.md
+  - Biological Background:
+      - Overview: biology/README.md
+  - Workflows:
+      - Overview: workflows/README.md
+  - Bioinformatics:
+      - Overview: bioinformatics/README.md
   - Installation:
       - LaTeX Setup: installation/LATEX_SETUP.md
   - About:
