@@ -1,0 +1,89 @@
+name: aspliceai-evo2-pod
+channels:
+  - nvidia
+  - pytorch
+  - conda-forge
+dependencies:
+  # Python
+  - python=3.11
+
+  # CUDA and PyTorch (GPU-enabled)
+  - pytorch::pytorch>=2.0.0
+  - pytorch::pytorch-cuda=11.8
+  - pytorch::torchvision
+  - pytorch::torchaudio
+
+  # NVIDIA CUDA Toolkit
+  - nvidia::cuda-toolkit=11.8
+  - nvidia::cudnn>=8.9.0
+
+  # Core dependencies
+  - numpy>=1.24.0
+  - pandas>=2.0.0
+  - h5py>=3.8.0
+
+  # Development tools
+  - jupyter
+  - ipykernel
+  - matplotlib
+  - seaborn
+  - tqdm
+
+  # Pip dependencies
+  - pip
+  - pip:
+    # Transformers ecosystem
+    - transformers>=4.30.0
+    - tokenizers>=0.13.0
+    - huggingface-hub>=0.15.0
+
+    # GPU acceleration
+    - accelerate>=0.20.0
+
+    # Quantization (optional for GPU)
+    - bitsandbytes>=0.41.0
+
+    # Fine-tuning adapters
+    - peft>=0.4.0
+
+    # Flash Attention (optional, for faster inference)
+    # - flash-attn>=2.0.0  # Uncomment if compatible with your CUDA version
+
+    # Utilities
+    - einops>=0.6.0
+    - scikit-learn>=1.3.0
+
+    # Core agentic-spliceai (install from local)
+    # Run: pip install -e /path/to/agentic-spliceai
+
+    # Foundation models (install from local)
+    # Run: pip install -e /path/to/foundation_models
+
+# Installation instructions:
+# 1. Create environment:
+#    mamba env create -f environment-evo2-pod.yml
+#
+# 2. Activate:
+#    conda activate aspliceai-evo2-pod
+#
+# 3. Install local packages:
+#    cd /path/to/agentic-spliceai
+#    pip install -e .
+#    pip install -e ./foundation_models
+#
+# 4. Verify CUDA:
+#    python -c "import torch; print(torch.cuda.is_available())"
+#
+# 5. Test:
+#    python foundation_models/examples/01_load_evo2_pod.py
+
+# GPU Requirements:
+# - Evo2 7B (FP16): ~14GB VRAM
+# - Evo2 40B (FP16): ~80GB VRAM (requires A100 80GB)
+# - Evo2 40B (INT8): ~40GB VRAM (A40/A100 40GB)
+#
+# Recommended GPUs:
+# - NVIDIA A40 (48GB): Evo2 7B, 40B (INT8)
+# - NVIDIA A100 40GB: Evo2 7B, 40B (INT8)
+# - NVIDIA A100 80GB: Evo2 7B, 40B (FP16)
+# - NVIDIA H100: All models (best performance)

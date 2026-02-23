@@ -1,0 +1,87 @@
+[project]
+name = "agentic-spliceai-foundation-models"
+version = "0.1.0"
+description = "Foundation model integration for agentic-spliceai (Evo2, Evo1, Nucleotide Transformer)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "barnettchiu@gmail.com"}
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "einops>=0.6.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "h5py>=3.8.0",  # For caching embeddings
+    "tqdm>=4.65.0",
+]
+
+[project.optional-dependencies]
+# Quantization support (required for M1 Mac)
+quantization = [
+    "bitsandbytes>=0.41.0",
+    "accelerate>=0.20.0",
+]
+
+# Fine-tuning support (LoRA, QLoRA)
+adapters = [
+    "peft>=0.4.0",
+]
+
+# Full development dependencies
+dev = [
+    "pytest>=7.3.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.3.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.3.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.23.0",
+]
+
+# All optional dependencies
+all = [
+    "agentic-spliceai-foundation-models[quantization,adapters,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/pleiadian53/agentic-spliceai"
+Repository = "https://github.com/pleiadian53/agentic-spliceai"
+Documentation = "https://github.com/pleiadian53/agentic-spliceai/tree/main/foundation_models"
+
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["foundation_models"]
+
+[tool.setuptools.package-data]
+foundation_models = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=foundation_models --cov-report=term-missing"

@@ -131,12 +131,12 @@ Open http://localhost:8004/docs in your browser
 ### Option 2: Python Library
 
 ```python
-from agentic_spliceai import create_dataset
+from agentic_spliceai.data_access import DuckDBDataset
 from agentic_spliceai.splice_analysis import generate_analysis_insight
 from openai import OpenAI
 
-# Load dataset
-dataset = create_dataset("data/splice_sites_enhanced.tsv")
+# Load dataset (DuckDB-backed; supports large TSV files efficiently)
+dataset = DuckDBDataset("data/splice_sites_enhanced.tsv")
 
 # Generate analysis
 client = OpenAI()
@@ -146,13 +146,17 @@ result = generate_analysis_insight(
     client=client
 )
 
-# Save code
+# Save generated code
 with open("analysis.py", "w") as f:
     f.write(result["chart_code"])
 
 # Execute
 exec(result["chart_code"])
 ```
+
+> **Note**: `DuckDBDataset` accepts `.tsv`, `.csv`, `.parquet`, or a pre-loaded
+> `pandas.DataFrame` via `DataFrameDataset`.  See `src/agentic_spliceai/data_access.py`
+> for the full class hierarchy.
 
 ### Option 3: Command-Line Tool
 
@@ -209,7 +213,12 @@ analysis_type = "gene_transcript_diversity"
 Ask your own questions:
 
 ```python
+from agentic_spliceai.data_access import DuckDBDataset
 from agentic_spliceai.splice_analysis import generate_exploratory_insight
+from openai import OpenAI
+
+dataset = DuckDBDataset("data/splice_sites_enhanced.tsv")
+client = OpenAI()
 
 result = generate_exploratory_insight(
     dataset=dataset,

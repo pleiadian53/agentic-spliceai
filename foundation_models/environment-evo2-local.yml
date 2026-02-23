@@ -1,0 +1,70 @@
+name: aspliceai-evo2-local
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  # Python
+  - python=3.11
+
+  # Core dependencies
+  - pytorch::pytorch>=2.0.0
+  - numpy>=1.24.0
+  - pandas>=2.0.0
+  - h5py>=3.8.0
+
+  # For M1 Mac MPS support
+  - pytorch::torchvision
+  - pytorch::torchaudio
+
+  # Development tools
+  - jupyter
+  - ipykernel
+  - matplotlib
+  - seaborn
+  - tqdm
+
+  # Pip dependencies
+  - pip
+  - pip:
+    # Transformers ecosystem
+    - transformers>=4.30.0
+    - tokenizers>=0.13.0
+    - huggingface-hub>=0.15.0
+
+    # Quantization (for M1 Mac)
+    - bitsandbytes>=0.41.0
+    - accelerate>=0.20.0
+
+    # Fine-tuning adapters
+    - peft>=0.4.0
+
+    # Utilities
+    - einops>=0.6.0
+    - scikit-learn>=1.3.0
+
+    # Core agentic-spliceai (install from local)
+    # Run: pip install -e /path/to/agentic-spliceai
+
+    # Foundation models (install from local)
+    # Run: pip install -e /path/to/foundation_models
+
+# Installation instructions:
+# 1. Create environment:
+#    mamba env create -f environment-evo2-local.yml
+#
+# 2. Activate:
+#    conda activate aspliceai-evo2-local
+#
+# 3. Install local packages:
+#    cd /path/to/agentic-spliceai
+#    pip install -e .
+#    pip install -e ./foundation_models
+#
+# 4. Test:
+#    python foundation_models/examples/01_load_evo2_local.py
+
+# Notes for M1 Mac:
+# - Uses MPS (Metal Performance Shaders) for GPU acceleration
+# - Evo2 7B with INT8 quantization fits in ~8GB RAM
+# - Inference speed: ~100 bp/second (single sequence)
+# - Max practical sequence length: 32,768 bp

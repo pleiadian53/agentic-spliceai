@@ -126,6 +126,7 @@ nexus-server = "nexus.server.app:main"
 
 [tool.setuptools]
 zip-safe = false
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -137,6 +138,7 @@ exclude = [
     "tests*",
     "docs*",
 ]
+namespaces = false
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md", "*.yml", "*.yaml", "*.json"]
@@ -185,14 +187,6 @@ extend-exclude = '''
   | dev
 )/
 '''
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["agentic_spliceai*"]
-namespaces = false
 
 [tool.ruff]
 line-length = 100
