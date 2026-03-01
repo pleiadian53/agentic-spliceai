@@ -7,16 +7,19 @@ This example demonstrates:
 3. Evaluating predictions with dual metrics (canonical + all transcripts)
 4. Computing performance metrics (F1, precision, recall, PR-AUC)
 5. Gap analysis: what the meta/agentic layers need to address
+6. Random gene sampling for systematic benchmarking
+7. Structured output saving (JSON metrics + text summary)
 
 Usage:
     python 03_prediction_with_evaluation.py --gene TP53 --model spliceai
     python 03_prediction_with_evaluation.py --gene TP53 --model spliceai --threshold 0.3
     python 03_prediction_with_evaluation.py --genes TP53 --model spliceai --gap-analysis
+    python 03_prediction_with_evaluation.py --n-random-genes 10 --model openspliceai --output-dir output/openspliceai
 
 Example output:
     Canonical Transcript Recall: 90.0% (9/10 donor, 9/10 acceptor)
     All-Transcript Recall:       40.0% (9/23 donor, 9/22 acceptor)
-    
+
     Gap Analysis:
       14 missed donor sites:
         8 single-transcript (no signal) - alternative isoform-specific
@@ -24,6 +27,7 @@ Example output:
 """
 
 import sys
+import time
 import argparse
 from pathlib import Path
 
@@ -34,14 +38,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from _example_utils import setup_example_environment
 setup_example_environment()
 
-from agentic_spliceai.splice_engine.base_layer.models.runner import BaseModelRunner
 from agentic_spliceai.splice_engine.base_layer.data.preparation import (
     prepare_splice_site_annotations,
     prepare_gene_data
 )
 from agentic_spliceai.splice_engine.base_layer.prediction.evaluation import (
     evaluate_splice_site_predictions,
-    compute_pr_metrics,
     compute_topk_accuracy,
     compute_windowed_recall,
     filter_annotations_by_transcript,
@@ -51,108 +53,12 @@ from agentic_spliceai.splice_engine.base_layer.prediction.core import (
     predict_splice_sites_for_genes,
     load_spliceai_models
 )
-
-
-def _print_eval_results(positions_df, pr_metrics, topk_accuracy, windowed_recall):
-    """Print concise evaluation results for one annotation filter."""
-    if positions_df.height == 0:
-        print("   (no positions evaluated)")
-        return
-    
-    for site_type in ['donor', 'acceptor']:
-        site_df = positions_df.filter(pl.col('splice_type') == site_type)
-        tp = len(site_df.filter(pl.col('pred_type') == 'TP'))
-        fp = len(site_df.filter(pl.col('pred_type') == 'FP'))
-        fn = len(site_df.filter(pl.col('pred_type') == 'FN'))
-        
-        total_true = tp + fn
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall = tp / total_true if total_true > 0 else 0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-        
-        print(f"\n   {site_type.capitalize()} sites: {tp}/{total_true} detected "
-              f"(Recall: {recall:.1%}, Precision: {precision:.1%}, F1: {f1:.1%})")
-    
-    # Overall
-    all_tp = len(positions_df.filter(pl.col('pred_type') == 'TP'))
-    all_fp = len(positions_df.filter(pl.col('pred_type') == 'FP'))
-    all_fn = len(positions_df.filter(pl.col('pred_type') == 'FN'))
-    
-    total_true = all_tp + all_fn
-    overall_p = all_tp / (all_tp + all_fp) if (all_tp + all_fp) > 0 else 0
-    overall_r = all_tp / total_true if total_true > 0 else 0
-    overall_f1 = 2 * overall_p * overall_r / (overall_p + overall_r) if (overall_p + overall_r) > 0 else 0
-    
-    print(f"\n   Overall: Recall={overall_r:.1%}, Precision={overall_p:.1%}, F1={overall_f1:.1%}")
-    
-    # PR-AUC
-    if pr_metrics:
-        print(f"   Macro AP: {pr_metrics['macro_ap']:.4f}, Macro PR-AUC: {pr_metrics['macro_pr_auc']:.4f}")
-    
-    # Top-k (just show k=1.0 and k=2.0)
-    if topk_accuracy:
-        for m in [1.0, 2.0]:
-            overall_acc = topk_accuracy['overall'].get(m, 0.0)
-            if overall_acc > 0:
-                print(f"   Top-k accuracy (k={m:.0f}x): {overall_acc:.1%}")
-    
-    # Windowed recall (just k=2)
-    if windowed_recall:
-        wr_2 = windowed_recall['overall'].get(2, 0.0)
-        if wr_2 > 0:
-            print(f"   Windowed recall (±2bp): {wr_2:.1%}")
-
-
-def _print_dual_comparison(eval_results):
-    """Print side-by-side comparison of canonical vs all-transcript metrics."""
-    print(f"\n{'='*70}")
-    print(f"  Dual-Metric Summary: Base Model Performance vs Full Landscape")
-    print(f"{'='*70}")
-    
-    can = eval_results.get('canonical', {})
-    all_ = eval_results.get('all', {})
-    
-    can_pdf = can.get('positions_df', pl.DataFrame())
-    all_pdf = all_.get('positions_df', pl.DataFrame())
-    
-    if can_pdf.height == 0 or all_pdf.height == 0:
-        print("  (insufficient data for comparison)")
-        return
-    
-    print(f"\n  {'Metric':<35} {'Canonical':>12} {'All Transcripts':>16}")
-    print(f"  {'-'*35} {'-'*12} {'-'*16}")
-    
-    for site_type in ['donor', 'acceptor', 'overall']:
-        if site_type == 'overall':
-            can_tp = len(can_pdf.filter(pl.col('pred_type') == 'TP'))
-            can_fn = len(can_pdf.filter(pl.col('pred_type') == 'FN'))
-            all_tp = len(all_pdf.filter(pl.col('pred_type') == 'TP'))
-            all_fn = len(all_pdf.filter(pl.col('pred_type') == 'FN'))
-        else:
-            can_tp = len(can_pdf.filter((pl.col('pred_type') == 'TP') & (pl.col('splice_type') == site_type)))
-            can_fn = len(can_pdf.filter((pl.col('pred_type') == 'FN') & (pl.col('splice_type') == site_type)))
-            all_tp = len(all_pdf.filter((pl.col('pred_type') == 'TP') & (pl.col('splice_type') == site_type)))
-            all_fn = len(all_pdf.filter((pl.col('pred_type') == 'FN') & (pl.col('splice_type') == site_type)))
-        
-        can_total = can_tp + can_fn
-        all_total = all_tp + all_fn
-        can_recall = can_tp / can_total if can_total > 0 else 0
-        all_recall = all_tp / all_total if all_total > 0 else 0
-        
-        label = site_type.capitalize()
-        can_str = f"{can_tp}/{can_total} ({can_recall:.0%})"
-        all_str = f"{all_tp}/{all_total} ({all_recall:.0%})"
-        
-        print(f"  {label + ' recall':<35} {can_str:>12} {all_str:>16}")
-    
-    # Show the gap
-    can_total_all = len(can_pdf.filter(pl.col('pred_type').is_in(['TP', 'FN'])))
-    all_total_all = len(all_pdf.filter(pl.col('pred_type').is_in(['TP', 'FN'])))
-    gap = all_total_all - can_total_all
-    
-    print(f"\n  The gap of {gap} additional sites across alternative transcripts")
-    print(f"  represents what meta/agentic layers need to address.")
-    print(f"{'='*70}")
+from agentic_spliceai.splice_engine.data import sample_random_genes
+from agentic_spliceai.splice_engine.eval import (
+    EvaluationOutputWriter,
+    print_eval_results,
+    print_dual_comparison,
+)
 
 
 def main():
@@ -199,17 +105,46 @@ def main():
         action="store_true",
         help="Run splice site gap analysis (shows what meta/agentic layers need to address)"
     )
+    parser.add_argument(
+        "--n-random-genes",
+        type=int,
+        default=None,
+        help="Randomly sample N protein-coding genes from the intersection of both models' GTFs"
+    )
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=42,
+        help="Random seed for gene sampling reproducibility (default: 42)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Directory to save structured output (metrics.json, summary.txt, gene_list.txt)"
+    )
     args = parser.parse_args()
-    
+
     # Determine gene list
+    n_specified = sum([args.gene is not None, args.genes is not None, args.n_random_genes is not None])
+    if n_specified == 0:
+        print("Error: Must specify --gene, --genes, or --n-random-genes")
+        return 1
+    if n_specified > 1:
+        print("Error: --gene, --genes, and --n-random-genes are mutually exclusive")
+        return 1
+
     if args.gene:
         gene_list = [args.gene]
     elif args.genes:
         gene_list = args.genes
-    else:
-        print("❌ Error: Must specify --gene or --genes")
-        return 1
+    elif args.n_random_genes:
+        print(f"Sampling {args.n_random_genes} random protein-coding genes (seed={args.random_seed})...")
+        gene_list = sample_random_genes(args.n_random_genes, random_seed=args.random_seed)
+        print(f"   Selected: {', '.join(gene_list)}")
     
+    t_start = time.time()
+
     print("=" * 80)
     print("Phase 1 Example: Splice Site Prediction with Evaluation")
     print("=" * 80)
@@ -247,6 +182,7 @@ def main():
         genes=gene_list,
         build=build,
         annotation_source=annotation_source,
+        force_extract=bool(args.n_random_genes),
         verbosity=1
     )
     
@@ -371,7 +307,7 @@ def main():
         }
         
         # Print concise results for this filter
-        _print_eval_results(positions_df, pr_metrics, topk_accuracy, windowed_recall)
+        print_eval_results(positions_df, pr_metrics, topk_accuracy, windowed_recall)
     
     # =========================================================================
     # Step 4: Gap analysis (what meta/agentic layers need to address)
@@ -388,7 +324,7 @@ def main():
     
     # Print comparison summary if dual mode
     if use_dual and len(eval_results) == 2:
-        _print_dual_comparison(eval_results)
+        print_dual_comparison(eval_results)
     
     # Sample FP/FN examples (use the 'all' or primary evaluation)
     primary_key = 'all' if 'all' in eval_results else list(eval_results.keys())[0]
@@ -413,14 +349,37 @@ def main():
             score = row[f'{site}_score']
             print(f"   {row['gene_name']} {row['chrom']}:{row['position']} ({site}, score={score:.4f})")
     
+    runtime = time.time() - t_start
+
+    # Save output if requested
+    if args.output_dir:
+        print(f"\n💾 Saving output to: {args.output_dir}")
+        writer = EvaluationOutputWriter(args.output_dir)
+        writer.save(
+            eval_results=eval_results,
+            model_name=args.model,
+            build=build,
+            annotation_source=annotation_source,
+            gene_list=gene_list,
+            eval_config={
+                'threshold': args.threshold,
+                'consensus_window': args.consensus_window,
+                'transcript_filter': args.transcript_filter,
+                'random_seed': getattr(args, 'random_seed', None),
+            },
+            runtime_seconds=runtime,
+        )
+
     print("\n" + "=" * 80)
-    print("✅ Example complete!")
+    print(f"Example complete! ({runtime:.1f}s)")
     print("=" * 80)
-    print(f"\n💡 Tips:")
+    print(f"\nTips:")
     print(f"   --threshold: Adjust to trade off precision vs recall")
     print(f"   --gap-analysis: See what meta/agentic layers need to fix")
     print(f"   --transcript-filter: 'canonical', 'shared', 'all', or 'dual' (default)")
-    
+    print(f"   --n-random-genes N: Sample N random genes for benchmarking")
+    print(f"   --output-dir DIR: Save metrics and summary to a directory")
+
     return 0
 
 
