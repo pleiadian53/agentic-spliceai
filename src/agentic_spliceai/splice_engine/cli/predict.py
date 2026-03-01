@@ -288,9 +288,11 @@ def main(argv: Optional[List[str]] = None):
                 
                 # Summary statistics
                 manifest = results.get("manifest_summary", {})
+                positions_df = results.get("positions")
                 if manifest:
                     print(f"\nProcessed: {manifest.get('processed_genes', 0)} genes")
-                    print(f"Total positions: {manifest.get('total_positions', 0)}")
+                total_positions = positions_df.height if positions_df is not None and hasattr(positions_df, 'height') else 0
+                print(f"Total positions: {total_positions}")
                 
                 # Output paths
                 paths = results.get("paths", {})

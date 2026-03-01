@@ -286,7 +286,7 @@ class BaseModelRunner:
                 runtime_seconds=runtime,
                 positions=pl.DataFrame(),
                 processed_genes=set(),
-                missing_genes=set(g for g in target_genes if g is not None),
+                missing_genes=set(g for g in target_genes if g is not None) if target_genes else set(),
                 error=str(e)
             )
     
@@ -384,9 +384,10 @@ class BaseModelRunner:
         from ..data.sequence_extraction import extract_gene_sequences
         
         # Get registry for path resolution using provided build and annotation source
-        # For MANE, build string already includes '_MANE' suffix (e.g., 'GRCh38_MANE')
+        # Registry build key must match settings.yaml (e.g., 'GRCh38_MANE' not 'GRCh38')
         if annotation_source.lower() == 'mane':
-            registry = get_genomic_registry(build=build, release='1.3')
+            registry_build = build if '_MANE' in build else f'{build}_MANE'
+            registry = get_genomic_registry(build=registry_build, release='1.3')
         else:  # Ensembl
             registry = get_genomic_registry(build=build, release='87')
         gtf_path = registry.get_gtf_path(validate=True)

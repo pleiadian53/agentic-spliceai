@@ -489,7 +489,7 @@ high_conf = positions.filter(pl.col("donor_score") > 0.9)
 - Validate predictions against annotations
 - Generate training data for meta-models
 
-**See**: [Splice Prediction Guide](docs/SPLICE_PREDICTION_GUIDE.md) for complete documentation
+**See**: [Splice Prediction Guide](docs/tutorials/SPLICE_PREDICTION_GUIDE.md) for complete documentation
 
 ## 📊 Predefined Analysis Templates
 

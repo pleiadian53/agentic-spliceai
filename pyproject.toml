@@ -156,7 +156,7 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
-    "--cov=splice_agent",
+    "--cov=agentic_spliceai",
     "--cov-report=term-missing",
     "--cov-report=html",
 ]

@@ -26,12 +26,11 @@ from _example_utils import setup_example_environment
 setup_example_environment()
 
 from agentic_spliceai.splice_engine.base_layer.models.runner import BaseModelRunner
-from agentic_spliceai.splice_engine.base_layer.models.config import BaseModelConfig
 from agentic_spliceai.splice_engine.base_layer.data.preparation import (
     load_gene_annotations,
     filter_by_chromosomes,
 )
-from agentic_spliceai.splice_engine.resources.registry import get_genomic_registry
+from agentic_spliceai.splice_engine.resources.model_resources import get_model_resources
 import polars as pl
 
 
@@ -67,23 +66,18 @@ def main():
     print(f"Model: {args.model}")
     print()
     
-    # Configure base model first to get build/annotation info
-    config = BaseModelConfig(
-        base_model=args.model,
-        mode="test",
-        coverage="gene_subset",
-        verbosity=1
-    )
-    
-    print(f"Build: {config.genomic_build}")
-    print(f"Annotation Source: {config.annotation_source}")
+    # Get model-specific resources (ensures consistent GTF for gene selection and prediction)
+    model_resources = get_model_resources(args.model)
+    registry = model_resources.get_registry()
+
+    print(f"Build: {model_resources.build}")
+    print(f"Annotation Source: {model_resources.annotation_source}")
     print()
-    
+
     # Load gene annotations for chromosome
     print(f"📂 Loading gene annotations for {args.chromosome}...")
-    
-    # Get GTF path using resource registry
-    registry = get_genomic_registry(build=config.genomic_build)
+
+    # Get GTF path from model-specific registry
     gtf_path = registry.get_gtf_path()
     
     print(f"   GTF: {gtf_path}")
@@ -95,8 +89,9 @@ def main():
         verbosity=1
     )
     
-    # Select N genes
-    gene_list = genes_df['gene_name'].head(args.genes).to_list()
+    # Select N genes (filter out empty gene names)
+    valid_genes = genes_df.filter(pl.col('gene_name') != '').filter(pl.col('gene_name').is_not_null())
+    gene_list = valid_genes['gene_name'].head(args.genes).to_list()
     
     print(f"✓ Found {len(genes_df)} genes on {args.chromosome}")
     print(f"✓ Selected {len(gene_list)} genes for prediction:")
