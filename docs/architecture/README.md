@@ -15,8 +15,8 @@ Documentation for the system architecture and design patterns is coming soon.
 
 For now, please refer to:
 
-- [Package Organization](../PACKAGE_ORGANIZATION.md) - How the codebase is structured
-- [Structure Guide](../STRUCTURE.md) - Directory structure overview
+- [Package Organization](PACKAGE_ORGANIZATION.md) - How the codebase is structured
+- [Structure Guide](STRUCTURE.md) - Directory structure overview
 - [Processing Architecture](../base_layer/PROCESSING_ARCHITECTURE.md) - Base layer architecture
 
 ---

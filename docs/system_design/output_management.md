@@ -758,5 +758,5 @@ class CatalogedArtifactManager(ArtifactManager):
 ---
 
 **Related**: [Resource Management](resource_management.md), [Configuration System](configuration_system.md)  
-**Implementation**: [dev/refactoring/RESOURCE_MANAGEMENT_REFACTORING.md](../../dev/refactoring/RESOURCE_MANAGEMENT_REFACTORING.md)  
+**Implementation**: `src/agentic_spliceai/splice_engine/config/`  
 **Last Updated**: February 15, 2026

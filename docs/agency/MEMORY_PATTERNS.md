@@ -759,9 +759,6 @@ insights = agent.memory.query("what did we learn?")
 
 ### Documentation
 - **Tutorial**: This document
-- **Implementation**: `dev/planning/agentic_workflows/MEMORY_LAYER.md`
-- **Research Notes**: `dev/research/agency/agentic_memory.md`
-- **Integration Strategy**: `dev/research/agency/integration_plans/MEMU_INTEGRATION_STRATEGY.md`
 
 ### Framework
 - **MemU**: https://github.com/NevaMind-AI/memU

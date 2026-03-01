@@ -12,7 +12,7 @@ This directory documents the **architectural foundations** of agentic-spliceai. 
 
 System design documentation differs from implementation details:
 - **System design** (here): Why we made architectural choices, the principles behind them
-- **Implementation** (dev/refactoring/): How we're implementing those designs during refactoring
+- **Implementation**: How we're implementing those designs during refactoring (see source code)
 
 ---
 
@@ -190,7 +190,7 @@ We're applying these principles to:
 - Create artifact management infrastructure
 - Establish configuration foundations
 
-**Status**: See [dev/refactoring/README.md](../../dev/refactoring/README.md) for implementation progress
+**Status**: In progress — see source code under `src/agentic_spliceai/`
 
 ---
 
@@ -233,17 +233,13 @@ We're applying these principles to:
 
 ## Related Documentation
 
-### Implementation Details
-- [dev/refactoring/](../../dev/refactoring/) - Refactoring plans and progress
-- [dev/refactoring/RESOURCE_MANAGEMENT_REFACTORING.md](../../dev/refactoring/RESOURCE_MANAGEMENT_REFACTORING.md) - Implementation plan
-
 ### Code Documentation
-- [src/agentic_spliceai/splice_engine/config/](../../src/agentic_spliceai/splice_engine/config/) - Configuration implementation
-- [STRUCTURE.md](../STRUCTURE.md) - Project structure overview
+- `src/agentic_spliceai/splice_engine/config/` - Configuration implementation
+- [STRUCTURE.md](../architecture/STRUCTURE.md) - Project structure overview
 
 ### User Guides
-- [SETUP.md](../../SETUP.md) - Setup and configuration
-- [QUICKSTART.md](../../QUICKSTART.md) - Getting started
+- [SETUP.md](../SETUP.md) - Setup and configuration
+- [QUICKSTART.md](../QUICKSTART.md) - Getting started
 
 ---
 
@@ -262,8 +258,8 @@ When contributing architectural changes:
 ## Questions?
 
 - **Design questions**: See relevant design document in this directory
-- **Implementation questions**: See [dev/refactoring/](../../dev/refactoring/)
-- **Usage questions**: See [QUICKSTART.md](../../QUICKSTART.md) or [SETUP.md](../../SETUP.md)
+- **Implementation questions**: See source code under `src/agentic_spliceai/`
+- **Usage questions**: See [QUICKSTART.md](../QUICKSTART.md) or [SETUP.md](../SETUP.md)
 
 ---
 

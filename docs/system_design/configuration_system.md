@@ -323,5 +323,5 @@ batch_size = config.meta_layer_config.get("batch_size", 32)
 ---
 
 **Related**: [Resource Management](resource_management.md), [Output Management](output_management.md)  
-**Implementation**: [src/agentic_spliceai/splice_engine/config/](../../src/agentic_spliceai/splice_engine/config/)  
+**Implementation**: `src/agentic_spliceai/splice_engine/config/`  
 **Last Updated**: February 15, 2026

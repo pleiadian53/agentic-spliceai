@@ -16,9 +16,9 @@ Documentation on the biological concepts and context is coming soon.
 
 For background information, please refer to:
 
-- [Splice Prediction Guide](../SPLICE_PREDICTION_GUIDE.md) - Practical splice prediction
+- [Splice Prediction Guide](../tutorials/SPLICE_PREDICTION_GUIDE.md) - Practical splice prediction
 - [Isoform Discovery](../isoform_discovery/README.md) - Novel isoform discovery
-- Main project [README](../../README.md) - Project overview and vision
+- Main project README (`agentic-spliceai/README.md`) - Project overview and vision
 
 ---
 

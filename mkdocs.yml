@@ -123,13 +123,12 @@ nav:
   - Getting Started:
       - Quick Start: QUICKSTART.md
       - Setup Guide: SETUP.md
-  - Documentation:
-      - Package Organization: PACKAGE_ORGANIZATION.md
-      - Structure: STRUCTURE.md
-      - Splice Prediction Guide: SPLICE_PREDICTION_GUIDE.md
-      - RunPods Setup: RUNPODS_SETUP.md
+      - RunPods Setup: getting_started/RUNPODS_SETUP.md
+      - LaTeX Setup: getting_started/LATEX_SETUP.md
   - Architecture:
       - Overview: architecture/README.md
+      - Project Structure: architecture/STRUCTURE.md
+      - Package Organization: architecture/PACKAGE_ORGANIZATION.md
   - System Design:
       - Overview: system_design/README.md
       - Resource Management: system_design/resource_management.md
@@ -139,8 +138,25 @@ nav:
   - Base Layer:
       - Data Preparation CLI: base_layer/DATA_PREPARATION_CLI.md
       - Processing Architecture: base_layer/PROCESSING_ARCHITECTURE.md
+      - Position & Coordinate Systems: base_layer/POSITION_COORDINATE_SYSTEMS.md
   - Meta Layer:
       - Overview: meta_layer/README.md
+      - Architecture: meta_layer/ARCHITECTURE.md
+      - Methods:
+          - Overview: meta_layer/methods/README.md
+          - Roadmap: meta_layer/methods/ROADMAP.md
+          - Paired Delta Prediction: meta_layer/methods/PAIRED_DELTA_PREDICTION.md
+          - Validated Delta Prediction: meta_layer/methods/VALIDATED_DELTA_PREDICTION.md
+      - Experiments:
+          - Overview: meta_layer/experiments/README.md
+          - 001 Canonical Classification: meta_layer/experiments/001_canonical_classification/README.md
+          - 002 Delta Prediction: meta_layer/experiments/002_delta_prediction/README.md
+          - 003 Binary Classification: meta_layer/experiments/003_binary_classification/README.md
+          - 004 Validated Delta: meta_layer/experiments/004_validated_delta/README.md
+  - Foundation Models:
+      - Overview: foundation_models/README.md
+      - Evo2 Junction Labels: foundation_models/evo2/junction_support_labels.md
+      - DeepSpeed Training: foundation_models/training/deepspeed_training.md
   - Isoform Discovery:
       - Overview: isoform_discovery/README.md
   - Variant Analysis:
@@ -149,18 +165,17 @@ nav:
       - Overview: agency/README.md
       - Memory Tutorial: agency/AGENTIC_MEMORY_TUTORIAL.md
       - Memory Patterns: agency/MEMORY_PATTERNS.md
-  - API Reference:
-      - Overview: api/README.md
   - Tutorials:
       - Overview: tutorials/README.md
+      - Splice Prediction Guide: tutorials/SPLICE_PREDICTION_GUIDE.md
+  - API Reference:
+      - Overview: api/README.md
   - Biological Background:
       - Overview: biology/README.md
-  - Workflows:
-      - Overview: workflows/README.md
   - Bioinformatics:
       - Overview: bioinformatics/README.md
-  - Installation:
-      - LaTeX Setup: installation/LATEX_SETUP.md
+  - Workflows:
+      - Overview: workflows/README.md
   - About:
       - Contributing: CONTRIBUTING.md
       - Math Test Page: test_math.md

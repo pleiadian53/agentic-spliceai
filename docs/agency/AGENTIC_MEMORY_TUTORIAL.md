@@ -665,7 +665,6 @@ git push
 ## 🔗 Learn More
 
 - **Framework**: MemU (https://github.com/NevaMind-AI/memU)
-- **Integration**: See `dev/planning/agentic_workflows/MEMORY_LAYER.md`
 - **Use Cases**: See `docs/agency/MEMORY_PATTERNS.md`
 - **API Reference**: See `docs/api/memory.md`
 

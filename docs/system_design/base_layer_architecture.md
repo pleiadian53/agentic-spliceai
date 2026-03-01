@@ -18,11 +18,7 @@ The base layer provides an **abstract interface** for splice site prediction mod
 
 ## Current Status
 
-This is an active refactoring area. For complete details, see:
-
-📋 **Primary Documentation**:
-- [dev/refactoring/BASE_LAYER_REFACTORING.md](../../dev/refactoring/BASE_LAYER_REFACTORING.md)
-- [dev/refactoring/CRITICAL_BUG_FIX_COORDINATE_ADJUSTMENT.md](../../dev/refactoring/CRITICAL_BUG_FIX_COORDINATE_ADJUSTMENT.md)
+This is an active development area. Key components are implemented; workflow orchestration and chunking are in progress.
 
 ---
 
@@ -52,7 +48,7 @@ class BaseModel(ABC):
 - **SpliceAI**: 0-based, predictions at position
 - **OpenSpliceAI**: 0-based, predictions offset by +1
 
-See [CRITICAL_BUG_FIX_COORDINATE_ADJUSTMENT.md](../../dev/refactoring/CRITICAL_BUG_FIX_COORDINATE_ADJUSTMENT.md) for details.
+See [Coordinate Adjustment](../base_layer/COORDINATE_ADJUSTMENT.md) for the full explanation, known offsets, and implementation guide.
 
 ### 3. Prediction Pipeline
 
@@ -134,8 +130,8 @@ results = run_base_predictions(
 
 ## Related Documentation
 
-- [dev/refactoring/BASE_LAYER_REFACTORING.md](../../dev/refactoring/BASE_LAYER_REFACTORING.md) - Detailed refactoring plan
-- [dev/refactoring/COORDINATE_CONVENTIONS.md](../../dev/base_layer/coordinate_systems/COORDINATE_CONVENTIONS.md) - Coordinate system details
+- [Coordinate Adjustment](../base_layer/COORDINATE_ADJUSTMENT.md) - Score-array rolling, known offsets, common mistakes
+- [Position & Coordinate Systems](../base_layer/POSITION_COORDINATE_SYSTEMS.md) - Coordinate system conventions
 
 ---
 

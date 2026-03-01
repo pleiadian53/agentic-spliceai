@@ -16,7 +16,7 @@ Step-by-step tutorials are coming soon.
 For now, please refer to:
 
 - [Quick Start Guide](../QUICKSTART.md) - Basic usage examples
-- [Splice Prediction Guide](../SPLICE_PREDICTION_GUIDE.md) - Splice site prediction
+- [Splice Prediction Guide](SPLICE_PREDICTION_GUIDE.md) - Splice site prediction
 - [Agency Memory Tutorial](../agency/AGENTIC_MEMORY_TUTORIAL.md) - Memory patterns
 
 ---

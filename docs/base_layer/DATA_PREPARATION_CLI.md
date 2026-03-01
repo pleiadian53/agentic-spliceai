@@ -354,12 +354,11 @@ result = prepare_splice_site_annotations(
 splice_df = result['splice_sites_df']
 ```
 
-See the [Python API documentation](../src/agentic_spliceai/splice_engine/base_layer/data/README.md) for more details.
+See the Python API documentation at `src/agentic_spliceai/splice_engine/base_layer/data/` for more details.
 
 ---
 
 ## See Also
 
-- [Phase 2 Completion Report](../../dev/base_layer/PHASE2_COMPLETE.md) - Technical details
 - [Base Layer Architecture](PROCESSING_ARCHITECTURE.md) - System architecture
-- [Python API](../../src/agentic_spliceai/splice_engine/base_layer/data/README.md) - Python interface
+- `src/agentic_spliceai/splice_engine/base_layer/data/` - Python interface

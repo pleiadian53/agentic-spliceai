@@ -2,7 +2,7 @@
 
 **Complete overview of the agentic-spliceai project organization**
 
-> **Note**: This file is located at `docs/STRUCTURE.md`. For quick setup, see [`SETUP.md`](../SETUP.md) at the project root.
+> **Note**: This file is located at `docs/architecture/STRUCTURE.md`. For quick setup, see [`SETUP.md`](../SETUP.md).
 
 ## 📁 Directory Structure
 

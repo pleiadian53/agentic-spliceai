@@ -9,19 +9,6 @@ This document explains the core processing architecture of the base layer for sp
 
 ---
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Base Model Protocol](#base-model-protocol)
-3. [Data Preparation Pipeline](#data-preparation-pipeline)
-4. [Three-Level Processing Loop](#three-level-processing-loop)
-5. [Memory Management Strategy](#memory-management-strategy)
-6. [Checkpoint and Resume](#checkpoint-and-resume)
-7. [Output Files](#output-files)
-8. [Configuration Options](#configuration-options)
-
----
-
 ## Overview
 
 The base layer processes genomic data through a carefully designed pipeline that balances **accuracy**, **memory efficiency**, and **fault tolerance**. The architecture handles the challenge of processing ~20,000 genes across 24 chromosomes while keeping memory usage manageable.
@@ -633,4 +620,4 @@ This architecture enables processing of the entire human genome (~20,000 genes) 
 
 - [Base Layer Integration Summary](./BASE_LAYER_INTEGRATION_SUMMARY.md)
 - [Feature Set Documentation](./BASE_LAYER_FEATURE_SET.md)
-- [API Reference](../api/splice_engine.md)
+- [API Reference](../api/README.md)

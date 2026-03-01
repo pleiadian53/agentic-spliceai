@@ -15,7 +15,7 @@ Documentation on variant impact analysis is coming soon.
 
 For now, please refer to:
 
-- [Splice Prediction Guide](../SPLICE_PREDICTION_GUIDE.md) - Splice prediction methods
+- [Splice Prediction Guide](../tutorials/SPLICE_PREDICTION_GUIDE.md) - Splice prediction methods
 - [Isoform Discovery](../isoform_discovery/README.md) - Novel isoform discovery
 
 ---

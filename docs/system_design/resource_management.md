@@ -624,6 +624,5 @@ class CachedConfig(Config):
 
 ---
 
-**Implementation**: See [src/agentic_spliceai/splice_engine/config/genomic_config.py](../../src/agentic_spliceai/splice_engine/config/genomic_config.py)  
-**Refactoring Plan**: See [dev/refactoring/RESOURCE_MANAGEMENT_REFACTORING.md](../../dev/refactoring/RESOURCE_MANAGEMENT_REFACTORING.md)  
+**Implementation**: `src/agentic_spliceai/splice_engine/config/genomic_config.py`  
 **Last Updated**: February 15, 2026

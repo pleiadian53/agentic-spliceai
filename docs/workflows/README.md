@@ -15,7 +15,7 @@ Workflow documentation and examples are coming soon.
 
 For workflow-related information, please refer to:
 
-- [Splice Prediction Guide](../SPLICE_PREDICTION_GUIDE.md) - Prediction workflows
+- [Splice Prediction Guide](../tutorials/SPLICE_PREDICTION_GUIDE.md) - Prediction workflows
 - [Data Preparation CLI](../base_layer/DATA_PREPARATION_CLI.md) - Data processing
 - [Agency Patterns](../agency/MEMORY_PATTERNS.md) - Agentic workflow patterns
 

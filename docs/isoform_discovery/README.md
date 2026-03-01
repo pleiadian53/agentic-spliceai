@@ -516,11 +516,6 @@ docs/isoform_discovery/
 ├── VALIDATION_METHODS.md              ← How to validate discoveries
 └── RESEARCH_QUESTIONS.md              ← Open questions & experiments
 
-dev/research/isoform_discovery/
-├── brainstorming/                     ← Ideas, sketches
-├── literature_review/                 ← Paper summaries
-├── prototype/                         ← Experimental code
-└── experiments/                       ← Pilot studies
 ```
 
 ---
@@ -548,4 +543,4 @@ dev/research/isoform_discovery/
 **Next**: Extend meta layer (Phase 5) with novel site detection  
 **Long-term**: Dedicated isoform discovery phase (Phase 8)
 
-**Questions? Ideas? Add to**: `dev/research/isoform_discovery/brainstorming/`
+**Questions? Ideas?** Open a GitHub issue or discussion.
