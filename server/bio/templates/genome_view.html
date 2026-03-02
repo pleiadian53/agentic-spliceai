@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+{% block title %}Genome View: {{ gene_name }} — AgenticSpliceAI Lab{% endblock %}
+{% block nav_genome %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    .genome-controls {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .control-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .control-group label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .threshold-display {
+        font-family: 'SF Mono', Monaco, Consolas, monospace;
+        font-size: 0.9rem;
+        color: #1e3a5f;
+        font-weight: 600;
+        min-width: 2.5rem;
+    }
+
+    input[type="range"] {
+        width: 120px;
+        accent-color: #3572a5;
+    }
+
+    /* Gene info bar */
+    .gene-info-bar {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
+    }
+
+    .info-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: white;
+        padding: 0.4rem 0.9rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .info-chip .label {
+        color: #999;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .info-chip .value {
+        color: #1e3a5f;
+        font-weight: 600;
+        font-family: 'SF Mono', Monaco, Consolas, monospace;
+        font-size: 0.85rem;
+    }
+
+    /* Classification summary */
+    .classification-summary {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .class-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .class-badge.tp { background: #d4edda; color: #155724; }
+    .class-badge.fp { background: #f8d7da; color: #721c24; }
+    .class-badge.fn { background: #fff3cd; color: #856404; }
+
+    .class-badge .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .class-badge.tp .dot { background: #27ae60; }
+    .class-badge.fp .dot { background: #e74c3c; }
+    .class-badge.fn .dot { background: #f39c12; }
+
+    /* Loading panel */
+    .loading-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem 2rem;
+        gap: 1.25rem;
+    }
+
+    .loading-panel .spinner {
+        width: 48px;
+        height: 48px;
+        border-width: 4px;
+    }
+
+    .loading-status {
+        font-size: 1rem;
+        color: #666;
+    }
+
+    .loading-hint {
+        font-size: 0.85rem;
+        color: #999;
+    }
+
+    /* Error panel */
+    .error-panel {
+        padding: 2rem;
+        text-align: center;
+    }
+
+    .error-panel .error-icon {
+        font-size: 2.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .error-panel .error-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #721c24;
+        margin-bottom: 0.5rem;
+    }
+
+    .error-panel .error-message {
+        color: #856404;
+        font-size: 0.95rem;
+    }
+
+    /* Downsample notice */
+    .downsample-notice {
+        font-size: 0.8rem;
+        color: #999;
+        text-align: right;
+        margin-top: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="page-header">
+    <h1>Genome View: {{ gene_name }}</h1>
+    <p>Per-position splice site prediction probabilities</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Controls -->
+<div class="card genome-controls">
+    <div class="control-group">
+        <label for="model-select">Model</label>
+        <select id="model-select">
+            {% for m in models %}
+            <option value="{{ m }}" {% if m == default_model %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="control-group">
+        <label for="threshold-range">Threshold</label>
+        <input type="range" id="threshold-range" min="0" max="1" step="0.05" value="0.5">
+        <span class="threshold-display" id="threshold-display">0.50</span>
+    </div>
+    <button class="btn btn-primary" id="run-btn" onclick="runPrediction()">Run Prediction</button>
+</div>
+
+<!-- Gene info bar (shown after prediction) -->
+<div id="gene-info" style="display:none;">
+    <div class="gene-info-bar" id="gene-info-chips"></div>
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-label">Classification</div>
+            <div class="classification-summary" id="class-summary"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading panel -->
+<div class="card" id="loading-panel" style="display:none;">
+    <div class="loading-panel">
+        <div class="spinner"></div>
+        <div class="loading-status" id="loading-status">Initializing...</div>
+        <div class="loading-hint" id="loading-hint"></div>
+    </div>
+</div>
+
+<!-- Error panel -->
+<div class="card" id="error-panel" style="display:none;">
+    <div class="error-panel">
+        <div class="error-icon">!</div>
+        <div class="error-title">Prediction Failed</div>
+        <div class="error-message" id="error-message"></div>
+        <button class="btn btn-primary" style="margin-top:1rem;" onclick="runPrediction()">Try Again</button>
+    </div>
+</div>
+
+<!-- Tracks container -->
+<div class="card" id="tracks-card" style="display:none;">
+    <div id="genome-tracks" style="height:700px;"></div>
+    <div class="downsample-notice" id="downsample-notice"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const GENE_NAME = "{{ gene_name }}";
+
+// --- UI State ---
+
+function setState(state, message, hint) {
+    const loading = document.getElementById('loading-panel');
+    const error = document.getElementById('error-panel');
+    const tracks = document.getElementById('tracks-card');
+    const info = document.getElementById('gene-info');
+    const runBtn = document.getElementById('run-btn');
+
+    loading.style.display = state === 'loading' ? 'block' : 'none';
+    error.style.display = state === 'error' ? 'block' : 'none';
+    tracks.style.display = state === 'done' ? 'block' : 'none';
+    info.style.display = state === 'done' ? 'block' : 'none';
+    runBtn.disabled = state === 'loading';
+    runBtn.textContent = state === 'loading' ? 'Running...' : 'Run Prediction';
+
+    if (message) document.getElementById('loading-status').textContent = message;
+    if (hint !== undefined) document.getElementById('loading-hint').textContent = hint;
+}
+
+// --- Threshold slider ---
+
+const thresholdRange = document.getElementById('threshold-range');
+const thresholdDisplay = document.getElementById('threshold-display');
+thresholdRange.addEventListener('input', function() {
+    thresholdDisplay.textContent = parseFloat(this.value).toFixed(2);
+});
+
+// --- Prediction ---
+
+async function runPrediction() {
+    const model = document.getElementById('model-select').value;
+    const threshold = thresholdRange.value;
+
+    setState('loading', 'Running splice site prediction...', 'This may take 5-15 seconds on first load');
+
+    try {
+        const url = `/api/genome/${encodeURIComponent(GENE_NAME)}/predict?model=${model}&threshold=${threshold}`;
+        const resp = await fetch(url);
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
+            throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        setState('done');
+        renderGeneInfo(data);
+        renderTracks(data);
+    } catch (e) {
+        setState('error');
+        document.getElementById('error-message').textContent = e.message;
+    }
+}
+
+// --- Gene Info ---
+
+function renderGeneInfo(data) {
+    const chips = document.getElementById('gene-info-chips');
+    const len = data.gene_end - data.gene_start;
+    chips.innerHTML = `
+        <div class="info-chip"><span class="label">Chr</span><span class="value">${data.chrom}</span></div>
+        <div class="info-chip"><span class="label">Strand</span><span class="value">${data.strand}</span></div>
+        <div class="info-chip"><span class="label">Start</span><span class="value">${data.gene_start.toLocaleString()}</span></div>
+        <div class="info-chip"><span class="label">End</span><span class="value">${data.gene_end.toLocaleString()}</span></div>
+        <div class="info-chip"><span class="label">Length</span><span class="value">${len.toLocaleString()} bp</span></div>
+        <div class="info-chip"><span class="label">Model</span><span class="value">${data.model}</span></div>
+        <div class="info-chip"><span class="label">Threshold</span><span class="value">${data.threshold}</span></div>
+    `;
+
+    const summary = document.getElementById('class-summary');
+    summary.innerHTML = `
+        <span class="class-badge tp"><span class="dot"></span>TP: ${data.n_tp}</span>
+        <span class="class-badge fp"><span class="dot"></span>FP: ${data.n_fp}</span>
+        <span class="class-badge fn"><span class="dot"></span>FN: ${data.n_fn}</span>
+    `;
+
+    // Downsample notice
+    const notice = document.getElementById('downsample-notice');
+    if (data.downsample_factor > 1) {
+        notice.textContent = `Showing every ${data.downsample_factor}${ordinalSuffix(data.downsample_factor)} position (${data.positions.length.toLocaleString()} of ${data.total_positions.toLocaleString()})`;
+    } else {
+        notice.textContent = `${data.total_positions.toLocaleString()} positions`;
+    }
+}
+
+function ordinalSuffix(n) {
+    const s = ['th','st','nd','rd'];
+    const v = n % 100;
+    return s[(v-20)%10] || s[v] || s[0];
+}
+
+// --- Plotly Tracks ---
+
+function renderTracks(data) {
+    // Separate markers by type
+    const tp = data.markers.filter(m => m.pred_type === 'TP');
+    const fp = data.markers.filter(m => m.pred_type === 'FP');
+    const fn = data.markers.filter(m => m.pred_type === 'FN');
+
+    // Separate ground truth by site type
+    const gtDonor = [], gtAcceptor = [];
+    for (let i = 0; i < data.gt_positions.length; i++) {
+        if (data.gt_site_types[i] === 'donor') gtDonor.push(data.gt_positions[i]);
+        else gtAcceptor.push(data.gt_positions[i]);
+    }
+
+    const traces = [
+        // Track 1: Donor probability
+        {
+            x: data.positions,
+            y: data.donor_prob,
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#3572a5', width: 1.2 },
+            name: 'Donor Prob',
+            xaxis: 'x',
+            yaxis: 'y',
+            hovertemplate: 'Pos: %{x:,}<br>Prob: %{y:.4f}<extra>Donor</extra>',
+        },
+        // Threshold line for donor track
+        {
+            x: [data.positions[0], data.positions[data.positions.length - 1]],
+            y: [data.threshold, data.threshold],
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#ccc', width: 1, dash: 'dot' },
+            name: 'Threshold',
+            xaxis: 'x',
+            yaxis: 'y',
+            showlegend: false,
+            hoverinfo: 'skip',
+        },
+        // Track 2: Acceptor probability
+        {
+            x: data.positions,
+            y: data.acceptor_prob,
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#e74c3c', width: 1.2 },
+            name: 'Acceptor Prob',
+            xaxis: 'x',
+            yaxis: 'y2',
+            hovertemplate: 'Pos: %{x:,}<br>Prob: %{y:.4f}<extra>Acceptor</extra>',
+        },
+        // Threshold line for acceptor track
+        {
+            x: [data.positions[0], data.positions[data.positions.length - 1]],
+            y: [data.threshold, data.threshold],
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#ccc', width: 1, dash: 'dot' },
+            xaxis: 'x',
+            yaxis: 'y2',
+            showlegend: false,
+            hoverinfo: 'skip',
+        },
+        // Track 3: TP markers
+        {
+            x: tp.map(m => m.position),
+            y: tp.map(m => m.site_type === 'donor' ? m.donor_score : m.acceptor_score),
+            type: 'scatter',
+            mode: 'markers',
+            marker: { color: '#27ae60', size: 9, symbol: 'circle', line: { color: '#1e8449', width: 1 } },
+            name: `TP (${tp.length})`,
+            xaxis: 'x',
+            yaxis: 'y3',
+            customdata: tp.map(m => `${m.site_type} | D=${m.donor_score.toFixed(3)} A=${m.acceptor_score.toFixed(3)}`),
+            hovertemplate: 'Pos: %{x:,}<br>Score: %{y:.4f}<br>%{customdata}<extra>TP</extra>',
+        },
+        // FP markers
+        {
+            x: fp.map(m => m.position),
+            y: fp.map(m => m.site_type === 'donor' ? m.donor_score : m.acceptor_score),
+            type: 'scatter',
+            mode: 'markers',
+            marker: { color: '#e74c3c', size: 9, symbol: 'triangle-up', line: { color: '#c0392b', width: 1 } },
+            name: `FP (${fp.length})`,
+            xaxis: 'x',
+            yaxis: 'y3',
+            customdata: fp.map(m => `${m.site_type} | D=${m.donor_score.toFixed(3)} A=${m.acceptor_score.toFixed(3)}`),
+            hovertemplate: 'Pos: %{x:,}<br>Score: %{y:.4f}<br>%{customdata}<extra>FP</extra>',
+        },
+        // FN markers
+        {
+            x: fn.map(m => m.position),
+            y: fn.map(m => m.site_type === 'donor' ? m.donor_score : m.acceptor_score),
+            type: 'scatter',
+            mode: 'markers',
+            marker: { color: '#f39c12', size: 9, symbol: 'x', line: { color: '#d68910', width: 1.5 } },
+            name: `FN (${fn.length})`,
+            xaxis: 'x',
+            yaxis: 'y3',
+            customdata: fn.map(m => `${m.site_type} | D=${m.donor_score.toFixed(3)} A=${m.acceptor_score.toFixed(3)}`),
+            hovertemplate: 'Pos: %{x:,}<br>Score: %{y:.4f}<br>%{customdata}<extra>FN</extra>',
+        },
+    ];
+
+    // Ground truth as vertical line shapes on the classification track
+    const shapes = [];
+    gtDonor.forEach(pos => {
+        shapes.push({
+            type: 'line', xref: 'x', yref: 'y3',
+            x0: pos, x1: pos, y0: 0, y1: 1,
+            line: { color: 'rgba(53, 114, 165, 0.2)', width: 1 },
+        });
+    });
+    gtAcceptor.forEach(pos => {
+        shapes.push({
+            type: 'line', xref: 'x', yref: 'y3',
+            x0: pos, x1: pos, y0: 0, y1: 1,
+            line: { color: 'rgba(231, 76, 60, 0.2)', width: 1 },
+        });
+    });
+
+    const layout = {
+        xaxis: {
+            title: { text: `Genomic Position (${data.chrom})`, font: { size: 12 } },
+            showgrid: true,
+            gridcolor: '#f0f0f0',
+            tickformat: ',d',
+            anchor: 'y3',
+        },
+        yaxis: {
+            title: { text: 'Donor Prob', font: { size: 11, color: '#3572a5' } },
+            range: [0, 1.05],
+            domain: [0.70, 1.0],
+            gridcolor: '#f0f0f0',
+        },
+        yaxis2: {
+            title: { text: 'Acceptor Prob', font: { size: 11, color: '#e74c3c' } },
+            range: [0, 1.05],
+            domain: [0.37, 0.67],
+            gridcolor: '#f0f0f0',
+        },
+        yaxis3: {
+            title: { text: 'Classification', font: { size: 11 } },
+            range: [0, 1.1],
+            domain: [0.0, 0.32],
+            gridcolor: '#f0f0f0',
+        },
+        shapes: shapes,
+        showlegend: true,
+        legend: {
+            orientation: 'h',
+            y: -0.08,
+            x: 0.5,
+            xanchor: 'center',
+            font: { size: 11 },
+        },
+        margin: { t: 15, b: 65, l: 70, r: 20 },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        font: {
+            family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            size: 12,
+        },
+    };
+
+    const plotConfig = {
+        responsive: true,
+        displayModeBar: true,
+        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+        displaylogo: false,
+    };
+
+    Plotly.newPlot('genome-tracks', traces, layout, plotConfig);
+}
+
+// --- Init ---
+document.addEventListener('DOMContentLoaded', runPrediction);
+</script>
+{% endblock %}

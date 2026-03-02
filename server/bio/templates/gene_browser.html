@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Gene Browser - AgenticSpliceAI Lab{% endblock %}
+{% block nav_genes %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    .desc-cell {
+        max-width: 250px;
+        font-size: 0.83rem;
+        color: #555;
+        cursor: default;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="page-header">
+    <h1>Gene Browser</h1>
+    <p>Browse protein-coding genes across reference genome annotations</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Controls -->
+<div class="card">
+    <div style="display: flex; gap: 1rem; align-items: end; flex-wrap: wrap;">
+        <div>
+            <label for="model-select" style="display:block; font-size:0.8rem; font-weight:600; color:#666; margin-bottom:0.25rem;">MODEL</label>
+            <select id="model-select" style="min-width: 200px;">
+                {% for m in models %}
+                <option value="{{ m }}" {% if m == default_model %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="chrom-select" style="display:block; font-size:0.8rem; font-weight:600; color:#666; margin-bottom:0.25rem;">CHROMOSOME</label>
+            <select id="chrom-select" style="min-width: 120px;">
+                <option value="">All</option>
+            </select>
+        </div>
+        <div style="flex: 1; min-width: 200px;">
+            <label for="search-input" style="display:block; font-size:0.8rem; font-weight:600; color:#666; margin-bottom:0.25rem;">SEARCH</label>
+            <input type="search" id="search-input" placeholder="Gene name or ID (e.g. BRCA1, TP53)" style="width: 100%;">
+        </div>
+        <div>
+            <label for="per-page-select" style="display:block; font-size:0.8rem; font-weight:600; color:#666; margin-bottom:0.25rem;">PER PAGE</label>
+            <select id="per-page-select" style="min-width: 80px;">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-row" id="stats-row">
+    <div class="stat-card">
+        <div class="stat-label">Total Genes</div>
+        <div class="stat-value" id="stat-total">--</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Genome Build</div>
+        <div class="stat-value" id="stat-build">--</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Annotation</div>
+        <div class="stat-value" id="stat-annotation">--</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Filtered</div>
+        <div class="stat-value" id="stat-filtered">--</div>
+    </div>
+</div>
+
+<!-- Gene Table -->
+<div class="card" style="position: relative;">
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th data-sort="gene_name">Gene Name</th>
+                <th data-sort="gene_id">Gene ID</th>
+                <th>Description</th>
+                <th data-sort="chrom">Chr</th>
+                <th data-sort="strand">Strand</th>
+                <th data-sort="start" class="text-right">Start</th>
+                <th data-sort="end" class="text-right">End</th>
+                <th data-sort="length" class="text-right">Length</th>
+                <th data-sort="n_splice_sites" class="text-right">Splice Sites</th>
+            </tr>
+        </thead>
+        <tbody id="gene-table-body">
+            <tr><td colspan="9" style="text-align:center; padding:2rem; color:#999;">Loading...</td></tr>
+        </tbody>
+    </table>
+
+    <div class="pagination" id="pagination">
+        <button id="btn-first" onclick="goToPage(1)">&laquo;</button>
+        <button id="btn-prev" onclick="goToPage(currentPage - 1)">&lsaquo;</button>
+        <span class="page-info" id="page-info">--</span>
+        <button id="btn-next" onclick="goToPage(currentPage + 1)">&rsaquo;</button>
+        <button id="btn-last" onclick="goToPage(totalPages)">&raquo;</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // State
+    let currentPage = 1;
+    let totalPages = 1;
+    let searchTimeout = null;
+
+    // Elements
+    const modelSelect = document.getElementById('model-select');
+    const chromSelect = document.getElementById('chrom-select');
+    const searchInput = document.getElementById('search-input');
+    const perPageSelect = document.getElementById('per-page-select');
+    const tableBody = document.getElementById('gene-table-body');
+    const loading = document.getElementById('loading');
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+        loadChromosomes();
+        loadStats();
+        loadGenes();
+    });
+
+    // Event listeners
+    modelSelect.addEventListener('change', () => {
+        currentPage = 1;
+        loadChromosomes();
+        loadStats();
+        loadGenes();
+    });
+
+    chromSelect.addEventListener('change', () => {
+        currentPage = 1;
+        loadGenes();
+    });
+
+    perPageSelect.addEventListener('change', () => {
+        currentPage = 1;
+        loadGenes();
+    });
+
+    searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            currentPage = 1;
+            loadGenes();
+        }, 300);
+    });
+
+    // Load chromosomes for dropdown
+    async function loadChromosomes() {
+        const model = modelSelect.value;
+        try {
+            const resp = await fetch(`/api/genes/chromosomes?model=${encodeURIComponent(model)}`);
+            const chroms = await resp.json();
+
+            chromSelect.innerHTML = '<option value="">All</option>';
+            chroms.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                chromSelect.appendChild(opt);
+            });
+        } catch (e) {
+            console.error('Failed to load chromosomes:', e);
+        }
+    }
+
+    // Load stats
+    async function loadStats() {
+        const model = modelSelect.value;
+        try {
+            const resp = await fetch(`/api/genes/stats?model=${encodeURIComponent(model)}`);
+            const stats = await resp.json();
+
+            document.getElementById('stat-total').textContent = stats.total_genes.toLocaleString();
+            document.getElementById('stat-build').textContent = stats.build;
+            document.getElementById('stat-annotation').textContent = stats.annotation_source;
+        } catch (e) {
+            console.error('Failed to load stats:', e);
+        }
+    }
+
+    // Load genes
+    async function loadGenes() {
+        const model = modelSelect.value;
+        const chr = chromSelect.value;
+        const search = searchInput.value.trim();
+        const perPage = perPageSelect.value;
+
+        loading.classList.add('active');
+
+        const params = new URLSearchParams({
+            model: model,
+            page: currentPage,
+            per_page: perPage,
+        });
+        if (chr) params.set('chr', chr);
+        if (search) params.set('search', search);
+
+        try {
+            const resp = await fetch(`/api/genes?${params}`);
+            const data = await resp.json();
+
+            totalPages = data.total_pages;
+            renderTable(data.genes);
+            renderPagination(data);
+            document.getElementById('stat-filtered').textContent = data.total.toLocaleString();
+        } catch (e) {
+            console.error('Failed to load genes:', e);
+            tableBody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:2rem; color:#c62828;">Failed to load genes</td></tr>';
+        } finally {
+            loading.classList.remove('active');
+        }
+    }
+
+    // Render table
+    function renderTable(genes) {
+        if (!genes.length) {
+            tableBody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:2rem; color:#999;">No genes found</td></tr>';
+            return;
+        }
+
+        tableBody.innerHTML = genes.map(g => {
+            const desc = g.description || '';
+            const descShort = desc.length > 40 ? desc.substring(0, 40) + '...' : desc;
+            return `
+            <tr>
+                <td><a href="/genome/${encodeURIComponent(g.gene_name)}?model=${modelSelect.value}" style="color:#1e3a5f; font-weight:600; text-decoration:none;">${escapeHtml(g.gene_name)}</a></td>
+                <td class="mono text-muted">${escapeHtml(g.gene_id)}</td>
+                <td class="desc-cell" title="${escapeHtml(desc)}">${escapeHtml(descShort) || '<span class="text-muted">&mdash;</span>'}</td>
+                <td>${escapeHtml(g.chrom)}</td>
+                <td style="text-align:center;">${g.strand === '+' ? '+' : '&minus;'}</td>
+                <td class="text-right mono">${g.start.toLocaleString()}</td>
+                <td class="text-right mono">${g.end.toLocaleString()}</td>
+                <td class="text-right mono">${g.length.toLocaleString()}</td>
+                <td class="text-right">${g.n_splice_sites}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    // Render pagination
+    function renderPagination(data) {
+        document.getElementById('page-info').textContent =
+            `Page ${data.page} of ${data.total_pages} (${data.total.toLocaleString()} genes)`;
+
+        document.getElementById('btn-first').disabled = data.page <= 1;
+        document.getElementById('btn-prev').disabled = data.page <= 1;
+        document.getElementById('btn-next').disabled = data.page >= data.total_pages;
+        document.getElementById('btn-last').disabled = data.page >= data.total_pages;
+    }
+
+    // Navigate
+    function goToPage(page) {
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        loadGenes();
+    }
+
+    // Escape HTML
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}

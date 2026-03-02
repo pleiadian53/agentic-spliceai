@@ -1,0 +1,499 @@
+{% extends "base.html" %}
+
+{% block title %}Metrics Dashboard - AgenticSpliceAI Lab{% endblock %}
+{% block nav_metrics %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    .run-selector {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .run-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        border: 2px solid #dee2e6;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    .run-chip:hover { border-color: #3572a5; }
+    .run-chip.selected {
+        border-color: #1e3a5f;
+        background: #e8f0fe;
+        color: #1e3a5f;
+    }
+    .run-chip .run-meta {
+        font-size: 0.75rem;
+        color: #888;
+        font-weight: 400;
+    }
+    .run-chip.selected .run-meta { color: #3572a5; }
+
+    .chart-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+    .chart-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.25rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .chart-card.full-width {
+        grid-column: 1 / -1;
+    }
+    .chart-card h3 {
+        color: #1e3a5f;
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+    .meta-item {
+        background: white;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .meta-item .meta-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #888;
+        font-weight: 600;
+    }
+    .meta-item .meta-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1e3a5f;
+        margin-top: 0.15rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #999;
+    }
+    .empty-state h3 { color: #666; margin-bottom: 0.5rem; }
+
+    .transcript-tabs {
+        display: flex;
+        gap: 0.25rem;
+        margin-bottom: 1rem;
+    }
+    .transcript-tab {
+        padding: 0.4rem 1rem;
+        border: 1px solid #dee2e6;
+        background: white;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    .transcript-tab.active {
+        background: #1e3a5f;
+        color: white;
+        border-color: #1e3a5f;
+    }
+
+    @media (max-width: 900px) {
+        .chart-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="page-header">
+    <h1>Metrics Dashboard</h1>
+    <p>Visualize and compare splice site prediction evaluation results</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Run Selector -->
+<div class="card">
+    <h2>Evaluation Runs</h2>
+    <div class="run-selector" id="run-selector">
+        <span class="text-muted" style="font-size:0.9rem;">Loading runs...</span>
+    </div>
+</div>
+
+<!-- Run Metadata -->
+<div class="meta-grid" id="meta-grid" style="display:none;"></div>
+
+<!-- Transcript Filter Tabs -->
+<div class="transcript-tabs" id="transcript-tabs" style="display:none;">
+    <div class="transcript-tab active" data-scope="canonical" onclick="switchScope('canonical')">Canonical Transcripts</div>
+    <div class="transcript-tab" data-scope="all" onclick="switchScope('all')">All Transcripts</div>
+</div>
+
+<!-- Charts -->
+<div id="charts-container" style="display:none;">
+    <div class="chart-grid">
+        <div class="chart-card full-width">
+            <h3>Recall / Precision / F1 by Site Type</h3>
+            <div id="chart-rpf" style="height: 350px;"></div>
+        </div>
+        <div class="chart-card">
+            <h3>Confusion Counts (TP / FP / FN)</h3>
+            <div id="chart-confusion" style="height: 300px;"></div>
+        </div>
+        <div class="chart-card">
+            <h3>PR-AUC / Average Precision</h3>
+            <div id="chart-pr" style="height: 300px;"></div>
+        </div>
+        <div class="chart-card">
+            <h3>Top-k Accuracy</h3>
+            <div id="chart-topk" style="height: 300px;"></div>
+        </div>
+        <div class="chart-card">
+            <h3>Windowed Recall</h3>
+            <div id="chart-windowed" style="height: 300px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Empty State -->
+<div class="empty-state" id="empty-state">
+    <h3>No runs selected</h3>
+    <p>Select one or more evaluation runs above to view metrics</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // State
+    let allRuns = [];
+    let selectedRunIds = [];
+    let metricsData = {};  // run_id -> full metrics.json
+    let currentScope = 'canonical';
+
+    // Color palette for runs
+    const COLORS = ['#1e3a5f', '#3572a5', '#e74c3c', '#27ae60', '#f39c12', '#8e44ad'];
+
+    const plotlyLayout = {
+        font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 12 },
+        margin: { t: 10, b: 50, l: 50, r: 20 },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        bargap: 0.15,
+        bargroupgap: 0.1,
+    };
+
+    const plotlyConfig = { responsive: true, displayModeBar: false };
+
+    // Init
+    document.addEventListener('DOMContentLoaded', loadRuns);
+
+    async function loadRuns() {
+        try {
+            const resp = await fetch('/api/metrics/runs');
+            allRuns = await resp.json();
+            renderRunSelector();
+        } catch (e) {
+            console.error('Failed to load runs:', e);
+            document.getElementById('run-selector').innerHTML =
+                '<span style="color:#c62828;">Failed to load evaluation runs</span>';
+        }
+    }
+
+    function renderRunSelector() {
+        const container = document.getElementById('run-selector');
+        if (!allRuns.length) {
+            container.innerHTML = '<span class="text-muted">No evaluation runs found in output directory</span>';
+            return;
+        }
+
+        container.innerHTML = allRuns.map(run => `
+            <div class="run-chip ${selectedRunIds.includes(run.run_id) ? 'selected' : ''}"
+                 data-run-id="${run.run_id}"
+                 onclick="toggleRun('${run.run_id}')">
+                <strong>${run.model}</strong>
+                <span class="run-meta">${run.build} &middot; ${run.n_genes} genes</span>
+            </div>
+        `).join('');
+    }
+
+    async function toggleRun(runId) {
+        const idx = selectedRunIds.indexOf(runId);
+        if (idx >= 0) {
+            selectedRunIds.splice(idx, 1);
+            delete metricsData[runId];
+        } else {
+            selectedRunIds.push(runId);
+            // Fetch full metrics if not cached
+            if (!metricsData[runId]) {
+                try {
+                    const resp = await fetch(`/api/metrics/${runId}`);
+                    metricsData[runId] = await resp.json();
+                } catch (e) {
+                    console.error(`Failed to load metrics for ${runId}:`, e);
+                    return;
+                }
+            }
+        }
+
+        renderRunSelector();
+        updateDashboard();
+    }
+
+    function switchScope(scope) {
+        currentScope = scope;
+        document.querySelectorAll('.transcript-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.scope === scope);
+        });
+        renderCharts();
+    }
+
+    function updateDashboard() {
+        const hasSelection = selectedRunIds.length > 0;
+        document.getElementById('empty-state').style.display = hasSelection ? 'none' : 'block';
+        document.getElementById('charts-container').style.display = hasSelection ? 'block' : 'none';
+        document.getElementById('meta-grid').style.display = hasSelection ? 'grid' : 'none';
+        document.getElementById('transcript-tabs').style.display = hasSelection ? 'flex' : 'none';
+
+        if (hasSelection) {
+            renderMetadata();
+            renderCharts();
+        }
+    }
+
+    function renderMetadata() {
+        const grid = document.getElementById('meta-grid');
+        // Show metadata for the first selected run (or summary if multiple)
+        const items = selectedRunIds.map(id => {
+            const m = metricsData[id]?.metadata || {};
+            return { id, ...m };
+        });
+
+        if (items.length === 1) {
+            const m = items[0];
+            grid.innerHTML = `
+                <div class="meta-item"><div class="meta-label">Model</div><div class="meta-value">${m.model || m.id}</div></div>
+                <div class="meta-item"><div class="meta-label">Build</div><div class="meta-value">${m.build || '--'}</div></div>
+                <div class="meta-item"><div class="meta-label">Annotation</div><div class="meta-value">${m.annotation_source || '--'}</div></div>
+                <div class="meta-item"><div class="meta-label">Genes</div><div class="meta-value">${m.n_genes || '--'}</div></div>
+                <div class="meta-item"><div class="meta-label">Threshold</div><div class="meta-value">${m.threshold ?? '--'}</div></div>
+                <div class="meta-item"><div class="meta-label">Runtime</div><div class="meta-value">${m.runtime_seconds ? m.runtime_seconds.toFixed(1) + 's' : '--'}</div></div>
+            `;
+        } else {
+            grid.innerHTML = items.map((m, i) => `
+                <div class="meta-item" style="border-left: 3px solid ${COLORS[i % COLORS.length]};">
+                    <div class="meta-label">${m.model || m.id}</div>
+                    <div class="meta-value">${m.build || ''} &middot; ${m.n_genes || '?'} genes &middot; ${m.runtime_seconds ? m.runtime_seconds.toFixed(1) + 's' : ''}</div>
+                </div>
+            `).join('');
+        }
+    }
+
+    function renderCharts() {
+        renderRPFChart();
+        renderConfusionChart();
+        renderPRChart();
+        renderTopkChart();
+        renderWindowedRecallChart();
+    }
+
+    // Helper: get metrics for scope
+    function getMetrics(runId) {
+        return metricsData[runId]?.metrics?.[currentScope] || {};
+    }
+
+    function getRunLabel(runId) {
+        const m = metricsData[runId]?.metadata;
+        return m ? `${m.model} (${m.build})` : runId;
+    }
+
+    // Chart 1: Recall / Precision / F1
+    function renderRPFChart() {
+        const siteTypes = ['donor', 'acceptor', 'overall'];
+        const metricNames = ['recall', 'precision', 'f1'];
+        const metricLabels = ['Recall', 'Precision', 'F1'];
+
+        const traces = [];
+
+        if (selectedRunIds.length === 1) {
+            // Single run: group by metric, x = site type
+            const m = getMetrics(selectedRunIds[0]);
+            const colors = ['#3572a5', '#1e3a5f', '#5ba3d9'];
+            metricNames.forEach((metric, mi) => {
+                traces.push({
+                    x: siteTypes.map(s => s.charAt(0).toUpperCase() + s.slice(1)),
+                    y: siteTypes.map(s => (m[s]?.[metric] || 0) * 100),
+                    name: metricLabels[mi],
+                    type: 'bar',
+                    marker: { color: colors[mi] },
+                    text: siteTypes.map(s => ((m[s]?.[metric] || 0) * 100).toFixed(1) + '%'),
+                    textposition: 'outside',
+                });
+            });
+        } else {
+            // Multi-run comparison: group by run, x = metric+site combos
+            const xLabels = [];
+            siteTypes.forEach(s => {
+                metricNames.forEach(metric => {
+                    xLabels.push(`${s.charAt(0).toUpperCase() + s.slice(1)} ${metricLabels[metricNames.indexOf(metric)]}`);
+                });
+            });
+
+            selectedRunIds.forEach((runId, ri) => {
+                const m = getMetrics(runId);
+                const y = [];
+                siteTypes.forEach(s => {
+                    metricNames.forEach(metric => {
+                        y.push((m[s]?.[metric] || 0) * 100);
+                    });
+                });
+                traces.push({
+                    x: xLabels,
+                    y: y,
+                    name: getRunLabel(runId),
+                    type: 'bar',
+                    marker: { color: COLORS[ri % COLORS.length] },
+                });
+            });
+        }
+
+        Plotly.newPlot('chart-rpf', traces, {
+            ...plotlyLayout,
+            yaxis: { title: '%', range: [0, 105], gridcolor: '#eee' },
+            barmode: 'group',
+            legend: { orientation: 'h', y: -0.15 },
+        }, plotlyConfig);
+    }
+
+    // Chart 2: Confusion counts
+    function renderConfusionChart() {
+        const siteTypes = ['donor', 'acceptor', 'overall'];
+        const counts = ['tp', 'fp', 'fn'];
+        const countColors = ['#27ae60', '#e74c3c', '#f39c12'];
+        const countLabels = ['TP', 'FP', 'FN'];
+        const traces = [];
+
+        if (selectedRunIds.length === 1) {
+            const m = getMetrics(selectedRunIds[0]);
+            counts.forEach((c, ci) => {
+                traces.push({
+                    x: siteTypes.map(s => s.charAt(0).toUpperCase() + s.slice(1)),
+                    y: siteTypes.map(s => m[s]?.[c] || 0),
+                    name: countLabels[ci],
+                    type: 'bar',
+                    marker: { color: countColors[ci] },
+                });
+            });
+        } else {
+            // Stacked per run, just show overall
+            selectedRunIds.forEach((runId, ri) => {
+                const m = getMetrics(runId);
+                const overall = m.overall || {};
+                traces.push({
+                    x: countLabels,
+                    y: counts.map(c => overall[c] || 0),
+                    name: getRunLabel(runId),
+                    type: 'bar',
+                    marker: { color: COLORS[ri % COLORS.length] },
+                });
+            });
+        }
+
+        Plotly.newPlot('chart-confusion', traces, {
+            ...plotlyLayout,
+            yaxis: { title: 'Count', gridcolor: '#eee' },
+            barmode: 'group',
+            legend: { orientation: 'h', y: -0.2 },
+        }, plotlyConfig);
+    }
+
+    // Chart 3: PR metrics
+    function renderPRChart() {
+        const prLabels = ['Macro AP', 'Macro PR-AUC', 'Donor AP', 'Acceptor AP'];
+        const prKeys = ['macro_ap', 'macro_pr_auc', 'donor_ap', 'acceptor_ap'];
+        const traces = [];
+
+        selectedRunIds.forEach((runId, ri) => {
+            const pr = getMetrics(runId).pr_metrics || {};
+            traces.push({
+                x: prLabels,
+                y: prKeys.map(k => (pr[k] || 0) * 100),
+                name: getRunLabel(runId),
+                type: 'bar',
+                marker: { color: COLORS[ri % COLORS.length] },
+                text: prKeys.map(k => ((pr[k] || 0) * 100).toFixed(1) + '%'),
+                textposition: 'outside',
+            });
+        });
+
+        Plotly.newPlot('chart-pr', traces, {
+            ...plotlyLayout,
+            yaxis: { title: '%', range: [0, 105], gridcolor: '#eee' },
+            barmode: 'group',
+            legend: { orientation: 'h', y: -0.2 },
+        }, plotlyConfig);
+    }
+
+    // Chart 4: Top-k accuracy
+    function renderTopkChart() {
+        const traces = [];
+        selectedRunIds.forEach((runId, ri) => {
+            const topk = getMetrics(runId).topk_accuracy || {};
+            const keys = Object.keys(topk).sort((a, b) => parseFloat(a) - parseFloat(b));
+            traces.push({
+                x: keys.map(k => 'k=' + k),
+                y: keys.map(k => (topk[k] || 0) * 100),
+                name: getRunLabel(runId),
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: COLORS[ri % COLORS.length], width: 2 },
+                marker: { size: 8 },
+            });
+        });
+
+        Plotly.newPlot('chart-topk', traces, {
+            ...plotlyLayout,
+            yaxis: { title: 'Accuracy (%)', range: [0, 105], gridcolor: '#eee' },
+            xaxis: { title: 'k multiplier' },
+            legend: { orientation: 'h', y: -0.25 },
+        }, plotlyConfig);
+    }
+
+    // Chart 5: Windowed recall
+    function renderWindowedRecallChart() {
+        const traces = [];
+        selectedRunIds.forEach((runId, ri) => {
+            const wr = getMetrics(runId).windowed_recall || {};
+            const keys = Object.keys(wr).sort((a, b) => parseInt(a) - parseInt(b));
+            traces.push({
+                x: keys.map(k => k + 'bp'),
+                y: keys.map(k => (wr[k] || 0) * 100),
+                name: getRunLabel(runId),
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: COLORS[ri % COLORS.length], width: 2 },
+                marker: { size: 8 },
+            });
+        });
+
+        Plotly.newPlot('chart-windowed', traces, {
+            ...plotlyLayout,
+            yaxis: { title: 'Recall (%)', range: [0, 105], gridcolor: '#eee' },
+            xaxis: { title: 'Window size' },
+            legend: { orientation: 'h', y: -0.25 },
+        }, plotlyConfig);
+    }
+</script>
+{% endblock %}
