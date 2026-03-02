@@ -354,11 +354,29 @@ def _build_genome_response(
     acceptor_prob = pred['acceptor_prob']
     n_total = len(positions)
 
-    # Downsample probability tracks for large genes
+    # Downsample probability tracks for large genes, preserving peaks.
+    # Naive every-Nth slicing skips sharp 1-2 position peaks, so we always
+    # include positions where either probability exceeds a small floor,
+    # then fill remaining budget with evenly-spaced background points.
     factor = max(1, n_total // MAX_PLOT_POINTS)
-    ds_positions = positions[::factor]
-    ds_donor = donor_prob[::factor]
-    ds_acceptor = acceptor_prob[::factor]
+    if factor <= 1:
+        ds_positions = positions
+        ds_donor = donor_prob
+        ds_acceptor = acceptor_prob
+    else:
+        import numpy as np
+        donor_arr = np.asarray(donor_prob)
+        acceptor_arr = np.asarray(acceptor_prob)
+        # Peak indices: any position with non-trivial probability
+        peak_mask = (donor_arr > 0.01) | (acceptor_arr > 0.01)
+        peak_idx = set(np.where(peak_mask)[0].tolist())
+        # Evenly-spaced background indices
+        bg_idx = set(range(0, n_total, factor))
+        # Merge and sort
+        all_idx = sorted(peak_idx | bg_idx)
+        ds_positions = [positions[i] for i in all_idx]
+        ds_donor = [donor_prob[i] for i in all_idx]
+        ds_acceptor = [acceptor_prob[i] for i in all_idx]
 
     # Classification markers (TP/FP/FN only, never downsampled)
     markers = []
