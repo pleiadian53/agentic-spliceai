@@ -30,6 +30,14 @@ notebooks/
 ├── meta_layer/                        ← Meta-layer tutorials (Phase 5)
 │   └── README.md
 │
+├── bioinfo_ui/                        ← Bioinformatics UI & API tutorials
+│   ├── 01_serpina1_copd_use_case/
+│   │   ├── 01_serpina1_copd_use_case.ipynb  ← SERPINA1/UNC13A/STMN2 analysis
+│   │   ├── README.md
+│   │   └── supplements/
+│   │       └── 01_serpina1_biology.md
+│   └── README.md
+│
 └── variant_analysis/                  ← Variant analysis tutorials (Phase 6)
     └── README.md
 ```
@@ -51,7 +59,11 @@ notebooks/
    - `data_preparation/02_splice_site_extraction/02_splice_site_extraction.ipynb`
    - Learn: How to prepare genomic data from GTF/FASTA files
 
-3. **Advanced Topics** (coming soon):
+3. **Bioinformatics UI**:
+   - `bioinfo_ui/01_serpina1_copd_use_case/01_serpina1_copd_use_case.ipynb`
+   - Learn: Using the Lab API to investigate SERPINA1 (COPD), UNC13A & STMN2 (ALS)
+
+4. **Advanced Topics** (coming soon):
    - Meta-layer adaptive prediction
    - Variant analysis workflows
    - Isoform discovery
@@ -133,6 +145,7 @@ notebooks/
 
 ### Available Now ✅
 
+- **Bioinformatics UI**: SERPINA1/UNC13A/STMN2 clinical use case notebook
 - **Base Layer**: Phase 1 basics coming soon
 - **Data Preparation**: Coming soon
 
@@ -183,5 +196,5 @@ notebooks/topic_name/
 
 ---
 
-**Last Updated**: January 30, 2026  
-**Status**: Structure created, notebooks coming soon
+**Last Updated**: March 2, 2026
+**Status**: First notebook available (bioinfo_ui), more coming soon
