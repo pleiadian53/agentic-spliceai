@@ -18,32 +18,46 @@ import polars as pl
 
 def parse_gtf_attributes(attribute_string: str) -> Dict[str, str]:
     """
-    Parse GTF attribute string into a dictionary.
-    
+    Parse GTF/GFF3 attribute string into a dictionary.
+
+    Handles both formats:
+    - GTF:  key "value"; key2 "value2";
+    - GFF3: key=value;key2=value2
+
     Parameters
     ----------
     attribute_string : str
-        GTF attribute field (9th column)
-        
+        GTF/GFF3 attribute field (9th column)
+
     Returns
     -------
     Dict[str, str]
         Dictionary of attribute key-value pairs
-        
+
     Examples
     --------
     >>> attrs = parse_gtf_attributes('gene_id "ENSG00000223972"; gene_name "DDX11L1";')
     >>> attrs['gene_id']
     'ENSG00000223972'
+    >>> attrs = parse_gtf_attributes('ID=gene-OR4F5;Name=OR4F5;description=olfactory receptor')
+    >>> attrs['description']
+    'olfactory receptor'
     """
     attributes = {}
-    # Pattern matches: key "value"; or key "value"
-    pattern = r'(\w+)\s+"([^"]*)"'
-    
-    for match in re.finditer(pattern, attribute_string):
+
+    # Try GTF format first: key "value";
+    gtf_pattern = r'(\w+)\s+"([^"]*)"'
+    for match in re.finditer(gtf_pattern, attribute_string):
         key, value = match.groups()
         attributes[key] = value
-    
+
+    # If no GTF matches, try GFF3 format: key=value;
+    if not attributes and '=' in attribute_string:
+        for pair in attribute_string.rstrip(';').split(';'):
+            if '=' in pair:
+                key, _, value = pair.partition('=')
+                attributes[key.strip()] = value.strip()
+
     return attributes
 
 
@@ -145,42 +159,50 @@ def extract_gene_annotations(
     -------
     pl.DataFrame
         DataFrame with gene annotations
-        Columns: chrom, start, end, strand, gene_id, gene_name, gene_type
-        
+        Columns: chrom, start, end, strand, gene_id, gene_name, gene_type,
+        and optionally description (from GFF3 files)
+
     Notes
     -----
     If the GTF file doesn't have 'gene' feature types (e.g., MANE GTF),
     gene information is derived from transcript records.
+
+    Handles both GTF (key "value";) and GFF3 (key=value;) attribute formats.
+    GFF3 field mapping: ID→gene_id, gene/Name→gene_name, gene_biotype→gene_type.
     """
     if verbosity >= 1:
         print(f"[extract] Extracting gene annotations from: {gtf_file}")
-    
+
     # First try to extract from 'gene' features
     records = []
     for record in iter_gtf_records(gtf_file, feature_types=['gene'], chromosomes=chromosomes):
-        records.append({
+        gene_rec = {
             'chrom': record['chrom'],
             'start': record['start'],
             'end': record['end'],
             'strand': record['strand'],
-            'gene_id': record.get('gene_id', ''),
-            'gene_name': record.get('gene_name', ''),
+            'gene_id': record.get('gene_id', record.get('ID', '')),
+            'gene_name': record.get('gene_name', record.get('gene', record.get('Name', ''))),
             'gene_type': record.get('gene_type', record.get('gene_biotype', '')),
-        })
-    
+        }
+        desc = record.get('description', '')
+        if desc:
+            gene_rec['description'] = desc
+        records.append(gene_rec)
+
     # If no gene features found, derive from transcript features
     if len(records) == 0:
         if verbosity >= 1:
             print("[extract] No 'gene' features found, deriving from transcripts...")
-        
+
         # Collect transcript info and aggregate to gene level
         gene_info = {}  # gene_id -> {chrom, start, end, strand, gene_name, gene_type}
-        
+
         for record in iter_gtf_records(gtf_file, feature_types=['transcript'], chromosomes=chromosomes):
-            gene_id = record.get('gene_id', '')
+            gene_id = record.get('gene_id', record.get('ID', ''))
             if not gene_id:
                 continue
-            
+
             if gene_id not in gene_info:
                 gene_info[gene_id] = {
                     'chrom': record['chrom'],
@@ -194,7 +216,7 @@ def extract_gene_annotations(
                 # Expand gene boundaries to include all transcripts
                 gene_info[gene_id]['start'] = min(gene_info[gene_id]['start'], record['start'])
                 gene_info[gene_id]['end'] = max(gene_info[gene_id]['end'], record['end'])
-        
+
         for gene_id, info in gene_info.items():
             records.append({
                 'chrom': info['chrom'],
