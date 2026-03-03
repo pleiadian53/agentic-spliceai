@@ -136,6 +136,47 @@ def standardize_exon_features_schema(
     )
 
 
+def ensure_chrom_column(
+    df: Union[pl.DataFrame, pd.DataFrame],
+) -> Union[pl.DataFrame, pd.DataFrame]:
+    """Ensure the DataFrame uses ``chrom`` as the chromosome column name.
+
+    If neither ``chrom`` nor ``seqname`` exists, raises ``ValueError``.
+    If ``chrom`` already exists, returns the DataFrame unchanged.
+    If only ``seqname`` exists, renames it to ``chrom``.
+
+    This is a lightweight boundary guardrail — call it when accepting
+    DataFrames from external sources or at pipeline stage boundaries.
+
+    Parameters
+    ----------
+    df : pl.DataFrame or pd.DataFrame
+        Input DataFrame that may use ``seqname`` or ``chrom``.
+
+    Returns
+    -------
+    pl.DataFrame or pd.DataFrame
+        DataFrame guaranteed to have a ``chrom`` column.
+
+    Raises
+    ------
+    ValueError
+        If neither ``chrom`` nor ``seqname`` is found.
+    """
+    cols = df.columns
+    if "chrom" in cols:
+        return df
+    if "seqname" in cols:
+        if isinstance(df, pl.DataFrame):
+            return df.rename({"seqname": "chrom"})
+        else:
+            return df.rename(columns={"seqname": "chrom"})
+    raise ValueError(
+        "No chromosome column found. Expected 'chrom' (canonical) "
+        "or 'seqname' (GTF legacy)."
+    )
+
+
 def get_standard_column_mapping(schema_type: str) -> Dict[str, str]:
     """Get the standard column mapping for a schema type.
     

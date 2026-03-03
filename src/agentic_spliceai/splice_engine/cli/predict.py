@@ -20,18 +20,24 @@ def create_parser() -> argparse.ArgumentParser:
 Examples:
   # Predict for specific genes
   agentic-spliceai-predict --genes BRCA1 TP53 UNC13A
-  
+
   # Predict for a chromosome
   agentic-spliceai-predict --chromosomes 21
-  
+
   # Use SpliceAI instead of OpenSpliceAI
   agentic-spliceai-predict --base-model spliceai --genes BRCA1
-  
-  # Test mode with sample data
-  agentic-spliceai-predict --mode test --coverage sample --genes BRCA1
-  
-  # Production run for full genome
-  agentic-spliceai-predict --mode production --coverage full_genome
+
+  # Chunked workflow for large runs (saves raw predictions for meta layer)
+  agentic-spliceai-predict --chunk-size 500 --chromosomes 22
+
+  # Resume an interrupted chunked workflow
+  agentic-spliceai-predict --chunk-size 500 --chromosomes 22 --resume --output-dir output/prev_run
+
+  # Production mode: precompute for meta-layer (output to registry path)
+  agentic-spliceai-predict --chunk-size 500 --chromosomes 22 --mode production
+
+  # Full genome precomputation (meta layer input)
+  agentic-spliceai-predict --chunk-size 500 --mode production
         """
     )
     
@@ -107,6 +113,23 @@ Examples:
         help="Evaluate predictions vs splice site annotations (requires --save-nucleotide-scores)"
     )
     
+    # Workflow options (chunked prediction pipeline)
+    workflow_group = parser.add_argument_group("workflow options (chunked pipeline)")
+    workflow_group.add_argument(
+        "--chunk-size",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Enable chunked workflow with N genes per chunk (e.g., 500). "
+             "When set, uses PredictionWorkflow with checkpointing and "
+             "saves raw predictions for meta layer."
+    )
+    workflow_group.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume a previous chunked workflow (skip chunks with existing checkpoints)"
+    )
+
     # Output format
     parser.add_argument(
         "--format",
@@ -114,8 +137,56 @@ Examples:
         choices=["summary", "json", "paths"],
         help="Output format"
     )
-    
+
     return parser
+
+
+def _run_workflow(args: argparse.Namespace) -> int:
+    """Execute the chunked prediction workflow (Phase 3 path).
+
+    This is invoked when ``--chunk-size`` is specified. It delegates to
+    :class:`PredictionWorkflow` and prints a summary upon completion.
+    """
+    from agentic_spliceai.splice_engine.base_layer.models.config import WorkflowConfig
+    from agentic_spliceai.splice_engine.base_layer.workflows import PredictionWorkflow
+
+    # Normalise chromosome args (user may pass '22'; the pipeline expects 'chr22')
+    chromosomes = None
+    if args.chromosomes:
+        chromosomes = [
+            c if c.startswith("chr") else f"chr{c}" for c in args.chromosomes
+        ]
+
+    config = WorkflowConfig(
+        base_model=args.base_model,
+        chunk_size=args.chunk_size,
+        output_dir=args.output_dir,
+        resume=args.resume,
+        mode=args.mode,
+        verbosity=args.verbosity,
+    )
+
+    workflow = PredictionWorkflow(config)
+    result = workflow.run(genes=args.genes, chromosomes=chromosomes)
+
+    # Print summary
+    if args.format == "json":
+        print(json.dumps(result.get_summary(), indent=2, default=str))
+    elif args.format == "paths":
+        if result.output_dir:
+            print(f"output_dir: {result.output_dir}")
+    else:
+        summary = result.get_summary()
+        manifest = summary.get("manifest", {})
+        print(f"\nProcessed: {manifest.get('processed_genes', 0)} genes")
+        print(f"Failed: {manifest.get('failed_genes', 0)} genes")
+        print(f"Total predictions: {summary['total_predictions']:,}")
+        print(f"Chunks: {summary['chunks_processed']} processed, "
+              f"{summary['chunks_skipped']} resumed")
+        if result.output_dir:
+            print(f"Output: {result.output_dir}")
+
+    return 0 if result.success else 1
 
 
 def main(argv: Optional[List[str]] = None):
@@ -124,7 +195,11 @@ def main(argv: Optional[List[str]] = None):
     args = parser.parse_args(argv)
     
     try:
-        # Import the prediction function
+        # ---- Chunked workflow path (Phase 3) ----
+        if args.chunk_size is not None:
+            return _run_workflow(args)
+
+        # ---- Legacy path (pre-Phase 3) ----
         from agentic_spliceai.splice_engine import run_base_model_predictions
         from agentic_spliceai.splice_engine.config import get_project_root
         from datetime import datetime
@@ -132,7 +207,7 @@ def main(argv: Optional[List[str]] = None):
         import os
         import polars as pl
         from agentic_spliceai.splice_engine.base_layer.prediction import evaluate_splice_site_predictions
-        
+
         # Prepare kwargs
         kwargs = {
             "verbosity": args.verbosity,
@@ -142,7 +217,7 @@ def main(argv: Optional[List[str]] = None):
             "no_tn_sampling": args.no_tn_sampling,
             "save_nucleotide_scores": args.save_nucleotide_scores,
         }
-        
+
         if args.output_dir:
             kwargs["eval_dir"] = args.output_dir
         elif args.mode == "test":
@@ -166,7 +241,7 @@ def main(argv: Optional[List[str]] = None):
                 / args.base_model
                 / f"{timestamp}_{target_label}"
             )
-        
+
         # Run predictions
         if args.verbosity >= 1:
             print(f"Running {args.base_model} predictions...")
@@ -179,7 +254,7 @@ def main(argv: Optional[List[str]] = None):
             if args.mode == "test" and not args.output_dir:
                 print(f"Test mode: writing outputs to {kwargs.get('eval_dir')}")
             print()
-        
+
         results = run_base_model_predictions(
             base_model=args.base_model,
             target_genes=args.genes,
@@ -221,7 +296,6 @@ def main(argv: Optional[List[str]] = None):
                 predictions[str(gene_id)] = {
                     "gene_id": str(gene_id),
                     "gene_name": first.get("gene_name", ""),
-                    "seqname": first.get("chrom", ""),
                     "chrom": first.get("chrom", ""),
                     "strand": first.get("strand", "+"),
                     "positions": g_sorted["genomic_position"].to_list(),

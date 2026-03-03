@@ -475,21 +475,21 @@ class BaseModelRunner:
         records = []
         for gene_id, pred in predictions_dict.items():
             gene_name = pred.get('gene_name', gene_id)
-            seqname = pred.get('seqname', '')
+            chrom = pred.get('chrom', pred.get('seqname', ''))
             strand = pred.get('strand', '+')
             gene_start = pred.get('gene_start', 0)
             gene_end = pred.get('gene_end', 0)
-            
+
             positions = pred.get('positions', [])
             donor_probs = pred.get('donor_prob', [])
             acceptor_probs = pred.get('acceptor_prob', [])
             neither_probs = pred.get('neither_prob', [])
-            
+
             for i, pos in enumerate(positions):
                 records.append({
                     'gene_id': gene_id,
                     'gene_name': gene_name,
-                    'seqname': seqname,
+                    'chrom': chrom,
                     'position': pos,
                     'strand': strand,
                     'gene_start': gene_start,
@@ -576,6 +576,67 @@ class BaseModelRunner:
             output_dir=output_dir
         )
     
+    def run_workflow(
+        self,
+        model_name: str = 'openspliceai',
+        genes: Optional[List[str]] = None,
+        chromosomes: Optional[List[str]] = None,
+        chunk_size: int = 500,
+        output_dir: Optional[str] = None,
+        resume: bool = False,
+        mode: str = 'test',
+        save_predictions: bool = True,
+        verbosity: int = 1,
+    ):
+        """Run the chunked prediction workflow for genome-scale predictions.
+
+        This method delegates to :class:`PredictionWorkflow` for chunked
+        processing with checkpointing and artifact management.  Use this
+        instead of :meth:`run_single_model` when processing large gene
+        sets (hundreds to thousands of genes).
+
+        Parameters
+        ----------
+        model_name : str, default='openspliceai'
+            Base model to use.
+        genes : list of str, optional
+            Target gene IDs or symbols.  ``None`` = all genes (filtered
+            by *chromosomes*).
+        chromosomes : list of str, optional
+            Restrict to these chromosomes.
+        chunk_size : int, default=500
+            Genes per chunk.
+        output_dir : str, optional
+            Output directory for artifacts.
+        resume : bool, default=False
+            Skip chunks with existing checkpoints.
+        mode : str, default='test'
+            Overwrite policy: 'production' or 'test'.
+        save_predictions : bool, default=True
+            Save raw per-nucleotide scores (meta layer input).
+        verbosity : int, default=1
+            Output verbosity.
+
+        Returns
+        -------
+        WorkflowResult
+            Aggregated predictions, manifest, and statistics.
+        """
+        from .config import WorkflowConfig
+        from ..workflows.prediction import PredictionWorkflow
+
+        config = WorkflowConfig(
+            base_model=model_name,
+            chunk_size=chunk_size,
+            output_dir=output_dir,
+            resume=resume,
+            mode=mode,
+            save_predictions=save_predictions,
+            verbosity=verbosity,
+        )
+        workflow = PredictionWorkflow(config)
+        return workflow.run(genes=genes, chromosomes=chromosomes)
+
     def print_comparison_summary(
         self,
         result: ComparisonResult,

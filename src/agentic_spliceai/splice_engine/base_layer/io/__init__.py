@@ -1,18 +1,15 @@
 """Input/output handling for base layer.
 
 This package provides:
-- File handlers for reading/writing predictions
-- Data serialization utilities
+- ArtifactManager: Structured output for chunked prediction workflows
+- File handlers for reading/writing predictions (future)
 
 Exports:
-    MetaModelDataHandler: Handle meta model data I/O
-    ModelEvaluationFileHandler: Handle evaluation file I/O
+    ArtifactManager: Manage chunked prediction artifacts with overwrite policies
 """
 
-# I/O classes will be imported after porting
-# from .handlers import MetaModelDataHandler, ModelEvaluationFileHandler
+from .artifacts import ArtifactManager
 
 __all__ = [
-    # 'MetaModelDataHandler',
-    # 'ModelEvaluationFileHandler',
+    "ArtifactManager",
 ]

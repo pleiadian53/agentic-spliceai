@@ -32,6 +32,7 @@ from .schema import (
     standardize_exon_features_schema,
     standardize_all_schemas,
     get_standard_column_mapping,
+    ensure_chrom_column,
     SPLICE_SITE_COLUMN_MAPPING,
     GENE_FEATURE_COLUMN_MAPPING,
 )
@@ -52,6 +53,7 @@ __all__ = [
     'standardize_exon_features_schema',
     'standardize_all_schemas',
     'get_standard_column_mapping',
+    'ensure_chrom_column',
     'SPLICE_SITE_COLUMN_MAPPING',
     'GENE_FEATURE_COLUMN_MAPPING',
 ]

@@ -175,10 +175,11 @@ def prepare_gene_data(
         verbosity=verbosity
     )
     
-    # Ensure 'seqname' column exists (alias for 'chrom')
+    # Legacy alias: 'seqname' for backward compatibility.
+    # Canonical column is 'chrom' (see resources/schema.py).
     if 'chrom' in genes_df.columns and 'seqname' not in genes_df.columns:
         genes_df = genes_df.with_columns(pl.col('chrom').alias('seqname'))
-    
+
     if verbosity >= 1:
         n_with_seq = genes_df.filter(pl.col('sequence').is_not_null()).height
         print(f"✓ Extracted {n_with_seq}/{genes_df.height} sequences")
@@ -477,7 +478,8 @@ def load_gene_annotations(
         verbosity=verbosity
     )
     
-    # Add 'seqname' alias for 'chrom' if needed
+    # Legacy alias: 'seqname' for backward compatibility.
+    # Canonical column is 'chrom' (see resources/schema.py).
     if 'chrom' in genes_df.columns and 'seqname' not in genes_df.columns:
         genes_df = genes_df.with_columns(pl.col('chrom').alias('seqname'))
     
@@ -590,7 +592,7 @@ def filter_by_genes(
 def filter_by_chromosomes(
     df: pl.DataFrame,
     chromosomes: List[str],
-    chrom_column: str = 'seqname',
+    chrom_column: str = 'chrom',
     verbosity: int = 1
 ) -> pl.DataFrame:
     """Filter DataFrame to specific chromosomes.
@@ -716,17 +718,18 @@ def get_genes_by_chromosome(gene_df: pl.DataFrame) -> dict:
     >>> counts = get_genes_by_chromosome(gene_df)
     >>> print(counts['chr1'])  # Number of genes on chr1
     """
-    if 'seqname' not in gene_df.columns:
-        raise ValueError("DataFrame must have 'seqname' column")
-    
+    chrom_col = 'chrom' if 'chrom' in gene_df.columns else 'seqname'
+    if chrom_col not in gene_df.columns:
+        raise ValueError("DataFrame must have 'chrom' (or 'seqname') column")
+
     counts = (
         gene_df
-        .group_by('seqname')
+        .group_by(chrom_col)
         .agg(pl.count().alias('count'))
-        .sort('seqname')
+        .sort(chrom_col)
     )
     
-    return dict(zip(counts['seqname'].to_list(), counts['count'].to_list()))
+    return dict(zip(counts[chrom_col].to_list(), counts['count'].to_list()))
 
 
 def get_missing_sequences(gene_df: pl.DataFrame) -> pl.DataFrame:
@@ -763,9 +766,16 @@ def validate_gene_data(gene_df: pl.DataFrame, verbosity: int = 1) -> bool:
     bool
         True if valid, False otherwise
     """
-    required_columns = ['seqname', 'gene_id', 'gene_name', 'start', 'end', 'strand']
-    
-    # Check required columns
+    required_columns = ['gene_id', 'gene_name', 'start', 'end', 'strand']
+
+    # Check chromosome column (canonical: 'chrom', legacy: 'seqname')
+    has_chrom = 'chrom' in gene_df.columns or 'seqname' in gene_df.columns
+    if not has_chrom:
+        if verbosity >= 1:
+            print("❌ Missing required column: 'chrom' (or 'seqname')")
+        return False
+
+    # Check remaining required columns
     missing = [col for col in required_columns if col not in gene_df.columns]
     if missing:
         if verbosity >= 1:

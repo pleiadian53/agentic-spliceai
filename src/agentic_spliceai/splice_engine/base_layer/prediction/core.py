@@ -162,7 +162,7 @@ def predict_splice_sites_for_genes(
     Output dictionary structure when output_format='dict':
     {
         gene_id: {
-            'seqname': str,
+            'chrom': str,
             'gene_name': str,
             'strand': str,
             'gene_start': int,
@@ -225,7 +225,7 @@ def predict_splice_sites_for_genes(
         gene_id = row['gene_id']
         gene_name = str(row.get('gene_name', '')) or ''
         sequence = row['sequence']
-        seqname = row.get('seqname', row.get('chrom', ''))
+        seqname = row.get('chrom', row.get('seqname', ''))
         strand = normalize_strand(row['strand'])
         seq_len = len(sequence)
         
@@ -282,7 +282,7 @@ def predict_splice_sites_for_genes(
                 merged_results[pos_key]['acceptor_prob'].append(float(acceptor_p))
                 merged_results[pos_key]['neither_prob'].append(float(neither_p))
                 merged_results[pos_key]['strand'] = strand
-                merged_results[pos_key]['seqname'] = seqname
+                merged_results[pos_key]['chrom'] = seqname
                 merged_results[pos_key]['gene_name'] = gene_name
                 merged_results[pos_key]['absolute_position'] = absolute_position
                 merged_results[pos_key]['gene_start'] = gene_start
@@ -347,17 +347,17 @@ def _convert_to_efficient_output(
         gene_data[gene_id]['donor_prob'].append(avg_donor)
         gene_data[gene_id]['acceptor_prob'].append(avg_acceptor)
         gene_data[gene_id]['neither_prob'].append(avg_neither)
-        gene_data[gene_id]['seqname'] = data['seqname']
+        gene_data[gene_id]['chrom'] = data['chrom']
         gene_data[gene_id]['gene_name'] = data['gene_name']
         gene_data[gene_id]['strand'] = data['strand']
         gene_data[gene_id]['gene_start'] = data.get('gene_start')
         gene_data[gene_id]['gene_end'] = data.get('gene_end')
-    
+
     # Sort positions within each gene
     for gene_id, data in gene_data.items():
         sorted_indices = np.argsort(data['positions'])
         efficient_results[gene_id] = {
-            'seqname': data['seqname'],
+            'chrom': data['chrom'],
             'gene_name': data['gene_name'],
             'strand': data['strand'],
             'gene_start': data['gene_start'],
@@ -384,7 +384,7 @@ def _convert_to_dataframe(merged_results: Dict) -> pl.DataFrame:
         records.append({
             'gene_id': gene_id,
             'gene_name': data['gene_name'],
-            'seqname': data['seqname'],
+            'chrom': data['chrom'],
             'position': position,
             'absolute_position': data['absolute_position'],
             'gene_start': data.get('gene_start'),

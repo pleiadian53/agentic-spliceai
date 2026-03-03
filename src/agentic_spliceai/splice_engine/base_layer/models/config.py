@@ -161,6 +161,72 @@ class OpenSpliceAIConfig(BaseModelConfig):
     base_model: str = "openspliceai"
 
 
+@dataclass
+class WorkflowConfig(BaseModelConfig):
+    """Configuration for chunked prediction workflows.
+
+    Extends BaseModelConfig with parameters for chunking, checkpointing,
+    and artifact management needed for genome-scale prediction runs.
+    The output serves as precomputed input for the meta layer.
+
+    Output directory resolution
+    ---------------------------
+    The default output directory depends on ``mode``:
+
+    - **test** (default): ``output/{model}_{build}_{timestamp}/`` — CWD-relative,
+      timestamped, overwritable. Suitable for ad-hoc exploration.
+    - **production**: ``{eval_dir}/precomputed/`` — registry-managed, stable,
+      immutable. The path is annotation-source, build, and model-specific
+      (e.g., ``data/mane/GRCh38/openspliceai_eval/precomputed/``).
+      Suitable for precomputing base-layer predictions as meta-layer input.
+
+    An explicit ``output_dir`` always takes precedence over mode-based defaults.
+
+    Parameters
+    ----------
+    chunk_size : int, default=500
+        Number of genes per processing chunk
+    output_dir : Path, optional
+        Root directory for structured output. When not set, derived from
+        ``mode`` (see above).
+    resume : bool, default=False
+        Skip chunks that already have saved artifacts on disk
+    save_predictions : bool, default=True
+        Persist per-chunk raw prediction scores (donor_prob, acceptor_prob,
+        neither_prob). Required for meta layer input.
+    save_positions : bool, default=True
+        Persist per-chunk classified positions (TP/FP/FN) for evaluation
+    """
+
+    # Chunking
+    chunk_size: int = 500
+
+    # Output directory (separate from legacy eval_dir)
+    output_dir: Optional[Path] = None
+
+    # Checkpointing
+    resume: bool = False
+
+    # Artifact persistence
+    save_predictions: bool = True
+    save_positions: bool = True
+
+    def __post_init__(self) -> None:
+        """Initialize derived values and resolve output directory.
+
+        Resolution order:
+        1. Explicit ``output_dir`` — always wins.
+        2. ``mode='production'`` — ``{eval_dir}/precomputed/``.
+        3. ``mode='test'`` — left as ``None``; ``PredictionWorkflow``
+           generates a timestamped path under ``output/``.
+        """
+        super().__post_init__()
+        if self.output_dir is not None:
+            self.output_dir = Path(self.output_dir)
+        elif self.mode == "production":
+            self.output_dir = Path(self.eval_dir) / "precomputed"
+
+
 def create_config(
     base_model: str = 'spliceai',
     **kwargs
@@ -180,3 +246,27 @@ def create_config(
         Configuration instance for the specified model
     """
     return BaseModelConfig(base_model=base_model, **kwargs)
+
+
+def create_workflow_config(
+    base_model: str = 'openspliceai',
+    chunk_size: int = 500,
+    **kwargs,
+) -> WorkflowConfig:
+    """Factory function to create a workflow configuration.
+
+    Parameters
+    ----------
+    base_model : str, default='openspliceai'
+        Base model to use: 'spliceai' or 'openspliceai'
+    chunk_size : int, default=500
+        Number of genes per processing chunk
+    **kwargs
+        Additional configuration parameters (passed to WorkflowConfig)
+
+    Returns
+    -------
+    WorkflowConfig
+        Configuration instance for chunked prediction workflows
+    """
+    return WorkflowConfig(base_model=base_model, chunk_size=chunk_size, **kwargs)

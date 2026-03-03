@@ -272,7 +272,7 @@ def main(argv: Optional[List[str]] = None):
         # Save sequences if not skipped
         if not args.skip_sequences:
             sequences_file = output_dir / 'sequences.tsv'
-            seq_cols = ['gene_id', 'gene_name', 'seqname', 'start', 'end', 'strand', 'sequence']
+            seq_cols = ['gene_id', 'gene_name', 'chrom', 'start', 'end', 'strand', 'sequence']
             seq_cols = [c for c in seq_cols if c in gene_df.columns]
             gene_df.select(seq_cols).write_csv(sequences_file, separator='\t')
             extracted['files']['sequences'] = str(sequences_file)

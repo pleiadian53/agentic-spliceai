@@ -1,6 +1,6 @@
 # Base Layer Examples
 
-**Phase**: 1-2 (Foundation + Data Preparation)  
+**Phase**: 1-3 (Foundation + Data Preparation + Workflow Orchestration)
 **Purpose**: Driver scripts for base model splice site prediction
 
 ---
@@ -72,12 +72,77 @@ python examples/base_layer/02_chromosome_prediction.py --chromosome chr17 --gene
 
 ---
 
+### 04_chunked_prediction.py
+**Phase 3: Chunked Prediction Workflow (test mode)**
+
+Demonstrates the chunked prediction pipeline with checkpointing and resume.
+
+```bash
+# Specific genes
+python examples/base_layer/04_chunked_prediction.py --genes BRCA1 TP53 MYC EGFR --chunk-size 2
+
+# Whole chromosome
+python examples/base_layer/04_chunked_prediction.py --chromosomes chr22 --chunk-size 100
+
+# Genes + chromosomes (union)
+python examples/base_layer/04_chunked_prediction.py --chromosomes chr22 --genes BRCA1 --chunk-size 100
+
+# Resume from previous run
+python examples/base_layer/04_chunked_prediction.py --chromosomes chr22 --chunk-size 100 --resume --output-dir <prev_output>
+
+# Refined usage
+
+# Short name — resolves to output/chunking_prediction_test/
+python examples/base_layer/04_chunked_prediction.py --chromosomes chr19 --genes TP53 --chunk-size 100 \
+  --output-dir chunking_prediction_test
+
+# Absolute/home path — used as-is
+python examples/base_layer/04_chunked_prediction.py --chromosomes chr19 --genes TP53 --chunk-size 100 \
+  --output-dir ~/work/agentic-spliceai/output/chunking_prediction_test
+
+```
+
+**What it does**:
+- Flexible targeting: specific genes, whole chromosomes, or both
+- Splits genes into configurable chunks
+- Saves per-chunk checkpoints (TSV artifacts)
+- Supports resume after interruption
+- Tracks gene processing via manifest
+
+**Output**: Console output plus structured artifacts in timestamped `output/` directory.
+
+---
+
+### 05_genome_precomputation.py
+**Phase 3: Meta-Layer Precomputation (production mode)**
+
+Demonstrates genome-scale precomputation for meta-layer training input.
+
+```bash
+python examples/base_layer/05_genome_precomputation.py --chromosomes chr22 --chunk-size 100
+python examples/base_layer/05_genome_precomputation.py --chromosomes chr21 chr22 --chunk-size 500 --resume
+```
+
+**What it does**:
+- Uses production mode: output routes to registry-managed path
+- Path is annotation-source, build, and model-specific (e.g., `data/mane/GRCh38/openspliceai_eval/precomputed/`)
+- Produces per-nucleotide raw scores for meta layer consumption
+- Stable path (no timestamp) for cross-session resume
+
+**Output**: Structured artifacts in `data/{source}/{build}/{model}_eval/precomputed/`
+
+---
+
 ## 🎯 Learning Path
 
 **New to base layer?**
 1. Start with `01_phase1_prediction.py` (single gene)
 2. Try `02_chromosome_prediction.py` (multiple genes)
 3. Explore data preparation examples in `../data_preparation/`
+
+**Ready for production?**
+4. Try `04_chunked_prediction.py` (chunking + resume)
+5. Run `05_genome_precomputation.py` (meta-layer training data)
 
 ---
 
@@ -89,4 +154,4 @@ python examples/base_layer/02_chromosome_prediction.py --chromosome chr17 --gene
 
 ---
 
-**Last Updated**: January 30, 2026
+**Last Updated**: March 3, 2026
