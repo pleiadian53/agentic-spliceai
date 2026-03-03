@@ -93,8 +93,8 @@ def main():
         print(f"\n✅ Extracted {len(splice_sites):,} splice sites")
         
         # Count by type
-        donors = splice_sites.filter(pl.col('splice_site') == 'donor')
-        acceptors = splice_sites.filter(pl.col('splice_site') == 'acceptor')
+        donors = splice_sites.filter(pl.col('splice_type') == 'donor')
+        acceptors = splice_sites.filter(pl.col('splice_type') == 'acceptor')
         
         print(f"   - Donors: {len(donors):,}")
         print(f"   - Acceptors: {len(acceptors):,}")
@@ -104,8 +104,8 @@ def main():
         for gene in sorted(args.genes):
             gene_sites = splice_sites.filter(pl.col('gene_name') == gene)
             if len(gene_sites) > 0:
-                gene_donors = gene_sites.filter(pl.col('splice_site') == 'donor')
-                gene_acceptors = gene_sites.filter(pl.col('splice_site') == 'acceptor')
+                gene_donors = gene_sites.filter(pl.col('splice_type') == 'donor')
+                gene_acceptors = gene_sites.filter(pl.col('splice_type') == 'acceptor')
                 print(f"   - {gene}: {len(gene_sites):,} total ({len(gene_donors):,} donors, {len(gene_acceptors):,} acceptors)")
         
         # Show sample
@@ -119,7 +119,7 @@ def main():
         print(f"   - exon_id: {splice_sites.filter(pl.col('exon_id') != '').height} annotated")
         print(f"   - exon_number: {splice_sites.filter(pl.col('exon_number') > 0).height} annotated")
         
-        print(f"\n💾 Saved to: {result['output_file']}")
+        print(f"\n💾 Saved to: {result['splice_sites_file']}")
     else:
         print(f"❌ Extraction failed: {result.get('error', 'Unknown error')}")
         return 1

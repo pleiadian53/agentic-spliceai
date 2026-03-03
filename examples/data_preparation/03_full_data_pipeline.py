@@ -8,14 +8,16 @@ Demonstrates the complete Phase 2 data preparation workflow:
 4. Save all data in organized format
 
 This is equivalent to running the CLI:
-    agentic-spliceai-base-prepare --genes <genes> --output <output>
+    agentic-spliceai-prepare --genes <genes> --output <output>
 
 Usage:
+    # Specific genes
     python 03_full_data_pipeline.py --genes BRCA1 TP53 EGFR --output /tmp/full_pipeline/
     python 03_full_data_pipeline.py --genes BRCA1 --annotation-source mane --skip-sequences
 
-Example:
-    python 03_full_data_pipeline.py --genes BRCA1 TP53 --output /tmp/full_pipeline/
+    # Genome-wide ground truth (all genes — used for base model evaluation)
+    python 03_full_data_pipeline.py --output /tmp/genome_wide/ --skip-sequences
+    python 03_full_data_pipeline.py --output /tmp/genome_wide/ --annotation-source ensembl --skip-sequences
 """
 
 import argparse
@@ -43,8 +45,8 @@ def main():
     parser.add_argument(
         "--genes",
         nargs="+",
-        required=True,
-        help="Gene symbols (e.g., BRCA1 TP53 EGFR)"
+        default=None,
+        help="Gene symbols (e.g., BRCA1 TP53 EGFR). Omit for genome-wide extraction."
     )
     parser.add_argument(
         "--output",
@@ -78,21 +80,22 @@ def main():
     print("=" * 80)
     print("Phase 2 Complete Data Preparation Pipeline")
     print("=" * 80)
-    print(f"\nGenes: {', '.join(args.genes)}")
+    gene_label = ', '.join(args.genes) if args.genes else "ALL (genome-wide)"
+    print(f"\nGenes: {gene_label}")
     print(f"Output: {args.output}")
     print(f"Build: {args.build}")
     print(f"Annotation Source: {args.annotation_source}")
     print(f"Skip Sequences: {args.skip_sequences}")
     print(f"Skip Splice Sites: {args.skip_splice_sites}")
     print()
-    
+
     # Create output directory
     args.output.mkdir(parents=True, exist_ok=True)
-    
+
     # Initialize summary
     summary = {
         "timestamp": datetime.now().isoformat(),
-        "genes": args.genes,
+        "genes": args.genes or "all",
         "build": args.build,
         "annotation_source": args.annotation_source,
         "results": {}
@@ -104,31 +107,34 @@ def main():
     print("=" * 80)
     print()
     
-    gene_result = prepare_gene_data(
+    gene_df = prepare_gene_data(
         genes=args.genes,
         build=args.build,
         annotation_source=args.annotation_source
     )
-    
-    print(f"✅ Loaded {len(gene_result['genes'])} gene annotations")
-    print(f"✅ Extracted {len(gene_result['sequences'])} sequences")
-    
+
+    n_genes = len(gene_df)
+    n_with_seq = gene_df.filter(pl.col('sequence').is_not_null()).height
+    print(f"✅ Loaded {n_genes} genes ({n_with_seq} with sequences)")
+
     # Save gene data
     genes_file = args.output / "genes.tsv"
     sequences_file = args.output / "sequences.tsv"
-    
-    gene_result['genes'].write_csv(genes_file, separator='\t')
+
+    gene_df.drop('sequence').write_csv(genes_file, separator='\t')
     if not args.skip_sequences:
-        gene_result['sequences'].write_csv(sequences_file, separator='\t')
-    
+        gene_df.select(['gene_id', 'gene_name', 'sequence']).write_csv(
+            sequences_file, separator='\t'
+        )
+
     summary["results"]["genes"] = {
-        "count": len(gene_result['genes']),
+        "count": n_genes,
         "file": str(genes_file),
     }
-    
+
     if not args.skip_sequences:
         summary["results"]["sequences"] = {
-            "count": len(gene_result['sequences']),
+            "count": n_with_seq,
             "file": str(sequences_file),
         }
     
@@ -149,8 +155,8 @@ def main():
         
         if splice_result['success']:
             splice_sites = splice_result['splice_sites_df']
-            donors = splice_sites.filter(pl.col('splice_site') == 'donor')
-            acceptors = splice_sites.filter(pl.col('splice_site') == 'acceptor')
+            donors = splice_sites.filter(pl.col('splice_type') == 'donor')
+            acceptors = splice_sites.filter(pl.col('splice_type') == 'acceptor')
             
             print(f"✅ Extracted {len(splice_sites):,} splice sites")
             print(f"   - Donors: {len(donors):,}")
@@ -160,7 +166,7 @@ def main():
                 "total": len(splice_sites),
                 "donors": len(donors),
                 "acceptors": len(acceptors),
-                "file": str(splice_result['output_file']),
+                "file": str(splice_result['splice_sites_file']),
             }
         else:
             print(f"❌ Splice site extraction failed: {splice_result.get('error', 'Unknown')}")
@@ -188,11 +194,11 @@ def main():
     if not args.skip_sequences:
         print(f"  - Sequences: {sequences_file}")
     if not args.skip_splice_sites and splice_result['success']:
-        print(f"  - Splice sites: {splice_result['output_file']}")
+        print(f"  - Splice sites: {splice_result['splice_sites_file']}")
     print(f"  - Summary: {summary_file}")
     
     print(f"\nStatistics:")
-    print(f"  - Genes: {len(gene_result['genes'])} ({len(gene_result['sequences'])} with sequences)")
+    print(f"  - Genes: {n_genes} ({n_with_seq} with sequences)")
     if not args.skip_splice_sites and splice_result['success']:
         print(f"  - Splice sites: {len(splice_sites):,} ({len(donors):,} donors, {len(acceptors):,} acceptors)")
     

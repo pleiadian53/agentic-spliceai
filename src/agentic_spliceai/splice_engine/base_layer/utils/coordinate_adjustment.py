@@ -233,7 +233,7 @@ def empirical_infer_adjustments(
     Parameters
     ----------
     annotations_df : pl.DataFrame
-        Ground truth annotations with columns: gene_id, site_type, strand, position
+        Ground truth annotations with columns: gene_id, splice_type, strand, position
     pred_results : dict
         Predictions in format: {gene_id: {'donor_prob': array, 'acceptor_prob': array, ...}}
     search_range : tuple
@@ -277,7 +277,7 @@ def empirical_infer_adjustments(
         strands = gene_annots["strand"].unique().to_list()
         strand = strands[0]  # Take first if multiple
         
-        splice_types = gene_annots["site_type"].unique().to_list()
+        splice_types = gene_annots["splice_type"].unique().to_list()
         
         gene_metadata[gene_id] = {
             "strand": strand,
@@ -341,7 +341,7 @@ def empirical_infer_adjustments(
         
         # Filter annotations to this category
         category_annots = annotations_df.filter(
-            (pl.col("site_type") == splice_type) & 
+            (pl.col("splice_type") == splice_type) &
             (pl.col("strand") == strand) &
             (pl.col("gene_id").is_in(category_genes))
         )

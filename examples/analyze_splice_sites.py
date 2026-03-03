@@ -24,7 +24,7 @@ Usage Examples:
     # Available analysis templates:
     #   - high_alternative_splicing: Genes with most splice sites
     #   - splice_site_genomic_view: Genomic visualization of splice sites
-    #   - site_type_distribution: Splice site types by chromosome
+    #   - splice_type_distribution: Splice site types by chromosome
 
     # Run with reflection for higher quality (costs more)
     python examples/analyze_splice_sites.py \
@@ -68,7 +68,7 @@ Usage Examples:
 Arguments:
     --data: Path to splice sites TSV file (default: data/splice_sites_enhanced.tsv)
     --analysis: Analysis type (high_alternative_splicing, splice_site_genomic_view, 
-                site_type_distribution, all, exploratory)
+                splice_type_distribution, all, exploratory)
     --question: Research question for exploratory analysis (required if --analysis exploratory)
     --model: OpenAI model for code generation (default: gpt-4o-mini)
     --reflection-model: Model for reflection/critique (default: same as --model)
@@ -121,7 +121,7 @@ This dataset contains splice sites from MANE (Matched Annotation from NCBI and E
   - 0.4% on alternative contigs and fix patches
 - **Key Columns**:
   - chrom, position: Genomic coordinates
-  - site_type: donor or acceptor (perfectly balanced: 184,959 each)
+  - splice_type: donor or acceptor (perfectly balanced: 184,959 each)
   - strand: + or - (nearly balanced: 50.2% vs 49.8%)
   - gene_name: HGNC gene symbol (e.g., 'TP53', 'OR4F5')
   - gene_id: Format 'gene-{SYMBOL}'
@@ -130,7 +130,7 @@ This dataset contains splice sites from MANE (Matched Annotation from NCBI and E
 
 VISUALIZATION BEST PRACTICES:
 - Use gene_name directly for gene symbols (no extraction needed)
-- Color-code by site_type (donor vs acceptor) and strand
+- Color-code by splice_type (donor vs acceptor) and strand
 - Leverage exon_rank for transcript structure analysis
 - Filter to standard chromosomes for primary analyses
 - Use vertical bars for genomic position plots
@@ -190,7 +190,7 @@ INSIGHTS TO HIGHLIGHT:
         "data_query": """
             SELECT 
                 CAST(position AS INTEGER) as position,
-                site_type,
+                splice_type,
                 strand,
                 gene_name,
                 CAST(exon_rank AS INTEGER) as exon_rank
@@ -210,7 +210,7 @@ VISUALIZATION REQUIREMENTS:
 - X-axis: Genomic position (base pairs)
 - Y-axis: Exon rank (to show transcript structure)
 - Plot vertical bars or scatter points at each splice site position
-- Color by site_type: donor (blue), acceptor (red)
+- Color by splice_type: donor (blue), acceptor (red)
 - Size or alpha by strand (+ vs -)
 - Add gene_name annotations for distinct genes
 - Title: "Splice Sites on chr17:7571719-7590868 (TP53 Region)"
@@ -224,16 +224,16 @@ STYLE:
 """,
     },
     
-    "site_type_distribution": {
+    "splice_type_distribution": {
         "title": "Splice Site Type Distribution by Chromosome",
         "description": "Analyze splice site types across chromosomes",
         "data_query": """
             SELECT 
                 chrom,
-                site_type,
+                splice_type,
                 COUNT(*) as count
             FROM splice_sites
-            GROUP BY chrom, site_type
+            GROUP BY chrom, splice_type
             ORDER BY chrom
         """,
         "chart_prompt": """
@@ -244,8 +244,8 @@ Create a stacked or grouped bar chart showing splice site type distribution by c
 VISUALIZATION REQUIREMENTS:
 - X-axis: Chromosome (chr1, chr2, ..., chrX, chrY)
 - Y-axis: Count of splice sites
-- Stacked or grouped bars by site_type (donor vs acceptor)
-- Color by site_type: donor (blue), acceptor (orange)
+- Stacked or grouped bars by splice_type (donor vs acceptor)
+- Color by splice_type: donor (blue), acceptor (orange)
 - Title: "Splice Site Type Distribution by Chromosome"
 - Legend for site types
 - Rotate x-axis labels if needed
@@ -356,11 +356,11 @@ EXPECTED RELATIONSHIP:
             )
             SELECT 
                 tg.gene_name,
-                d.site_type,
+                d.splice_type,
                 COUNT(*) as count
             FROM splice_sites d
             INNER JOIN top_genes tg ON d.gene_name = tg.gene_name
-            GROUP BY tg.gene_name, d.site_type
+            GROUP BY tg.gene_name, d.splice_type
         """,
         "chart_prompt": """
 {context}
@@ -381,7 +381,7 @@ VISUALIZATION REQUIREMENTS:
 - Annotate cells with counts
 
 CODE STRUCTURE:
-- Pivot data: genes x site_types
+- Pivot data: genes x splice_types
 - Use sns.heatmap(data, annot=True, fmt='d', cmap='YlOrRd')
 - Adjust figure size for readability
 """,

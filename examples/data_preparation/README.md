@@ -49,16 +49,20 @@ python 02_prepare_splice_sites.py --genes BRCA1 TP53 --annotation-source mane
 ### 03_full_data_pipeline.py
 **Complete Data Preparation Pipeline**
 
-Run all data preparation steps in one command.
+Run all data preparation steps in one command. Supports both per-gene and genome-wide extraction.
 
 ```bash
+# Per-gene extraction
 python 03_full_data_pipeline.py --genes BRCA1 TP53 EGFR --output /tmp/full_pipeline/
 python 03_full_data_pipeline.py --genes BRCA1 --skip-sequences
+
+# Genome-wide extraction (omit --genes)
+python 03_full_data_pipeline.py --output /tmp/genome_wide/ --skip-sequences
 ```
 
 **What it does**:
-- Extracts gene annotations
-- Extracts DNA sequences
+- Extracts gene annotations (all genes if `--genes` omitted)
+- Extracts DNA sequences (skip with `--skip-sequences`)
 - Extracts splice site annotations
 - Saves all data in organized format
 - Creates summary JSON
@@ -66,6 +70,33 @@ python 03_full_data_pipeline.py --genes BRCA1 --skip-sequences
 **Output**: `genes.tsv`, `sequences.tsv`, `splice_sites_enhanced.tsv`, `preparation_summary.json`
 
 **Equivalent CLI**: `agentic-spliceai-base-prepare --genes <genes> --output <output>`
+
+---
+
+### 04_generate_ground_truth.py
+**Genome-Wide Ground Truth Generation**
+
+Generate the `splice_sites_enhanced.tsv` file used as ground truth when evaluating base model predictions (SpliceAI, OpenSpliceAI, etc.).
+
+```bash
+# MANE (curated, ~370K sites, ~19K genes) — default
+python 04_generate_ground_truth.py --output data/mane/GRCh38/
+
+# Ensembl (comprehensive, ~2.8M sites, all transcripts)
+python 04_generate_ground_truth.py --output data/ensembl/GRCh38/ --annotation-source ensembl
+
+# Force re-extraction (overwrite cached file)
+python 04_generate_ground_truth.py --output data/mane/GRCh38/ --force
+```
+
+**What it does**:
+- Extracts ALL splice sites from GTF (no gene filtering)
+- Produces the same `splice_sites_enhanced.tsv` used by evaluation scripts
+- Shows per-chromosome breakdown
+
+**Output**: `splice_sites_enhanced.tsv`
+
+**Equivalent CLI**: `agentic-spliceai-prepare --output <dir> --splice-sites-only`
 
 ---
 
@@ -95,8 +126,9 @@ python validate_mane_metadata.py
 **New to data preparation?**
 1. Start with `01_prepare_gene_data.py` (genes + sequences)
 2. Try `02_prepare_splice_sites.py` (splice site extraction)
-3. Run `03_full_data_pipeline.py` (complete pipeline)
-4. Validate with `validate_mane_metadata.py` (quality check)
+3. Run `03_full_data_pipeline.py` (complete pipeline — per-gene or genome-wide)
+4. Use `04_generate_ground_truth.py` (genome-wide ground truth for evaluation)
+5. Validate with `validate_mane_metadata.py` (quality check)
 
 ---
 
@@ -117,6 +149,11 @@ python 03_full_data_pipeline.py --genes BRCA1 TP53 EGFR --output /tmp/multi_gene
 python 02_prepare_splice_sites.py --genes BRCA1 --output /tmp/splice_only/
 ```
 
+### Generate Genome-Wide Ground Truth for Evaluation
+```bash
+python 04_generate_ground_truth.py --output data/mane/GRCh38/
+```
+
 ### Validate MANE Inference
 ```bash
 python validate_mane_metadata.py
@@ -133,4 +170,4 @@ python validate_mane_metadata.py
 
 ---
 
-**Last Updated**: January 30, 2026
+**Last Updated**: March 2, 2026

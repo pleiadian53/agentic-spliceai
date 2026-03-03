@@ -248,7 +248,7 @@ def prepare_splice_site_annotations(
     - end: End position (for BED-style intervals)
     - position: Exact splice site position (1-based)
     - strand: Strand ('+' or '-')
-    - site_type: 'donor' or 'acceptor'
+    - splice_type: 'donor' or 'acceptor'
     - gene_id: Gene identifier (e.g., ENSG00000012048)
     - transcript_id: Transcript identifier
     - gene_name: Gene symbol (e.g., BRCA1)
@@ -331,7 +331,10 @@ def prepare_splice_site_annotations(
             print(f"✓ Loading cached splice sites from: {output_file}")
         
         try:
+            from ...resources.schema import standardize_splice_sites_schema
             splice_sites_df = pl.read_csv(output_file, separator='\t')
+            # Safety net: old cached files may have 'site_type' instead of 'splice_type'
+            splice_sites_df = standardize_splice_sites_schema(splice_sites_df)
             
             # Apply filtering if requested
             if genes:
@@ -353,8 +356,8 @@ def prepare_splice_site_annotations(
             # Calculate statistics
             result['splice_sites_df'] = splice_sites_df
             result['n_sites'] = splice_sites_df.height
-            result['n_donors'] = splice_sites_df.filter(pl.col('site_type') == 'donor').height
-            result['n_acceptors'] = splice_sites_df.filter(pl.col('site_type') == 'acceptor').height
+            result['n_donors'] = splice_sites_df.filter(pl.col('splice_type') == 'donor').height
+            result['n_acceptors'] = splice_sites_df.filter(pl.col('splice_type') == 'acceptor').height
             result['success'] = True
             
             if verbosity >= 1:
@@ -380,8 +383,16 @@ def prepare_splice_site_annotations(
             chromosomes=chromosomes,
             verbosity=verbosity
         )
-        
-        # Apply gene filtering if requested
+
+        # Save FULL extraction to file BEFORE gene filtering.
+        # This protects the genome-wide file from being overwritten by
+        # gene-filtered subsets when callers use force_extract=True with
+        # a gene filter (e.g., bio_service.py, evaluation scripts).
+        splice_sites_df.write_csv(output_file, separator='\t')
+        if verbosity >= 1:
+            print(f"✓ Saved full annotations ({splice_sites_df.height} sites) to: {output_file}")
+
+        # Apply gene filtering if requested (in memory only — file stays full)
         if genes:
             if verbosity >= 1:
                 orig_count = splice_sites_df.height
@@ -389,21 +400,17 @@ def prepare_splice_site_annotations(
             splice_sites_df = filter_by_genes(splice_sites_df, genes)
             if verbosity >= 1:
                 print(f"  Filtered from {orig_count} to {splice_sites_df.height} sites")
-        
-        # Save to file
-        splice_sites_df.write_csv(output_file, separator='\t')
-        
-        # Calculate statistics
+
+        # Calculate statistics (on potentially filtered data)
         result['splice_sites_df'] = splice_sites_df
         result['n_sites'] = splice_sites_df.height
-        result['n_donors'] = splice_sites_df.filter(pl.col('site_type') == 'donor').height
-        result['n_acceptors'] = splice_sites_df.filter(pl.col('site_type') == 'acceptor').height
+        result['n_donors'] = splice_sites_df.filter(pl.col('splice_type') == 'donor').height
+        result['n_acceptors'] = splice_sites_df.filter(pl.col('splice_type') == 'acceptor').height
         result['success'] = True
-        
+
         if verbosity >= 1:
             print(f"✓ Extracted {result['n_sites']} splice sites ({result['n_donors']} donors, {result['n_acceptors']} acceptors)")
-            print(f"✓ Saved to: {output_file}")
-        
+
         return result
         
     except Exception as e:

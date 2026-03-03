@@ -448,7 +448,7 @@ def extract_splice_sites_from_exons(
                     'end': donor_pos,
                     'position': donor_pos,
                     'strand': strand,
-                    'site_type': 'donor',
+                    'splice_type': 'donor',
                     'gene_id': gene_id,
                     'transcript_id': transcript_id,
                     'gene_name': gene_name,
@@ -472,7 +472,7 @@ def extract_splice_sites_from_exons(
                     'end': acceptor_pos,
                     'position': acceptor_pos,
                     'strand': strand,
-                    'site_type': 'acceptor',
+                    'splice_type': 'acceptor',
                     'gene_id': gene_id,
                     'transcript_id': transcript_id,
                     'gene_name': gene_name,
@@ -487,15 +487,12 @@ def extract_splice_sites_from_exons(
     
     # Remove duplicates while preserving transcript/exon-level metadata
     # (same genomic position can occur across transcripts; keep per-transcript entries)
-    if 'site_type' in df.columns:
-        df = df.unique(subset=['chrom', 'position', 'strand', 'site_type', 'gene_id', 'transcript_id', 'exon_number'])
-    else:
-        df = df.unique(subset=['chrom', 'position', 'strand', 'gene_id', 'transcript_id'])
-    
+    if df.height > 0:
+        df = df.unique(subset=['chrom', 'position', 'strand', 'splice_type', 'gene_id', 'transcript_id', 'exon_number'])
+
     if verbosity >= 1:
-        type_col = 'site_type' if 'site_type' in df.columns else 'splice_type'
-        n_donors = df.filter(pl.col(type_col) == 'donor').height
-        n_acceptors = df.filter(pl.col(type_col) == 'acceptor').height
+        n_donors = df.filter(pl.col('splice_type') == 'donor').height
+        n_acceptors = df.filter(pl.col('splice_type') == 'acceptor').height
         print(f"[extract] Found {len(df)} unique splice sites ({n_donors} donors, {n_acceptors} acceptors)")
     
     return df

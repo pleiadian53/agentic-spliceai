@@ -315,7 +315,7 @@ def build_exon_labels(
         Length of the gene sequence string.
     splice_sites_df:
         DataFrame loaded from ``splice_sites_enhanced.tsv``.
-        Must have columns: gene_id, position, site_type, transcript_id,
+        Must have columns: gene_id, position, splice_type, transcript_id,
         exon_number (or exon_rank), strand.
 
     Returns
@@ -347,8 +347,8 @@ def build_exon_labels(
     for transcript_id, tx_sites in gene_sites.groupby("transcript_id"):
         tx_sites = tx_sites.sort_values(rank_col)
 
-        donors = tx_sites[tx_sites["site_type"] == "donor"]
-        acceptors = tx_sites[tx_sites["site_type"] == "acceptor"]
+        donors = tx_sites[tx_sites["splice_type"] == "donor"]
+        acceptors = tx_sites[tx_sites["splice_type"] == "acceptor"]
 
         # Build exon spans: each exon has one acceptor (start) and one donor (end).
         # For multi-exon transcripts, sorted by exon_rank:

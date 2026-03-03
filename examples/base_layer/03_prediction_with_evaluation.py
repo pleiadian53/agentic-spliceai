@@ -182,7 +182,6 @@ def main():
         genes=gene_list,
         build=build,
         annotation_source=annotation_source,
-        force_extract=bool(args.n_random_genes),
         verbosity=1
     )
     
@@ -190,8 +189,8 @@ def main():
     print(f"✓ Loaded {len(annotations_df)} ground truth splice sites")
     
     # Count by type
-    donor_count = len(annotations_df.filter(pl.col('site_type') == 'donor'))
-    acceptor_count = len(annotations_df.filter(pl.col('site_type') == 'acceptor'))
+    donor_count = len(annotations_df.filter(pl.col('splice_type') == 'donor'))
+    acceptor_count = len(annotations_df.filter(pl.col('splice_type') == 'acceptor'))
     print(f"   Donor: {donor_count}, Acceptor: {acceptor_count}")
     print()
     
@@ -262,9 +261,8 @@ def main():
         
         # Count unique sites
         n_annotations = filtered_annot.height
-        site_col = 'splice_type' if 'splice_type' in filtered_annot.columns else 'site_type'
         for st_name in ['donor', 'acceptor']:
-            st_annot = filtered_annot.filter(pl.col(site_col).str.to_lowercase() == st_name)
+            st_annot = filtered_annot.filter(pl.col('splice_type').str.to_lowercase() == st_name)
             n_unique = st_annot['position'].n_unique() if st_annot.height > 0 else 0
             print(f"   {st_name.capitalize()}: {n_unique} unique positions ({st_annot.height} annotations)")
         

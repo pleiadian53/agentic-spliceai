@@ -72,11 +72,8 @@ try:
     sys.path.insert(0, '/Users/pleiadian53/work/meta-spliceai')
     from meta_spliceai.splice_engine.meta_models.core.enhanced_evaluation import enhanced_evaluate_splice_site_errors
     
-    # Standardize column names
     ss = splice_sites.clone()
-    if 'site_type' in ss.columns:
-        ss = ss.rename({'site_type': 'splice_type'})
-    
+
     error_df, positions_df = enhanced_evaluate_splice_site_errors(
         annotations_df=ss,
         pred_results=predictions,

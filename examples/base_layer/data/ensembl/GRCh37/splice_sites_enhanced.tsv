@@ -1,4 +1,4 @@
-chrom	start	end	position	strand	site_type	gene_id	transcript_id	gene_name	gene_biotype	transcript_biotype	exon_id	exon_number	exon_rank
+chrom	start	end	position	strand	splice_type	gene_id	transcript_id	gene_name	gene_biotype	transcript_biotype	exon_id	exon_number	exon_rank
 17	7579839	7579839	7579839	-	donor	ENSG00000141510	ENST00000514944	TP53	protein_coding	protein_coding	ENSE00002667911	2	2
 17	7578289	7578289	7578289	-	acceptor	ENSG00000141510	ENST00000504937	TP53	protein_coding	retained_intron	ENSE00003465983	2	2
 17	7577155	7577155	7577155	-	acceptor	ENSG00000141510	ENST00000504290	TP53	protein_coding	retained_intron	ENSE00003692058	4	4

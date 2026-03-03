@@ -5,7 +5,7 @@ channels:
   - defaults
 dependencies:
   # Python version
-  - python=3.11
+  - python=3.12
 
   # ============================================================================
   # AGENTIC WORKFLOW & RESEARCH (from Nexus)
@@ -43,7 +43,7 @@ dependencies:
   
   - duckdb          # Efficient dataset loading
   - matplotlib      # Plotting library
-  - numpy<2.0.0     # Numerical computing (constrained for TensorFlow)
+  - numpy           # Numerical computing
   - pandas          # Data manipulation
   - seaborn         # Statistical visualization
   - tabulate        # Pretty-print tables
@@ -63,7 +63,8 @@ dependencies:
   
   # === Deep Learning ===
   - tensorflow      # For SpliceAI models
-  - pytorch         # Alternative DL framework
+  # NOTE: PyTorch installed via pip (see pip section below).
+  # conda-forge pytorch 2.6.0 has broken builds on macOS arm64.
   - keras           # High-level neural networks API
   
   # === ML Utilities ===
@@ -87,6 +88,9 @@ dependencies:
   # ============================================================================
   
   - pip:
+    # === Deep Learning (pip-only on macOS arm64) ===
+    - torch==2.5.1            # PyTorch (pip wheel; conda-forge builds broken)
+
     # === Agent & LLM Tools ===
     - aisuite==0.1.11
     - anthropic

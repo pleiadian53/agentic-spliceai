@@ -69,40 +69,42 @@ def main():
     # Create output directory
     args.output.mkdir(parents=True, exist_ok=True)
     
-    # Prepare gene data
+    # Prepare gene data (returns a Polars DataFrame with gene annotations + sequences)
     print("🧬 Preparing gene data...")
-    result = prepare_gene_data(
+    gene_df = prepare_gene_data(
         genes=args.genes,
         build=args.build,
         annotation_source=args.annotation_source
     )
-    
+
     # Display results
     print("\n" + "=" * 80)
     print("Results")
     print("=" * 80)
-    
-    print(f"\n✅ Loaded {len(result['genes'])} gene annotations")
-    print(f"✅ Extracted {len(result['sequences'])} sequences")
-    
+
+    print(f"\n✅ Loaded {len(gene_df)} genes with sequences")
+
     # Show gene details
     print(f"\n📋 Gene details:")
-    for _, row in result['genes'].iter_rows(named=True):
-        seq_status = "✓" if row['gene_name'] in result['sequences']['gene_name'].to_list() else "✗"
-        print(f"   {seq_status} {row['gene_name']}: {row['seqname']}:{row['start']:,}-{row['end']:,} ({row['strand']})")
-        if row['gene_name'] in result['sequences']['gene_name'].to_list():
-            seq_row = result['sequences'].filter(pl.col('gene_name') == row['gene_name']).row(0, named=True)
-            print(f"      Sequence length: {len(seq_row['sequence']):,} bp")
-    
+    for row in gene_df.iter_rows(named=True):
+        seq_len = len(row['sequence']) if row['sequence'] else 0
+        print(f"   ✓ {row['gene_name']}: {row['seqname']}:{row['start']:,}-{row['end']:,} ({row['strand']})")
+        print(f"      Sequence length: {seq_len:,} bp")
+
     # Save to files
     genes_file = args.output / "genes.tsv"
     sequences_file = args.output / "sequences.tsv"
+
+    # Save annotations (without bulky sequence column)
+    genes_meta = gene_df.drop('sequence')
+    genes_meta.write_csv(genes_file, separator='\t')
+
+    # Save sequences separately
+    gene_df.select(['gene_id', 'gene_name', 'sequence']).write_csv(
+        sequences_file, separator='\t'
+    )
     
-    print(f"\n💾 Saving results...")
-    result['genes'].write_csv(genes_file, separator='\t')
-    result['sequences'].write_csv(sequences_file, separator='\t')
-    
-    print(f"   ✓ Genes: {genes_file}")
+    print(f"   ✓ Genes (metadata): {genes_file}")
     print(f"   ✓ Sequences: {sequences_file}")
     
     print("\n" + "=" * 80)

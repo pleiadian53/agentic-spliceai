@@ -393,14 +393,13 @@ def _build_genome_response(
         ))
 
     # Ground truth positions (never downsampled)
-    gt_col = 'site_type' if 'site_type' in annotations_df.columns else 'splice_type'
     # Filter annotations to this gene
     if 'gene_name' in annotations_df.columns:
         gene_annot = annotations_df.filter(pl.col('gene_name') == gene_name)
     else:
         gene_annot = annotations_df
     gt_positions = gene_annot['position'].to_list() if gene_annot.height > 0 else []
-    gt_site_types = gene_annot[gt_col].to_list() if gene_annot.height > 0 else []
+    gt_site_types = gene_annot['splice_type'].to_list() if gene_annot.height > 0 else []
 
     # Counts
     pred_types = positions_df['pred_type'].to_list() if positions_df.height > 0 else []
@@ -462,7 +461,7 @@ async def genome_predict(
             annotation_source = resources.annotation_source
             annotations_dir = resources.get_annotations_dir(create=True)
 
-            # 1. Ground truth annotations (force_extract to ensure gene is included)
+            # 1. Ground truth annotations (load from full genome-wide cache, filter in memory)
             annotations_result = await loop.run_in_executor(
                 None,
                 lambda: prepare_splice_site_annotations(
@@ -470,7 +469,6 @@ async def genome_predict(
                     genes=[gene_name],
                     build=build,
                     annotation_source=annotation_source,
-                    force_extract=True,
                     verbosity=0,
                 ),
             )

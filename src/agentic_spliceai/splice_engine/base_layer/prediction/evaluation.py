@@ -174,8 +174,8 @@ def _standardize_annotations(df: pl.DataFrame) -> pl.DataFrame:
     # Handle common column name variations
     rename_map = {}
     
-    if 'site_type' in df.columns and 'splice_type' not in df.columns:
-        rename_map['site_type'] = 'splice_type'
+    # Note: 'splice_type' is the canonical column name. If data uses 'site_type',
+    # apply standardize_splice_sites_schema() from resources.schema before calling.
     if 'seqname' in df.columns and 'chrom' not in df.columns:
         rename_map['seqname'] = 'chrom'
     if 'start' in df.columns and 'position' not in df.columns:
@@ -795,8 +795,7 @@ def filter_annotations_by_transcript(
     principal transcript). For precise filtering, use MANE Select or
     APPRIS principal annotations if available.
     """
-    # Standardize column names for internal processing
-    site_col = 'splice_type' if 'splice_type' in annotations_df.columns else 'site_type'
+    site_col = 'splice_type'
     
     if mode == 'all':
         if verbosity >= 1:

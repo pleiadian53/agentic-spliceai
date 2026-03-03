@@ -99,7 +99,7 @@ def detect_position_offsets(
         for strand in ['+', '-']:
             # Filter ground truth for this combination
             gt_sites = ground_truth_df.filter(
-                (pl.col('site_type') == site_type) & 
+                (pl.col('splice_type') == site_type) & 
                 (pl.col('strand') == strand)
             )
             
@@ -229,8 +229,8 @@ def evaluate_predictions(
         Metrics: {'recall': float, 'precision': float, 'f1': float, ...}
     """
     # Get true sites by type
-    true_donors = set(ground_truth_df.filter(pl.col('site_type') == 'donor')['position'].to_list())
-    true_acceptors = set(ground_truth_df.filter(pl.col('site_type') == 'acceptor')['position'].to_list())
+    true_donors = set(ground_truth_df.filter(pl.col('splice_type') == 'donor')['position'].to_list())
+    true_acceptors = set(ground_truth_df.filter(pl.col('splice_type') == 'acceptor')['position'].to_list())
     
     # Get predicted sites
     pred_donors = set(predictions_df.filter(pl.col('donor_prob') >= threshold)['position'].to_list())
@@ -347,8 +347,8 @@ def main():
     
     ground_truth_df = annotations_result['splice_sites_df']
     print(f"✓ Loaded {len(ground_truth_df)} ground truth splice sites")
-    print(f"   Donors: {len(ground_truth_df.filter(pl.col('site_type') == 'donor'))}")
-    print(f"   Acceptors: {len(ground_truth_df.filter(pl.col('site_type') == 'acceptor'))}")
+    print(f"   Donors: {len(ground_truth_df.filter(pl.col('splice_type') == 'donor'))}")
+    print(f"   Acceptors: {len(ground_truth_df.filter(pl.col('splice_type') == 'acceptor'))}")
     print()
     
     # Prepare gene data
