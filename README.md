@@ -397,9 +397,11 @@ graph TB
 
 | Layer | Purpose | Output | Status |
 |-------|---------|--------|--------|
-| **Base Layer** | Canonical splice prediction (MANE) | Baseline scores for ~10% of sites | ✅ Complete |
-| **Meta Layer** | Context-aware adaptive prediction | Novel sites (90% beyond MANE) | 🔄 Phase 4 |
-| **Agentic Layer** | Multi-source validation + reports | Validated isoforms + drug targets | 📋 Phase 5-8 |
+| **Base Layer** | Canonical splice prediction (MANE) | Baseline scores for ~10% of sites | ✅ Complete (Phases 1–3) |
+| **Feature Engineering** | Multimodal evidence fusion | 4-modality enriched features | ✅ Core Done (Phase 4) |
+| **Foundation Models** | Evo2-based exon classification | Per-nucleotide embeddings + classifiers | 🔬 Experimental (Phase 5) |
+| **Meta Layer** | Context-aware adaptive prediction | Novel sites (90% beyond MANE) | 🔄 Research (Phase 6) |
+| **Agentic Layer** | Multi-source validation + reports | Validated isoforms + drug targets | 📋 Planned (Phases 7–9) |
 
 ### Key Innovation: Delta Score Analysis
 
@@ -447,6 +449,18 @@ Alternative splicing generates multiple protein isoforms from a single gene, vas
 
 ## 🚀 Quick Start
 
+### Bioinformatics Lab UI
+
+Interactive web tools for splice site analysis:
+
+```bash
+# Start the Bioinformatics Lab (port 8005)
+mamba run -n agentic-spliceai python -m server.bio.app
+# Browse: http://localhost:8005/
+```
+
+**Pages**: Gene Browser (`/`) | Genome View (`/genome/{gene}`) | Metrics Dashboard (`/metrics`)
+
 ### Splice Analysis
 
 #### Option 1: REST API Service (Recommended)
@@ -454,8 +468,11 @@ Alternative splicing generates multiple protein isoforms from a single gene, vas
 **Start the service:**
 
 ```bash
-cd agentic_spliceai/server
-mamba run -n agentic-spliceai python splice_service.py
+# Splice prediction API (port 8004)
+agentic-spliceai-server
+
+# Or run directly:
+mamba run -n agentic-spliceai python -m server.splice_service.splice_service
 ```
 
 **Access the API:**
@@ -546,6 +563,43 @@ print(f"Report saved to: {result['output_path']}")
 - Stay updated on splice prediction methods
 - Validate analysis approaches with current research
 - Generate comprehensive background sections
+
+### Foundation Model Experiments
+
+Explore foundation model embeddings for splice site prediction (experimental sub-project):
+
+```bash
+# Check hardware feasibility
+python examples/foundation_models/01_resource_check.py
+
+# Run full pipeline with synthetic data (no GPU needed, <30s)
+python examples/foundation_models/02_synthetic_training_pipeline.py
+
+# Orchestrate real pipeline (dry-run first)
+python examples/foundation_models/05_run_pipeline.py --dry-run
+python examples/foundation_models/05_run_pipeline.py --local-only  # synthetic data
+python examples/foundation_models/05_run_pipeline.py --execute      # real GPU (costs $)
+```
+
+**Cloud deployment** (SkyPilot + RunPod):
+
+```bash
+# Extract Evo2 embeddings on A40 GPU
+sky launch foundation_models/configs/skypilot/extract_embeddings_a40.yaml
+
+# Train exon classifier
+sky launch foundation_models/configs/skypilot/train_classifier_a40.yaml
+```
+
+**Hardware requirements:**
+
+| Task | M1 Mac (16GB) | A40 (48GB) | A100 (80GB) |
+|------|---------------|------------|-------------|
+| Evo2 7B embeddings | ~100 bp/s (INT8) | ~10K bp/s | ~10K bp/s |
+| Classifier training | CPU only | Full precision | Full precision |
+| Evo2 40B | Not feasible | Tight | Comfortable |
+
+**See**: [`foundation_models/README.md`](foundation_models/README.md) for detailed setup
 
 ### Splice Site Prediction
 
@@ -653,12 +707,12 @@ result = generate_exploratory_insight(
 ### Prerequisites
 
 ```bash
-# Python 3.9+
+# Python 3.12 (requires >= 3.11)
 python --version
 
 # Create environment for agentic-spliceai
 mamba env create -f environment.yml
-mamba activate agenticspliceai
+mamba activate agentic-spliceai
 ```
 
 ### Install Dependencies
@@ -666,7 +720,7 @@ mamba activate agenticspliceai
 ```bash
 # Install package in development mode
 cd agentic-spliceai
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 > **Note**: This project is designed to run independently with its own environment and dependencies.
@@ -686,72 +740,113 @@ cp .env.example .env
 ```text
 agentic-spliceai/
 ├── src/
-│   └── agentic_spliceai/
-│       │
-│       ├── splice_engine/           # 🧬 Core splice prediction (ported from meta-spliceai)
-│       │   │
-│       │   ├── config/              # Configuration management
-│       │   │   ├── genomic_config.py    # Config dataclass & loader
-│       │   │   └── settings.yaml        # Default settings
-│       │   │
-│       │   ├── resources/           # Genomic resource management
-│       │   │   ├── registry.py          # Path resolution for GTF/FASTA/models
-│       │   │   └── schema.py            # Column standardization
-│       │   │
-│       │   ├── utils/               # Shared utilities
-│       │   │   ├── dataframe.py         # DataFrame operations
-│       │   │   ├── display.py           # Printing & formatting
-│       │   │   └── filesystem.py        # File I/O helpers
-│       │   │
-│       │   ├── base_layer/          # Base model predictions
-│       │   │   ├── models/              # SpliceAI, OpenSpliceAI configs
-│       │   │   │   ├── config.py            # BaseModelConfig
-│       │   │   │   └── runner.py            # BaseModelRunner
-│       │   │   ├── data/                # Data types
-│       │   │   │   └── types.py             # GeneManifest, PredictionResult
-│       │   │   ├── prediction/          # Prediction workflows (WIP)
-│       │   │   └── io/                  # I/O handlers (WIP)
-│       │   │
-│       │   └── meta_layer/          # Meta-learning layer
-│       │       ├── core/                # Configuration & schema
-│       │       │   ├── config.py            # MetaLayerConfig
-│       │       │   └── feature_schema.py    # Feature definitions
-│       │       ├── models/              # Neural network models (WIP)
-│       │       ├── training/            # Training pipeline (WIP)
-│       │       └── inference/           # Inference pipeline (WIP)
-│       │
-│       ├── agents/                  # 🤖 Agentic workflows (WIP)
-│       │   ├── validation/              # Literature validation agent
-│       │   ├── expression/              # Expression evidence agent
-│       │   └── clinical/                # Clinical annotation agent
-│       │
-│       ├── server/                  # FastAPI service
-│       │   └── splice_service.py
-│       │
-│       └── analysis/                # Analysis tools
-│           ├── data_access.py           # Dataset loading
-│           ├── splice_analysis.py       # Analysis templates
-│           └── planning.py              # Chart code generation
+│   ├── agentic_spliceai/
+│   │   │
+│   │   ├── splice_engine/           # 🧬 Core splice prediction engine
+│   │   │   │
+│   │   │   ├── config/              # Configuration management
+│   │   │   │   ├── genomic_config.py    # Config dataclass & loader
+│   │   │   │   └── settings.yaml        # Default settings
+│   │   │   │
+│   │   │   ├── resources/           # Genomic resource management
+│   │   │   │   ├── registry.py          # Path resolution for GTF/FASTA/models
+│   │   │   │   └── schema.py            # Column standardization (splice_type, chrom)
+│   │   │   │
+│   │   │   ├── utils/               # Shared utilities
+│   │   │   │   ├── dataframe.py         # DataFrame operations
+│   │   │   │   ├── display.py           # Printing & formatting
+│   │   │   │   └── filesystem.py        # File I/O helpers
+│   │   │   │
+│   │   │   ├── base_layer/          # Base model predictions
+│   │   │   │   ├── models/              # Model configs + runner
+│   │   │   │   │   ├── config.py            # BaseModelConfig, WorkflowConfig
+│   │   │   │   │   └── runner.py            # BaseModelRunner
+│   │   │   │   ├── prediction/          # Core prediction logic
+│   │   │   │   ├── workflows/           # Chunked prediction pipeline
+│   │   │   │   │   └── prediction.py        # PredictionWorkflow (checkpointing, resume)
+│   │   │   │   ├── io/                  # Artifact management
+│   │   │   │   │   └── artifacts.py         # ArtifactManager (atomic writes, mode-aware)
+│   │   │   │   └── data/                # Data types & preparation
+│   │   │   │
+│   │   │   ├── features/            # 🎨 Multimodal feature engineering
+│   │   │   │   ├── pipeline.py          # FeaturePipeline (dependency resolution)
+│   │   │   │   ├── workflow.py          # FeatureWorkflow (genome-scale)
+│   │   │   │   ├── modality.py          # Modality protocol (ABC)
+│   │   │   │   └── modalities/          # 4 modalities:
+│   │   │   │       ├── base_scores.py       # 43 engineered features
+│   │   │   │       ├── annotation.py        # Ground truth labels
+│   │   │   │       ├── sequence.py          # DNA context (pyfaidx)
+│   │   │   │       └── genomic.py           # Positional features (GC, CpG)
+│   │   │   │
+│   │   │   ├── eval/                # 📊 Cross-layer evaluation
+│   │   │   │   ├── metrics.py           # TP/FP/FN, sensitivity, specificity
+│   │   │   │   ├── output.py            # EvaluationOutputWriter
+│   │   │   │   └── display.py           # Result visualization
+│   │   │   │
+│   │   │   ├── data/                # Cross-layer data utilities
+│   │   │   │   └── sampling.py          # Balanced train/test sampling
+│   │   │   │
+│   │   │   ├── meta_layer/          # 🧠 Meta-learning layer
+│   │   │   │   ├── core/                # Configuration & schema
+│   │   │   │   │   ├── config.py            # MetaLayerConfig
+│   │   │   │   │   └── feature_schema.py    # Feature definitions (8 column groups)
+│   │   │   │   ├── models/              # Neural network models
+│   │   │   │   ├── training/            # Training pipeline
+│   │   │   │   └── workflows/           # Meta-layer workflows
+│   │   │   │
+│   │   │   └── cli/                 # CLI entry points
+│   │   │       ├── predict.py           # agentic-spliceai-predict
+│   │   │       └── prepare.py           # agentic-spliceai-prepare
+│   │   │
+│   │   ├── agents/                  # 🤖 Agentic workflows (WIP)
+│   │   ├── server/                  # FastAPI splice service
+│   │   └── analysis/                # Analysis tools & templates
+│   │
+│   └── nexus/                       # 📚 Research agent package
+│       ├── agents/                      # Multi-agent pipeline
+│       │   ├── research/                    # Research orchestrator
+│       │   ├── planner/                     # Research planning
+│       │   ├── researcher/                  # Information gathering
+│       │   ├── writer/                      # Report writing
+│       │   └── editor/                      # Report refinement
+│       ├── core/                        # Core utilities
+│       ├── cli/                         # CLI interface
+│       └── templates/                   # Report templates
 │
-├── nexus/                           # 📚 Research agent package
-│   ├── agents/                      # Multi-agent pipeline
-│   │   ├── research/                    # Research orchestrator
-│   │   ├── planner/                     # Research planning
-│   │   ├── researcher/                  # Information gathering
-│   │   ├── writer/                      # Report writing
-│   │   └── editor/                      # Report refinement
-│   ├── core/                        # Core utilities
-│   ├── cli/                         # CLI interface
-│   └── templates/                   # Report templates
+├── foundation_models/               # 🔬 Experimental sub-project (own pyproject.toml)
+│   ├── foundation_models/
+│   │   ├── evo2/                        # Evo2-based exon classifier
+│   │   │   ├── config.py                    # Evo2Config (device auto-detect)
+│   │   │   ├── model.py                     # HuggingFace wrapper
+│   │   │   ├── embedder.py                  # Chunked extraction + HDF5 cache
+│   │   │   └── classifier.py                # ExonClassifier (linear/MLP/CNN/LSTM)
+│   │   └── utils/                       # Quantization, chunking
+│   ├── configs/skypilot/               # SkyPilot cloud deployment (RunPod)
+│   ├── examples/                        # Learning path (01–05)
+│   └── docs/                            # Sub-project documentation
+│
+├── server/                          # 🌐 Standalone FastAPI services
+│   ├── bio/                             # Bioinformatics Lab UI (port 8005)
+│   │   ├── app.py                           # FastAPI + Jinja2 entry point
+│   │   ├── bio_service.py                   # Core service (LRU cache, predictions)
+│   │   └── templates/                       # HTML templates (Gene Browser, etc.)
+│   ├── splice_service/                  # Splice prediction API (port 8004)
+│   └── chart_service/                   # Chart/viz API (port 8003)
+│
+├── examples/                        # 📖 Learning path examples
+│   ├── base_layer/                      # 5 scripts: prediction → precomputation
+│   ├── features/                        # 4 scripts: base scores → genome-scale
+│   ├── foundation_models/               # 5 scripts: resource check → orchestrate
+│   └── data_preparation/               # Data prep & ground truth generation
 │
 ├── data/                            # Data directory (symlinked)
-│   ├── ensembl/GRCh37/              # Ensembl annotations
-│   ├── mane/GRCh38/                 # MANE annotations
-│   └── models/                      # Pre-trained model weights
-│       ├── spliceai/
-│       └── openspliceai/
+│   ├── ensembl/GRCh37/                  # Ensembl annotations
+│   ├── mane/GRCh38/                     # MANE annotations
+│   └── models/                          # Pre-trained model weights
 │
-├── docs/                            # Documentation
+├── notebooks/                       # Jupyter analysis & demos
+├── docs/                            # Public documentation (MkDocs)
+├── scripts/                         # Utility scripts
 ├── tests/                           # Unit tests
 └── pyproject.toml                   # Package configuration
 ```
@@ -885,7 +980,7 @@ Splice Agent expects datasets with the following columns:
 **Required:**
 - `chrom` - Chromosome (e.g., chr1, chr2, ..., chrX, chrY)
 - `position` - Genomic position (0-based or 1-based)
-- `site_type` - Splice site type (donor or acceptor)
+- `splice_type` - Splice site type (donor or acceptor)
 - `strand` - Strand (+ or -)
 
 **Optional but recommended:**
@@ -897,7 +992,7 @@ Splice Agent expects datasets with the following columns:
 **Example data:**
 
 ```tsv
-chrom	position	site_type	strand	gene_name	transcript_id	exon_rank
+chrom	position	splice_type	strand	gene_name	transcript_id	exon_rank
 chr1	12345	donor	+	TP53	NM_000546.6	5
 chr1	12678	acceptor	+	TP53	NM_000546.6	6
 ```
@@ -905,13 +1000,23 @@ chr1	12678	acceptor	+	TP53	NM_000546.6	6
 ## 🎓 Learning Resources
 
 ### Documentation
-- [API Documentation](docs/API.md) - Complete API reference
-- [Biology Background](docs/BIOLOGY.md) - Splice site biology primer
-- [Tutorial](docs/TUTORIAL.md) - Step-by-step guide
+- [Splice Prediction Guide](docs/tutorials/SPLICE_PREDICTION_GUIDE.md) - Complete prediction walkthrough
+- [Meta Layer Formulations](docs/meta_layer/splice_prediction/) - Alternative splice site prediction analysis
+- [Base Layer Architecture](docs/base_layer/) - Architecture, coordinates, data preparation
+- [System Design](docs/system_design/) - Architectural design documents
 
-### Examples
-- [analyze_splice_sites.py](examples/analyze_splice_sites.py) - Full CLI tool
-- [quick_start.py](examples/quick_start.py) - Quick examples
+### Examples (Progressive Learning Paths)
+
+**Base Layer** (`examples/base_layer/`) — 5 scripts:
+1. Single gene prediction → 2. Chromosome prediction → 3. Evaluation → 4. Chunked workflows → 5. Genome precomputation
+
+**Feature Engineering** (`examples/features/`) — 4 scripts:
+1. Base score features (43 columns) → 2. Multi-modal (annotation + genomic) → 3. Configurable modalities → 4. Genome-scale workflow
+
+**Foundation Models** (`examples/foundation_models/`) — 5 scripts:
+1. Hardware feasibility check → 2. Synthetic pipeline (no GPU) → 3. Evo2 embedding extraction → 4. Classifier training → 5. End-to-end orchestrator
+
+**Data Preparation** (`examples/data_preparation/`) — Ground truth generation, data validation
 
 ### Related Projects
 - [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) - Original research implementation with base and meta layers
@@ -941,7 +1046,8 @@ MIT License - see LICENSE file for details
 
 - Built on [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) foundation
 - Nexus Research Agent from [Agentic AI Lab](https://github.com/pleiadian53/agentic-ai-lab)
-- Powered by OpenAI GPT models
+- Foundation models: [Evo2](https://github.com/ArcInstitute/evo2) (Arc Institute), [SpliceAI](https://github.com/Illumina/SpliceAI) (Illumina), [OpenSpliceAI](https://github.com/Kuocheng-Liao/OpenSpliceAI)
+- LLM-powered workflows via OpenAI and Anthropic APIs
 - Inspired by genomics research community
 
 ## 📞 Support
@@ -983,40 +1089,94 @@ MIT License - see LICENSE file for details
 
 ---
 
-### Phase 3: Workflow Orchestration 🔄 **NEXT**
+### Phase 2.5: Bioinformatics Lab UI ✅ **COMPLETE**
+
+**Goal**: Interactive web tools for splice site analysis and visualization
+
+- [x] Gene Browser (browse, search, filter ~19K genes)
+- [x] Metrics Dashboard (evaluation results, model comparison)
+- [x] Genome View (on-demand prediction, 3-track Plotly visualization)
+- [x] LRU prediction cache + peak-preserving downsampling
+- [x] Demo notebook (SERPINA1/COPD, UNC13A/STMN2/ALS use cases)
+
+**Deliverable**: FastAPI + Jinja2 + Plotly.js web service at `server/bio/` (port 8005) ✅
+
+---
+
+### Phase 3: Workflow Orchestration ✅ **COMPLETE**
 
 **Goal**: Full prediction workflows with artifact management
 
-- [ ] Chunking and checkpointing for genome-scale
-- [ ] Artifact management (organized outputs)
-- [ ] Environment variable support (pod deployments)
-- [ ] Evaluation metrics and error analysis
-- [ ] Comprehensive CLI (`agentic-spliceai predict`)
+- [x] Chunking and checkpointing for genome-scale (`PredictionWorkflow`)
+- [x] Artifact management (`ArtifactManager` with atomic writes)
+- [x] Mode-aware output paths (test vs production routing)
+- [x] Evaluation metrics and error analysis (`splice_engine/eval/`)
+- [x] Comprehensive CLI (`--chunk-size`, `--resume`, `--mode`)
 
-**Deliverable**: Production base layer with full workflows
+**Deliverable**: Production base layer with full workflows ✅
 
-**Timeline**: 2-3 weeks
-
----
-
-### Phase 4: Meta Layer Integration 📋 **UPCOMING**
-
-**Goal**: Adaptive, context-aware splice prediction
-
-- [ ] Port multimodal deep learning meta-models
-- [ ] Context-aware prediction (variants, disease, tissue)
-- [ ] Training pipeline for continuous learning
-- [ ] Delta score analysis (novel site detection)
-- [ ] Meta-model CLI commands
-
-**Deliverable**: Adaptive predictions that learn from context
-
-**Timeline**: 3-4 weeks  
-**Key Innovation**: Move beyond canonical annotations!
+**Verified**: chr22 — 423 genes, 17.6M positions, 5 chunks, 12.4 min
 
 ---
 
-### Phase 5: Agentic Validation Layer 🎯 **CRITICAL**
+### Phase 4: Feature Engineering & Multimodal Evidence ✅ **CORE DONE**
+
+**Goal**: Multimodal feature framework for meta-layer training
+
+- [x] Modality protocol with auto-registration (`FeaturePipeline`)
+- [x] Base score features (43 engineered features: context, gradient, cross-type)
+- [x] Annotation modality (ground truth labels from GTF)
+- [x] Sequence modality (DNA context windows via pyfaidx)
+- [x] Genomic modality (GC content, CpG islands, dinucleotides)
+- [x] Genome-scale `FeatureWorkflow` with checkpointing
+- [x] Feature schema standardization (`meta_layer/core/feature_schema.py`)
+- [ ] Additional modalities (chromatin, histone marks, RNA-seq expression)
+
+**Deliverable**: 4-modality feature pipeline (1,675 lines, 9 files) ✅
+
+**Verified**: chr22 — 17.6M positions, 54 columns, 58s
+
+---
+
+### Phase 5: Foundation Models 🔬 **EXPERIMENTAL**
+
+**Goal**: Explore foundation model embeddings for splice site prediction
+
+- [x] Evo2-based exon classifier (per-nucleotide exon/intron classification)
+- [x] HDF5 embedding cache with chunked extraction
+- [x] Device-aware quantization routing (INT8 for MPS/CPU, bitsandbytes for CUDA)
+- [x] 4 classifier architectures (linear, MLP, CNN, LSTM)
+- [x] SkyPilot + RunPod cloud workflows (A40/A100 GPU)
+- [x] Hardware feasibility detection and cost tracking
+- [ ] LoRA fine-tuning adapters
+- [ ] Integration with core package registry
+
+**Deliverable**: Independent sub-project at `foundation_models/` with own pyproject.toml
+
+**See**: [`foundation_models/README.md`](foundation_models/README.md) for detailed setup and hardware requirements
+
+---
+
+### Phase 6: Meta Layer Training 🔄 **ACTIVE RESEARCH**
+
+**Goal**: Context-aware adaptive splice prediction via meta-learning
+
+- [ ] Validated delta prediction (hybrid label strategy from SpliceVarDB)
+- [ ] Conditional splice landscape prediction (Formulation A)
+- [ ] Virtual transcript reconstruction (junction-level donor-acceptor pairing)
+- [ ] RNA-seq junction integration (GTEx/TCGA ground truth)
+- [ ] Training pipeline with weak supervision (Level 0–4 label hierarchy)
+- [ ] Delta score analysis for novel site detection
+
+**Key Challenge**: Weak supervision — SpliceVarDB provides categorical labels (Level 1) but meta-layer needs positional predictions (Level 3). Four formulations explored: Conditional Landscape, Latent State, Contrastive Multi-Resolution, Generalized Perturbation.
+
+**Deliverable**: Context-aware predictions that discover the 90% of splice sites beyond canonical annotations
+
+**See**: [`docs/meta_layer/splice_prediction/`](docs/meta_layer/splice_prediction/) for detailed analysis and formulations
+
+---
+
+### Phase 7: Agentic Validation Layer 🎯 **PLANNED**
 
 **Goal**: Autonomous validation with AI agents
 
@@ -1029,129 +1189,62 @@ MIT License - see LICENSE file for details
 
 **Deliverable**: AI-validated predictions with biological context
 
-**Timeline**: 4-5 weeks  
-**Key Innovation**: Automated biological validation at scale!
-
 ---
 
-### Phase 6: Variant Analysis 🧬 **CLINICAL IMPACT**
+### Phase 8: Variant Analysis 🧬 **PLANNED**
 
 **Goal**: Predict variant-induced splicing changes
 
 - [ ] VCF processing and variant impact prediction
 - [ ] Pathogenicity scoring for splice variants
 - [ ] Clinical interpretation workflows
-- [ ] ClinVar integration and submission
-- [ ] VUS reclassification pipeline
+- [ ] ClinVar integration and VUS reclassification
 
 **Deliverable**: Clinical-grade variant interpretation
 
-**Timeline**: 3-4 weeks  
-**Clinical Impact**: Improve VUS interpretation accuracy
-
 ---
 
-### Phase 7: Multi-Tissue & Cell-Type Prediction 🧪 **CONTEXT**
-
-**Goal**: Tissue and cell-type-specific isoform prediction
-
-- [ ] GTEx tissue-specific predictions
-- [ ] Single-cell RNA-seq integration
-- [ ] Cell-type-specific splicing patterns
-- [ ] Developmental stage modeling
-- [ ] Context embedding framework
-
-**Deliverable**: Tissue/cell-type-aware predictions
-
-**Timeline**: 3-4 weeks  
-**Research Impact**: Discover tissue-specific therapeutic targets
-
----
-
-### Phase 8: Isoform Discovery 🎉 **ULTIMATE GOAL**
+### Phase 9: Isoform Discovery 🎉 **ULTIMATE GOAL**
 
 **Goal**: Discover novel disease-specific isoforms for drug discovery
 
 - [ ] **Novel splice site detector**: High-confidence site discovery
-- [ ] **Isoform reconstruction**: Splice sites → full transcripts
+- [ ] **Isoform reconstruction**: Splice sites → full transcripts (virtual transcripts)
 - [ ] **RNA-seq integration**: GTEx/TCGA junction validation
 - [ ] **Confidence scoring**: Multi-evidence isoform ranking
-- [ ] **Clinical workflows**: VUS → isoform → pathogenicity
 - [ ] **Drug target pipeline**: Isoform → druggability → leads
 
 **Deliverable**: Novel isoform catalog with validation evidence
-
-**Timeline**: 6-8 weeks  
-**Transformative Impact**:
-- 📊 **Discovery**: 100+ novel isoforms across 50 disease genes
-- 🎯 **Targets**: 10+ druggable cancer-specific isoforms
-- 🧬 **Clinical**: Improved VUS interpretation for patients
-- 💊 **Therapeutics**: Isoform-selective drug candidates
 
 **See**: [`docs/isoform_discovery/README.md`](docs/isoform_discovery/README.md) for detailed vision
 
 ---
 
-### Phase 9: Drug Target Validation 💊 **TRANSLATIONAL**
+### Phase 10+: Drug Target Validation & Deployment 💊 **FUTURE**
 
-**Goal**: Validate discovered isoforms as therapeutic targets
-
-- [ ] **Druggability assessment**: Pocket prediction, binding sites
-- [ ] **Target validation**: Cell assays, animal models
-- [ ] **Biomarker development**: Diagnostic assay design
-- [ ] **Collaboration platform**: Industry partnerships
-- [ ] **IP strategy**: Patent applications for novel targets
-
-**Deliverable**: Clinical-stage drug targets from novel isoforms
-
-**Timeline**: 12+ weeks (ongoing)  
-**Commercial Impact**: Novel therapeutics and diagnostics
-
----
-
-### Phase 10: Continuous Learning & Deployment 🔄 **SCALE**
-
-**Goal**: Production system with continuous improvement
-
-- [ ] **Active learning**: Feedback from validation experiments
-- [ ] **Model updates**: Retrain on new data (RNA-seq, variants)
-- [ ] **Clinical integration**: EMR, LIMS, sequencing pipelines
-- [ ] **Web platform**: User-friendly interface for researchers
-- [ ] **API service**: RESTful API for programmatic access
-- [ ] **Cloud deployment**: Scalable infrastructure (AWS/GCP)
-
-**Deliverable**: Production platform for isoform discovery
-
-**Timeline**: Ongoing  
-**Impact**: Democratize isoform discovery for research community
+- [ ] Druggability assessment (pocket prediction, binding sites)
+- [ ] Biomarker development and companion diagnostics
+- [ ] Production platform with continuous learning
+- [ ] Cloud deployment and web interface
 
 ---
 
 ## 📊 Success Metrics
 
-### Discovery Metrics (Phase 8)
+### Discovery Metrics (Phase 9)
 - **Novel isoforms discovered**: 100+ across 50 genes
 - **RNA-seq validation rate**: >70% with junction support
 - **Literature confirmation**: >50% with supporting evidence
 
-### Clinical Metrics (Phase 6-8)
+### Clinical Metrics (Phase 8-9)
 - **VUS reclassified**: >30% of tested variants
 - **Diagnostic accuracy**: >90% concordance with experimental data
 - **Time to interpretation**: <24 hours (vs weeks for manual review)
 
-### Drug Discovery Metrics (Phase 9)
-- **Druggable targets identified**: >10 high-confidence candidates
-- **Target validation success**: >50% in cell assays
-- **Lead compounds**: >3 candidates entering optimization
-
-### Platform Metrics (Phase 10)
-- **Users**: >1000 researchers and clinicians
-- **Predictions**: >1M isoforms analyzed
-- **Impact**: >10 publications, >5 patents, >2 clinical trials
-
----
-
-**See**: `dev/refactoring/` for detailed technical plans and `dev/research/isoform_discovery/` for research roadmap
+### Foundation Model Metrics (Phase 5)
+- **Exon classification AUROC**: >0.9 with real Evo2 embeddings
+- **Embedding extraction**: 10K+ bp/second on A40 GPU
+- **Cost efficiency**: <$5/chromosome via SkyPilot + RunPod
 
 ---
 
