@@ -29,8 +29,14 @@ graph TD
     %% Layer 2: Base Prediction Layer
     subgraph L2 ["② BASE PREDICTION LAYER"]
         C[Canonical Predictions<br/>MANE Baseline]:::base
-        D[SpliceAI / OpenSpliceAI<br/>Prediction Engines]:::base
+        D[Splice-Site Prediction Engines<br/>Pluggable Architecture]:::base
+        D1[SpliceAI /<br/>OpenSpliceAI]:::base
+        D2[Foundation Models<br/>e.g. Evo2 Fine-Tuning]:::base
+        D3[Future<br/>Predictors]:::base
         C --> D
+        D --> D1
+        D --> D2
+        D --> D3
     end
 
     %% Layer 3: Meta Layer Integration
@@ -76,7 +82,9 @@ graph TD
 
     %% Inter-layer flow
     B --> D
-    D --> F
+    D1 --> F
+    D2 --> F
+    D3 --> F
     G --> H
 
     %% Self-improvement feedback loop
