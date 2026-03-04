@@ -6,6 +6,88 @@
 
 By combining **adaptive splice site prediction** through multimodal deep learning, **meta-learning refinement**, and **agentic AI validation**, we enable the discovery of novel therapeutic targets and biomarkers for precision medicine.
 
+### Workflow: Prediction to Discovery
+
+```mermaid
+graph TD
+    %% Color scheme matching the 5-layer workflow bands
+    classDef input fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#1a1a1a
+    classDef base fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#1a1a1a
+    classDef meta fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#1a1a1a
+    classDef agents fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1a1a1a
+    classDef output fill:#ffebee,stroke:#d32f2f,stroke-width:2px,color:#1a1a1a
+
+    %% Layer 1: Input & Preparation
+    subgraph L1 ["① INPUT & PREPARATION"]
+        A1[(Genomic Data<br/>GTF, FASTA, MANE)]:::input
+        A2[(Variant Data<br/>VCF)]:::input
+        B["Data Preparation Pipeline (CLI)"]:::input
+        A1 --> B
+        A2 --> B
+    end
+
+    %% Layer 2: Base Prediction Layer
+    subgraph L2 ["② BASE PREDICTION LAYER"]
+        C[Canonical Predictions<br/>MANE Baseline]:::base
+        D[SpliceAI / OpenSpliceAI<br/>Prediction Engines]:::base
+        C --> D
+    end
+
+    %% Layer 3: Meta Layer Integration
+    subgraph L3 ["③ META LAYER INTEGRATION"]
+        E1[Variant Context]:::meta
+        E2[Disease Context]:::meta
+        E3[Tissue Context]:::meta
+        F[Multimodal Deep Learning<br/>Meta-Models]:::meta
+        G[Context-Aware Adaptive Predictions<br/>& Novel Site Detection]:::meta
+        E1 --> F
+        E2 --> F
+        E3 --> F
+        F --> G
+    end
+
+    %% Layer 4: Agentic Validation Layer
+    subgraph L4 ["④ AGENTIC VALIDATION LAYER"]
+        H{Nexus Agent<br/>Orchestrator}:::agents
+        I[Literature Agent<br/>PubMed, arXiv]:::agents
+        J[Expression Agent<br/>GTEx, TCGA]:::agents
+        K[Clinical Agent<br/>ClinVar, COSMIC]:::agents
+        L[Conservation Agent<br/>PhyloP]:::agents
+        M[Structural Agent<br/>AlphaFold, Foldseek]:::agents
+        S[Evidence Synthesis<br/>& Report Generation]:::agents
+        H --> I
+        H --> J
+        H --> K
+        H --> L
+        H --> M
+        I --> S
+        J --> S
+        K --> S
+        L --> S
+        M --> S
+    end
+
+    %% Layer 5: Outcomes & Discovery
+    subgraph L5 ["⑤ OUTCOMES & DISCOVERY"]
+        N1[Novel Isoform Discovery<br/>Drug Targets]:::output
+        N2[Clinical-Grade Variant<br/>Interpretation — VUS]:::output
+        N3[Tissue-Specific<br/>Biomarkers]:::output
+    end
+
+    %% Inter-layer flow
+    B --> D
+    D --> F
+    G --> H
+
+    %% Self-improvement feedback loop
+    H -.->|Self-Improvement Feedback| F
+
+    %% Validation to outcomes
+    S --> N1
+    S --> N2
+    S --> N3
+```
+
 ---
 
 ## 🎯 Vision: From Splice Prediction to Drug Discovery
