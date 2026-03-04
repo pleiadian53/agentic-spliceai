@@ -5,7 +5,7 @@ channels:
   - conda-forge
 dependencies:
   # Python
-  - python=3.11
+  - python=3.12
 
   # CUDA and PyTorch (GPU-enabled)
   - pytorch::pytorch>=2.0.0
@@ -52,6 +52,10 @@ dependencies:
     # Utilities
     - einops>=0.6.0
     - scikit-learn>=1.3.0
+
+    # Remote training orchestration (optional — typically not needed on the pod itself)
+    # - "skypilot[runpod]>=0.7.0"   # Installed on local machine, not pod
+    # - modal>=0.64.0               # Installed on local machine, not pod
 
     # Core agentic-spliceai (install from local)
     # Run: pip install -e /path/to/agentic-spliceai

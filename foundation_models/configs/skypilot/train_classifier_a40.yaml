@@ -1,0 +1,50 @@
+# SkyPilot: Train ExonClassifier on A40 (from pre-computed embeddings)
+#
+# Prerequisites:
+#   Embeddings must already exist locally at ./output/embeddings/
+#   (produced by extract_embeddings_a40.yaml or extract_embeddings_a100.yaml)
+#
+# Usage:
+#   sky launch foundation_models/configs/skypilot/train_classifier_a40.yaml
+#
+#   # Download results to local machine (before tearing down!)
+#   sky rsync train-classifier /workspace/checkpoints/ ./output/checkpoints/
+#
+#   # Tear down
+#   sky down train-classifier
+
+name: train-classifier
+
+resources:
+  accelerators: A40:1
+  cloud: runpod
+
+file_mounts:
+  /workspace/data:
+    source: ./data/mane/GRCh38/
+    mode: COPY
+  /workspace/embeddings:
+    source: ./output/embeddings/
+    mode: COPY
+
+setup: |
+  pip install -e .
+  pip install -e ./foundation_models
+
+run: |
+  mkdir -p /workspace/checkpoints
+  python foundation_models/examples/03_train_classifier.py \
+    --embeddings /workspace/embeddings/embeddings.h5 \
+    --labels /workspace/embeddings/embeddings.labels.npz \
+    --output /workspace/checkpoints/ \
+    --architecture mlp \
+    --window-size 1024 \
+    --epochs 50 \
+    --patience 10
+
+  echo ""
+  echo "============================================"
+  echo "DONE — download results before tearing down:"
+  echo "  sky rsync train-classifier /workspace/checkpoints/ ./output/checkpoints/"
+  echo "  sky down train-classifier"
+  echo "============================================"

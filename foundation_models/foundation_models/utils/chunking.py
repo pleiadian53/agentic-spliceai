@@ -488,6 +488,62 @@ def generate_labeled_windows(
 
 
 # ---------------------------------------------------------------------------
+# Windowing pre-computed embeddings
+# ---------------------------------------------------------------------------
+
+def window_embeddings(
+    embeddings: np.ndarray,
+    labels: np.ndarray,
+    gene_id: str,
+    window_size: int,
+    step_size: Optional[int] = None,
+    min_exon_fraction: float = 0.0,
+) -> List[Tuple[np.ndarray, np.ndarray, str]]:
+    """Slide a fixed-size window over pre-computed embeddings and labels.
+
+    This is the embedding-space analog of :func:`generate_labeled_windows`:
+    instead of windowing raw DNA sequences, it windows pre-computed
+    embeddings alongside their binary labels.
+
+    Parameters
+    ----------
+    embeddings : np.ndarray
+        Array of shape ``[seq_len, hidden_dim]``.
+    labels : np.ndarray
+        Binary array of shape ``[seq_len]`` (1=exon, 0=intron).
+    gene_id : str
+        Gene identifier (carried through for provenance).
+    window_size : int
+        Window size in nucleotide positions.
+    step_size : int, optional
+        Stride between consecutive windows.  Defaults to *window_size*
+        (non-overlapping).
+    min_exon_fraction : float
+        Skip windows where the exon fraction is below this threshold.
+
+    Returns
+    -------
+    list of (emb_window, label_window, gene_id) tuples.
+        emb_window:  ``[window_size, hidden_dim]``
+        label_window: ``[window_size]``
+    """
+    if step_size is None:
+        step_size = window_size
+
+    seq_len = len(embeddings)
+    results: List[Tuple[np.ndarray, np.ndarray, str]] = []
+
+    for start in range(0, seq_len - window_size + 1, step_size):
+        end = start + window_size
+        win_labels = labels[start:end]
+        if min_exon_fraction > 0 and win_labels.mean() < min_exon_fraction:
+            continue
+        results.append((embeddings[start:end], win_labels, gene_id))
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Utility: estimate number of chunks / windows for a dataset
 # ---------------------------------------------------------------------------
 

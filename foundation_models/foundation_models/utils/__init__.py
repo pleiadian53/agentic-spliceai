@@ -38,8 +38,24 @@ from .chunking import (
     make_chunks_for_gene,
     build_exon_labels,
     generate_labeled_windows,
+    window_embeddings,
     estimate_chunk_count,
     estimate_window_count,
+)
+
+from .synthetic import (
+    generate_synthetic_embeddings,
+    save_synthetic_embeddings,
+)
+
+from .resources import (
+    MODEL_SPECS,
+    HARDWARE_PROFILES,
+    check_current_hardware,
+    estimate_embedding_extraction,
+    estimate_classifier_training,
+    estimate_lora_finetuning,
+    print_feasibility_report,
 )
 
 __all__ = [
@@ -63,6 +79,18 @@ __all__ = [
     "make_chunks_for_gene",
     "build_exon_labels",
     "generate_labeled_windows",
+    "window_embeddings",
     "estimate_chunk_count",
     "estimate_window_count",
+    # synthetic
+    "generate_synthetic_embeddings",
+    "save_synthetic_embeddings",
+    # resources
+    "MODEL_SPECS",
+    "HARDWARE_PROFILES",
+    "check_current_hardware",
+    "estimate_embedding_extraction",
+    "estimate_classifier_training",
+    "estimate_lora_finetuning",
+    "print_feasibility_report",
 ]

@@ -53,6 +53,14 @@ Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isofo
 | [meta_layer/methods/VALIDATED_DELTA_PREDICTION.md](meta_layer/methods/VALIDATED_DELTA_PREDICTION.md) | Validated delta prediction method |
 | [meta_layer/experiments/README.md](meta_layer/experiments/README.md) | Experiments index |
 
+### Compute Resources
+
+| Document | Description |
+| --- | --- |
+| [compute/README.md](compute/README.md) | Compute resource management overview |
+| [compute/remote_training_options.md](compute/remote_training_options.md) | Modal vs SkyPilot vs RunPods comparison |
+| [getting_started/RUNPODS_SETUP.md](getting_started/RUNPODS_SETUP.md) | RunPods first-time setup guide |
+
 ### Foundation Models
 
 | Document | Description |

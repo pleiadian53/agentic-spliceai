@@ -3,7 +3,7 @@ name = "agentic-spliceai-foundation-models"
 version = "0.1.0"
 description = "Foundation model integration for agentic-spliceai (Evo2, Evo1, Nucleotide Transformer)"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
     {name = "Your Name", email = "barnettchiu@gmail.com"}
@@ -31,6 +31,16 @@ adapters = [
     "peft>=0.4.0",
 ]
 
+# Remote training orchestration (optional — only needed for remote GPU dispatch)
+remote = [
+    "skypilot[runpod]>=0.7.0",
+]
+
+# Programmatic serverless GPU (optional — alternative to SkyPilot)
+modal = [
+    "modal>=0.64.0",
+]
+
 # Full development dependencies
 dev = [
     "pytest>=7.3.0",
@@ -45,7 +55,7 @@ dev = [
 
 # All optional dependencies
 all = [
-    "agentic-spliceai-foundation-models[quantization,adapters,dev]",
+    "agentic-spliceai-foundation-models[quantization,adapters,remote,modal,dev]",
 ]
 
 [project.urls]
@@ -65,7 +75,7 @@ foundation_models = ["py.typed"]
 
 [tool.black]
 line-length = 100
-target-version = ['py311', 'py312']
+target-version = ['py312']
 include = '\.pyi?$'
 
 [tool.isort]
@@ -73,7 +83,7 @@ profile = "black"
 line_length = 100
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

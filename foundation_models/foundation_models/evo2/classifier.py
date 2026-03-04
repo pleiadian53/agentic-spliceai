@@ -5,10 +5,15 @@ Lightweight classifier trained on Evo2 embeddings for single-nucleotide
 resolution exon/intron classification.
 """
 
+import logging
+from pathlib import Path
+from typing import Dict, List, Literal, Optional
+
+import numpy as np
 import torch
 import torch.nn as nn
-from typing import Literal, Optional
-import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class ExonClassifier(nn.Module):
@@ -153,11 +158,12 @@ class ExonClassifier(nn.Module):
             probs: [batch, seq_len] or [seq_len] - probability of being exon
         """
         self.eval()
-        
+        device = next(self.parameters()).device
+
         with torch.no_grad():
-            logits = self(embeddings)
+            logits = self(embeddings.to(device))
             probs = torch.sigmoid(logits)
-        
+
         return probs.cpu().numpy()
     
     def fit(
@@ -172,10 +178,13 @@ class ExonClassifier(nn.Module):
         weight_decay: float = 0.01,
         device: str = "cuda",
         verbose: bool = True,
-    ):
+        checkpoint_dir: Optional[str] = None,
+        patience: int = 10,
+        lr_schedule: bool = True,
+    ) -> Dict:
         """
         Train classifier.
-        
+
         Args:
             train_embeddings: [N, seq_len, input_dim]
             train_labels: [N, seq_len] - binary labels (0=intron, 1=exon)
@@ -187,62 +196,85 @@ class ExonClassifier(nn.Module):
             weight_decay: Weight decay for AdamW
             device: Device to train on
             verbose: Print training progress
+            checkpoint_dir: Directory to save best model checkpoint (None = no disk save)
+            patience: Early stopping patience in epochs (0 = disabled)
+            lr_schedule: Use ReduceLROnPlateau on val AUROC
+
+        Returns:
+            Training history dict with keys: train_loss, val_loss, val_auroc,
+            val_auprc, best_epoch, best_val_auroc, stopped_early.
         """
         from torch.utils.data import TensorDataset, DataLoader
-        from sklearn.metrics import roc_auc_score, average_precision_score
-        
+
         # Move to device
         self.to(device)
         train_embeddings = train_embeddings.to(device)
         train_labels = train_labels.to(device)
-        
+
         if val_embeddings is not None:
             val_embeddings = val_embeddings.to(device)
             val_labels = val_labels.to(device)
-        
+
         # Create data loader
         train_dataset = TensorDataset(train_embeddings, train_labels)
         train_loader = DataLoader(
             train_dataset, batch_size=batch_size, shuffle=True
         )
-        
+
         # Loss (handle class imbalance)
-        pos_weight = (train_labels == 0).sum() / (train_labels == 1).sum()
+        n_pos = (train_labels == 1).sum().float()
+        n_neg = (train_labels == 0).sum().float()
+        pos_weight = n_neg / n_pos.clamp(min=1)
         criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        
+
         # Optimizer
         optimizer = torch.optim.AdamW(
-            self.parameters(),
-            lr=lr,
-            weight_decay=weight_decay,
+            self.parameters(), lr=lr, weight_decay=weight_decay,
         )
-        
-        # Training loop
+
+        # LR scheduler (only with validation data)
+        scheduler = None
+        if lr_schedule and val_embeddings is not None:
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode="max", factor=0.5, patience=5, min_lr=1e-6,
+            )
+
+        # Training state
+        history: Dict[str, List] = {
+            "train_loss": [], "val_loss": [], "val_auroc": [], "val_auprc": [],
+        }
         best_val_auroc = 0.0
-        
+        best_epoch = 0
+        best_state: Optional[dict] = None
+        epochs_without_improvement = 0
+
         for epoch in range(epochs):
             # Train
             self.train()
             train_loss = 0.0
-            
+
             for batch_emb, batch_labels in train_loader:
                 logits = self(batch_emb)
                 loss = criterion(logits, batch_labels.float())
-                
+
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                
+
                 train_loss += loss.item()
-            
+
             train_loss /= len(train_loader)
-            
+            history["train_loss"].append(train_loss)
+
             # Validate
             if val_embeddings is not None:
                 val_metrics = self._evaluate(
                     val_embeddings, val_labels, criterion
                 )
-                
+                history["val_loss"].append(val_metrics["loss"])
+                history["val_auroc"].append(val_metrics["auroc"])
+                history["val_auprc"].append(val_metrics["auprc"])
+
                 if verbose:
                     print(
                         f"Epoch {epoch+1}/{epochs}: "
@@ -251,14 +283,115 @@ class ExonClassifier(nn.Module):
                         f"val_auroc={val_metrics['auroc']:.4f}, "
                         f"val_auprc={val_metrics['auprc']:.4f}"
                     )
-                
+
                 # Track best model
-                if val_metrics['auroc'] > best_val_auroc:
-                    best_val_auroc = val_metrics['auroc']
+                if val_metrics["auroc"] > best_val_auroc:
+                    best_val_auroc = val_metrics["auroc"]
+                    best_epoch = epoch
+                    best_state = {
+                        k: v.cpu().clone() for k, v in self.state_dict().items()
+                    }
+                    if checkpoint_dir is not None:
+                        self._save_checkpoint(checkpoint_dir, epoch, val_metrics)
+                    epochs_without_improvement = 0
+                else:
+                    epochs_without_improvement += 1
+
+                # LR scheduling
+                if scheduler is not None:
+                    scheduler.step(val_metrics["auroc"])
+
+                # Early stopping
+                if patience > 0 and epochs_without_improvement >= patience:
+                    if verbose:
+                        print(
+                            f"Early stopping at epoch {epoch+1} "
+                            f"(best AUROC: {best_val_auroc:.4f} at epoch {best_epoch+1})"
+                        )
+                    break
             else:
                 if verbose:
                     print(f"Epoch {epoch+1}/{epochs}: train_loss={train_loss:.4f}")
+
+        # Restore best model weights
+        stopped_early = epochs_without_improvement >= patience if patience > 0 else False
+        if val_embeddings is not None and best_state is not None:
+            self.load_state_dict(best_state)
+            if verbose:
+                print(
+                    f"Restored best model from epoch {best_epoch+1} "
+                    f"(AUROC: {best_val_auroc:.4f})"
+                )
+
+        history["best_epoch"] = best_epoch
+        history["best_val_auroc"] = best_val_auroc
+        history["stopped_early"] = stopped_early
+        return history
     
+    def _save_checkpoint(
+        self, checkpoint_dir: str, epoch: int, metrics: dict
+    ) -> Path:
+        """Save model checkpoint to disk.
+
+        Args:
+            checkpoint_dir: Directory to save checkpoint into.
+            epoch: Current epoch number.
+            metrics: Validation metrics dict.
+
+        Returns:
+            Path to the saved checkpoint file.
+        """
+        ckpt_dir = Path(checkpoint_dir)
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint = {
+            "model_state_dict": self.state_dict(),
+            "architecture": self.architecture,
+            "input_dim": self.input_dim,
+            "hidden_dim": self.hidden_dim,
+            "num_layers": self.num_layers,
+            "dropout": self.dropout,
+            "epoch": epoch,
+            "metrics": metrics,
+        }
+        path = ckpt_dir / "best_model.pt"
+        torch.save(checkpoint, path)
+        logger.info("Saved checkpoint to %s (epoch %d)", path, epoch + 1)
+        return path
+
+    @classmethod
+    def load_checkpoint(
+        cls, checkpoint_path: str, device: str = "cpu"
+    ) -> "ExonClassifier":
+        """Load a classifier from a saved checkpoint.
+
+        Args:
+            checkpoint_path: Path to the .pt checkpoint file.
+            device: Device to load model onto.
+
+        Returns:
+            ExonClassifier with restored weights.
+        """
+        checkpoint = torch.load(
+            checkpoint_path, map_location=device, weights_only=False,
+        )
+        model = cls(
+            input_dim=checkpoint["input_dim"],
+            hidden_dim=checkpoint["hidden_dim"],
+            num_layers=checkpoint["num_layers"],
+            architecture=checkpoint["architecture"],
+            dropout=checkpoint["dropout"],
+        )
+        model.load_state_dict(checkpoint["model_state_dict"])
+        model.to(device)
+        model.eval()
+        logger.info(
+            "Loaded checkpoint from %s (epoch %d, AUROC %.4f)",
+            checkpoint_path,
+            checkpoint["epoch"] + 1,
+            checkpoint.get("metrics", {}).get("auroc", 0.0),
+        )
+        return model
+
     def _evaluate(
         self,
         embeddings: torch.Tensor,

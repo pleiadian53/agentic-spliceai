@@ -17,6 +17,7 @@ Topic-specific documentation for the `foundation_models` sub-package.
 | Document | Description |
 |---|---|
 | [deepspeed_training.md](training/deepspeed_training.md) | DeepSpeed ZeRO configurations for LoRA fine-tuning on RunPods (ZeRO-2, ZeRO-3 + CPU offload); `AdaptiveTrainer` wrapper that auto-selects between DeepSpeed and standard PyTorch |
+| [remote_training_options.md](training/remote_training_options.md) | Modal vs SkyPilot vs RunPods — programmatic remote training comparison (canonical: `docs/compute/`) |
 
 ---
 

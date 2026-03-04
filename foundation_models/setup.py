@@ -24,7 +24,7 @@ setup(
     author_email="barnettchiu@gmail.com",
     url="https://github.com/pleiadian53/agentic-spliceai",
     packages=find_packages(),
-    python_requires=">=3.10",
+    python_requires=">=3.12",
     install_requires=[
         "torch>=2.0.0",
         "transformers>=4.30.0",
@@ -58,7 +58,6 @@ setup(
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Bio-Informatics",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
 )
