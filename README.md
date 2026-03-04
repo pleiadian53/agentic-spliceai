@@ -48,23 +48,23 @@ graph TD
 
     %% Layer 4: Agentic Validation Layer
     subgraph L4 ["④ AGENTIC VALIDATION LAYER"]
-        H{Nexus Agent<br/>Orchestrator}:::agents
+        H{Autonomous AI<br/>Agent Orchestrator}:::agents
         I[Literature Agent<br/>PubMed, arXiv]:::agents
         J[Expression Agent<br/>GTEx, TCGA]:::agents
         K[Clinical Agent<br/>ClinVar, COSMIC]:::agents
         L[Conservation Agent<br/>PhyloP]:::agents
         M[Structural Agent<br/>AlphaFold, Foldseek]:::agents
-        S[Evidence Synthesis<br/>& Report Generation]:::agents
-        H --> I
-        H --> J
-        H --> K
-        H --> L
-        H --> M
+        H -->|Evidence Mining| I
+        H -->|RNA-seq Validation| J
+        H -->|Disease Mapping| K
+        H -->|Cross-species| L
+        H -->|Structure Prediction| M
         I --> S
         J --> S
         K --> S
         L --> S
         M --> S
+        S[Nexus Research Agent<br/>Comprehensive Reports]:::agents
     end
 
     %% Layer 5: Outcomes & Discovery
@@ -80,7 +80,7 @@ graph TD
     G --> H
 
     %% Self-improvement feedback loop
-    H -.->|Self-Improvement Feedback| F
+    S -.->|Validation Feedback| F
 
     %% Validation to outcomes
     S --> N1
