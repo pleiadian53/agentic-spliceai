@@ -1,158 +1,98 @@
 """
 Configuration for Evo2 models.
+
+Evo2 requires CUDA (Linux + GPU). For MPS/CPU, use HyenaDNA instead.
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, Literal
+import warnings
+from dataclasses import dataclass
+from typing import Literal, Optional
+
+
+# Default embedding layers (last block MLP output)
+_DEFAULT_EMBEDDING_LAYERS = {
+    "7b": "blocks.27.mlp.l3",   # 28 blocks (0-27)
+    "40b": "blocks.63.mlp.l3",  # 64 blocks (0-63)
+}
+
+# Known hidden dimensions
+HIDDEN_DIMS = {
+    "7b": 2560,
+    "40b": 5120,
+}
 
 
 @dataclass
 class Evo2Config:
-    """
-    Configuration for Evo2 foundation model.
-    
+    """Configuration for Evo2 foundation model (CUDA only).
+
+    Evo2 uses the official ``evo2`` Python package from Arc Institute,
+    which requires CUDA. For Apple Silicon / CPU, use HyenaDNA.
+
     Attributes:
-        model_size: Size of Evo2 model ("7b" or "40b")
-        quantize: Whether to quantize model (INT8/INT4)
-        quantization_bits: Bits for quantization (4 or 8)
-        device: Device to load model on ("auto", "cuda", "cpu", "mps")
-        torch_dtype: PyTorch dtype (None = auto, "float16", "bfloat16", "float32")
-        trust_remote_code: Trust remote code from HuggingFace
-        max_length: Maximum sequence length to process
-        batch_size: Batch size for inference
-        cache_dir: Directory to cache model weights
+        model_size: Evo2 model size ("7b" or "40b").
+        checkpoint_name: Evo2 checkpoint name (e.g. "evo2_7b").
+        max_length: Maximum sequence length per chunk.
+        batch_size: Batch size for inference.
+        embedding_layer: Internal layer name for embedding extraction.
     """
-    
-    # Model selection
+
     model_size: Literal["7b", "40b"] = "7b"
-    
-    # Quantization (for M1 Mac or memory-constrained GPUs)
-    quantize: bool = False
-    quantization_bits: Literal[4, 8] = 8
-    
-    # Device and precision
-    device: Literal["auto", "cuda", "cpu", "mps"] = "auto"
-    torch_dtype: Optional[Literal["float16", "bfloat16", "float32"]] = None
-    
-    # HuggingFace settings
-    trust_remote_code: bool = True
-    cache_dir: Optional[str] = None
-    
-    # Inference settings
-    max_length: int = 32768  # 32kb default (full 1M possible but slow)
+    checkpoint_name: Optional[str] = None
+    max_length: int = 32768
     batch_size: int = 1
-    
-    # Performance optimization
-    use_flash_attention: bool = False  # Requires flash-attn package
-    gradient_checkpointing: bool = False  # For fine-tuning
-    
-    # Model paths (override for local weights)
-    model_name_or_path: Optional[str] = None
-    
-    def __post_init__(self):
-        """Validate and set defaults."""
-        
-        # Set model name if not provided
-        if self.model_name_or_path is None:
-            self.model_name_or_path = f"arcinstitute/evo2-{self.model_size}"
-        
-        # Auto-detect device if needed
-        if self.device == "auto":
-            import torch
-            if torch.cuda.is_available():
-                self.device = "cuda"
-            elif torch.backends.mps.is_available():
-                self.device = "mps"
-            else:
-                self.device = "cpu"
-        
-        # Auto-set dtype if not provided
-        if self.torch_dtype is None:
-            if self.device == "cuda":
-                self.torch_dtype = "float16"  # FP16 on GPU
-            elif self.device == "mps":
-                self.torch_dtype = "float32"  # MPS doesn't support FP16 well
-            else:
-                self.torch_dtype = "float32"
-        
-        # Validate quantization
-        if self.quantize and self.quantization_bits not in [4, 8]:
-            raise ValueError(f"quantization_bits must be 4 or 8, got {self.quantization_bits}")
-        
-        # Validate max_length
-        if self.max_length > 1_000_000:
-            import warnings
+    embedding_layer: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        """Validate config and set defaults."""
+        import torch
+
+        if not torch.cuda.is_available():
             warnings.warn(
-                f"max_length={self.max_length} is very large. "
-                "This will be very slow and may cause OOM errors."
+                "Evo2 requires CUDA (Linux + GPU). CUDA is not available on "
+                "this system. Model loading will fail.\n"
+                "For MPS/CPU, use HyenaDNA instead:\n"
+                "  from foundation_models.hyenadna import HyenaDNAModel",
+                stacklevel=2,
             )
-    
+
+        if self.checkpoint_name is None:
+            self.checkpoint_name = f"evo2_{self.model_size}"
+
+        if self.embedding_layer is None:
+            self.embedding_layer = _DEFAULT_EMBEDDING_LAYERS[self.model_size]
+
+        if self.max_length > 1_000_000:
+            warnings.warn(
+                f"max_length={self.max_length} exceeds 1M. "
+                "This will be very slow and may cause OOM errors.",
+                stacklevel=2,
+            )
+
     @property
-    def model_id(self) -> str:
-        """Get HuggingFace model ID."""
-        return self.model_name_or_path
-    
-    @property
-    def effective_device(self) -> str:
-        """Get effective device after auto-detection."""
-        return self.device
-    
+    def hidden_dim(self) -> int:
+        """Known hidden dimension for this model size."""
+        return HIDDEN_DIMS[self.model_size]
+
     def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
             "model_size": self.model_size,
-            "quantize": self.quantize,
-            "quantization_bits": self.quantization_bits,
-            "device": self.device,
-            "torch_dtype": self.torch_dtype,
-            "trust_remote_code": self.trust_remote_code,
-            "cache_dir": self.cache_dir,
+            "checkpoint_name": self.checkpoint_name,
             "max_length": self.max_length,
             "batch_size": self.batch_size,
-            "use_flash_attention": self.use_flash_attention,
-            "gradient_checkpointing": self.gradient_checkpointing,
-            "model_name_or_path": self.model_name_or_path,
+            "embedding_layer": self.embedding_layer,
         }
-    
+
     @classmethod
-    def for_local_mac(cls, **kwargs) -> "Evo2Config":
-        """
-        Preset for MacBook Pro M1/M2/M3.
-        
-        Uses 7B model with INT8 quantization and MPS device.
-        """
-        defaults = {
-            "model_size": "7b",
-            "quantize": True,
-            "quantization_bits": 8,
-            "device": "mps",
-            "max_length": 32768,  # Practical limit on M1
-            "batch_size": 1,
-        }
-        defaults.update(kwargs)
-        return cls(**defaults)
-    
-    @classmethod
-    def for_gpu_pod(cls, model_size: Literal["7b", "40b"] = "40b", **kwargs) -> "Evo2Config":
-        """
-        Preset for GPU pod (A40, A100, H100).
-        
-        Uses 40B model with FP16 and CUDA device by default.
-        """
+    def for_gpu_pod(
+        cls, model_size: Literal["7b", "40b"] = "40b", **kwargs
+    ) -> "Evo2Config":
+        """Preset for GPU pod (A40, A100, H100)."""
         defaults = {
             "model_size": model_size,
-            "quantize": False if model_size == "7b" else True,  # Quantize 40B to fit
-            "quantization_bits": 8,
-            "device": "cuda",
-            "torch_dtype": "float16",
-            "max_length": 131072,  # 128kb (full 1M possible but very slow)
+            "max_length": 131072,
             "batch_size": 4 if model_size == "40b" else 8,
         }
         defaults.update(kwargs)
         return cls(**defaults)
-
-
-# Preset configurations
-LOCAL_MAC_CONFIG = Evo2Config.for_local_mac()
-GPU_POD_CONFIG_7B = Evo2Config.for_gpu_pod(model_size="7b")
-GPU_POD_CONFIG_40B = Evo2Config.for_gpu_pod(model_size="40b")

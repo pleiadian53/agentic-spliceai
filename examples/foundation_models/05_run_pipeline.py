@@ -16,7 +16,12 @@ Three execution modes:
 Usage:
     # Plan mode — see what would happen (default, no cloud cost)
     python examples/foundation_models/05_run_pipeline.py \\
-        --model-size 7b --gpu a40 --chromosomes 22
+        --model-size 7b --gpu a40 --genes BRCA1 TP53
+
+    # More genes for realistic training
+    python examples/foundation_models/05_run_pipeline.py \\
+        --model-size 7b --gpu a40 \\
+        --genes BRCA1 TP53 BRCA2 RB1 CFTR EGFR PTEN MLH1 MSH2 APC
 
     # Local mode — synthetic data, always works
     python examples/foundation_models/05_run_pipeline.py \\
@@ -24,7 +29,8 @@ Usage:
 
     # Execute mode — launches real SkyPilot jobs (costs money!)
     python examples/foundation_models/05_run_pipeline.py \\
-        --execute --model-size 7b --gpu a40 --chromosomes 22
+        --execute --model-size 7b --gpu a40 \\
+        --genes BRCA1 TP53 BRCA2 RB1 CFTR EGFR PTEN MLH1 MSH2 APC
 """
 
 import argparse
@@ -73,41 +79,46 @@ def _build_output_dir(args: argparse.Namespace) -> Path:
     if args.output_dir:
         return Path(args.output_dir)
 
-    chr_str = "_".join(f"chr{c}" for c in args.chromosomes)
-    name = f"evo2_{args.model_size}_{chr_str}"
+    n_genes = len(args.genes)
+    name = f"evo2_{args.model_size}_{n_genes}genes"
     return Path("output") / "fm_pipelines" / name
 
 
 def _generate_skypilot_config(args: argparse.Namespace, output_dir: Path) -> dict:
     """Generate a SkyPilot job config dict from CLI args."""
     gpu = GPU_SPECS[args.gpu]
-    chr_args = " ".join(str(c) for c in args.chromosomes)
-    job_name = f"fm-{args.model_size}-{'_'.join(str(c) for c in args.chromosomes)}"
+    gene_args = " ".join(args.genes)
+    n_genes = len(args.genes)
+    job_name = f"fm-{args.model_size}-{n_genes}genes"
 
     config = {
         "name": job_name,
+        "workdir": ".",
         "resources": {
             "accelerators": gpu["accelerator"],
             "cloud": args.cloud,
         },
         "file_mounts": {
-            "/workspace/data": {
-                "source": "./data/mane/GRCh38/",
-                "mode": "COPY",
-            },
+            "/workspace/data": "./data/mane/GRCh38",
         },
-        "setup": "pip install -e .\npip install -e ./foundation_models",
+        "setup": (
+            "set -e\n"
+            "pip install -e .\n"
+            "pip install -e ./foundation_models\n"
+            "pip install evo2"
+        ),
         "run": (
+            f"set -e\n"
             f"mkdir -p /workspace/output\n"
-            f"python foundation_models/examples/02_extract_embeddings.py \\\n"
-            f"  --data-dir /workspace/data/ \\\n"
-            f"  --chromosomes {chr_args} \\\n"
-            f"  --output /workspace/output/embeddings.h5\n"
+            f"python examples/foundation_models/03_embedding_extraction.py \\\n"
+            f"  --genes {gene_args} \\\n"
+            f"  --model evo2 --model-size {args.model_size} \\\n"
+            f"  --output /workspace/output/\n"
             f"\n"
             f'echo ""\n'
             f'echo "============================================"\n'
             f'echo "DONE — download results before tearing down:"\n'
-            f'echo "  sky rsync {job_name} /workspace/output/ {output_dir}/embeddings/"\n'
+            f'echo "  rsync -Pavz {job_name}:/workspace/output/ {output_dir}/embeddings/"\n'
             f'echo "  sky down {job_name} -y"\n'
             f'echo "============================================"'
         ),
@@ -137,7 +148,7 @@ def _run_dry_run(args: argparse.Namespace, output_dir: Path) -> None:
 
     result = estimate_embedding_extraction(
         model_size=args.model_size,
-        n_genes=100,
+        n_genes=len(args.genes),
         hardware=gpu["hardware_profile"],
     )
     if not result["feasible"]:
@@ -163,7 +174,7 @@ def _run_dry_run(args: argparse.Namespace, output_dir: Path) -> None:
     print(f"  sky launch <config>.yaml -y")
     print()
     print(f"  # 2. Download embeddings to local")
-    print(f"  sky rsync {job_name} /workspace/output/ {output_dir}/embeddings/")
+    print(f"  rsync -Pavz {job_name}:/workspace/output/ {output_dir}/embeddings/")
     print()
     print(f"  # 3. Tear down pod")
     print(f"  sky down {job_name} -y")
@@ -178,14 +189,15 @@ def _run_dry_run(args: argparse.Namespace, output_dir: Path) -> None:
     print()
 
     # Cost estimate
+    n_genes = len(args.genes)
     print("Cost Estimate")
     print("-" * 40)
     rate = gpu["hourly_rate"]
-    # Rough estimate: ~30 min for 100 genes on A40
-    est_hours = 0.5
+    # Rough estimate: ~3 min per gene on A40 with Evo2 7B
+    est_hours = max(0.1, n_genes * 3 / 60)
     est_cost = rate * est_hours
     print(f"  GPU:            {gpu['label']} (${rate:.2f}/hr)")
-    print(f"  Est. duration:  ~{est_hours * 60:.0f} min (for ~100 genes)")
+    print(f"  Est. duration:  ~{est_hours * 60:.0f} min (for {n_genes} genes)")
     print(f"  Est. cost:      ~${est_cost:.2f}")
     print()
     print("To execute, re-run with --execute (costs money!)")
@@ -232,6 +244,7 @@ def _run_execute(args: argparse.Namespace, output_dir: Path) -> None:
 
     result = estimate_embedding_extraction(
         model_size=args.model_size,
+        n_genes=len(args.genes),
         hardware=gpu["hardware_profile"],
     )
     if not result["feasible"]:
@@ -276,12 +289,12 @@ def _run_execute(args: argparse.Namespace, output_dir: Path) -> None:
     logger.info("Downloading results...")
 
     rsync_result = subprocess.run(
-        ["sky", "rsync", job_name, "/workspace/output/", str(emb_dir) + "/"],
+        ["rsync", "-Pavz", f"{job_name}:/workspace/output/", str(emb_dir) + "/"],
         check=False,
     )
     if rsync_result.returncode != 0:
-        logger.error("sky rsync failed — pod may still be running. Download manually:")
-        logger.error("  sky rsync %s /workspace/output/ %s/", job_name, emb_dir)
+        logger.error("rsync failed — pod may still be running. Download manually:")
+        logger.error("  rsync -Pavz %s:/workspace/output/ %s/", job_name, emb_dir)
         # Don't tear down if rsync failed
         sys.exit(rsync_result.returncode)
 
@@ -365,8 +378,10 @@ def main() -> None:
                         help="Cloud provider (default: runpod)")
 
     # Data
-    parser.add_argument("--chromosomes", type=int, nargs="+", default=[22],
-                        help="Chromosomes to process (default: 22)")
+    parser.add_argument("--genes", type=str, nargs="+",
+                        default=["BRCA1", "TP53", "BRCA2", "RB1", "CFTR",
+                                 "EGFR", "PTEN", "MLH1", "MSH2", "APC"],
+                        help="Gene symbols to process (default: 10 clinically important genes)")
 
     # Output
     parser.add_argument("--output-dir", type=str, default=None,

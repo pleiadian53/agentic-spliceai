@@ -87,6 +87,9 @@ def main() -> None:
     print()
 
     emb_path = output_dir / "embeddings.h5"
+
+    # Generate Gaussian-sampled embeddings in HDF5 format (matches
+    # Evo2Embedder cache layout) so downstream training works unchanged.
     hdf5_path, labels_dict = save_synthetic_embeddings(
         output_path=emb_path,
         n_genes=args.n_genes,
@@ -121,10 +124,15 @@ def main() -> None:
     val_windows = []
 
     for gene_id in gene_ids:
-        emb = emb_file[gene_id][:]
+        emb = emb_file[gene_id][:]  # HDF5 random access: reads one gene without loading the entire file
+        # The wording "lazy loading" is slightly loose since [:] 
+        # eagerly loads the full dataset — it's more accurately 
+        # random access (seek to one dataset without reading others)
+
         lbl = labels_data[gene_id]
         min_len = min(len(emb), len(lbl))
 
+        # Slide fixed-size windows over embeddings + labels with 50% overlap
         windows = window_embeddings(
             embeddings=emb[:min_len],
             labels=lbl[:min_len],

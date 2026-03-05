@@ -37,25 +37,17 @@ class Evo2Embedder:
     def __init__(
         self,
         model_size: str = "7b",
-        quantize: bool = False,
-        device: str = "auto",
         config: Optional[Evo2Config] = None,
     ):
         """
         Initialize embedder.
-        
+
         Args:
             model_size: "7b" or "40b"
-            quantize: Whether to quantize model
-            device: Device to use
             config: Optional Evo2Config (overrides other args)
         """
         if config is None:
-            config = Evo2Config(
-                model_size=model_size,
-                quantize=quantize,
-                device=device,
-            )
+            config = Evo2Config(model_size=model_size)
         
         self.config = config
         self.model = Evo2Model(config)

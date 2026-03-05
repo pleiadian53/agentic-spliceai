@@ -2,7 +2,12 @@
 Evo2 Foundation Model Integration
 
 Arc Institute's Evo2 is a 7B/40B parameter genomic foundation model
-trained on 9.3T tokens from all domains of life.
+trained on 9.3T tokens from all domains of life. Built on the
+StripedHyena 2 architecture.
+
+**Requires CUDA** (Linux + GPU). For MPS/CPU, use HyenaDNA instead::
+
+    from foundation_models.hyenadna import HyenaDNAModel
 
 Key features:
 - 1 million bp context window
@@ -13,7 +18,7 @@ Key features:
 References:
 - Paper: https://www.biorxiv.org/content/10.1101/2025.02.18.638918v1
 - GitHub: https://github.com/ArcInstitute/evo2
-- HuggingFace: arc-institute/evo2-7b, arc-institute/evo2-40b
+- Models: https://huggingface.co/arcinstitute
 """
 
 from foundation_models.evo2.config import Evo2Config

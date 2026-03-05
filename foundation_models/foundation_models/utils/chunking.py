@@ -195,6 +195,9 @@ def stitch_embeddings(
     filled = np.zeros(seq_len, dtype=bool)
 
     for chunk, emb in zip(chunks, chunk_embeddings):
+        # Convert torch tensors to numpy (handles MPS/CUDA/CPU)
+        if hasattr(emb, "cpu"):
+            emb = emb.detach().cpu().numpy()
         # Slice the "keep" portion of this chunk's embeddings
         keep_emb = emb[chunk.keep_start : chunk.keep_end]  # [keep_len, H]
         global_s = chunk.global_start + chunk.keep_start
@@ -345,41 +348,18 @@ def build_exon_labels(
     rank_col = "exon_rank" if "exon_rank" in gene_sites.columns else "exon_number"
 
     for transcript_id, tx_sites in gene_sites.groupby("transcript_id"):
-        tx_sites = tx_sites.sort_values(rank_col)
-
-        donors = tx_sites[tx_sites["splice_type"] == "donor"]
-        acceptors = tx_sites[tx_sites["splice_type"] == "acceptor"]
-
-        # Build exon spans: each exon has one acceptor (start) and one donor (end).
-        # For multi-exon transcripts, sorted by exon_rank:
-        #   exon 1: [tx_start ... donor_1]
-        #   exon 2: [acceptor_1 ... donor_2]
-        #   ...
-        #   exon n: [acceptor_{n-1} ... tx_end]
-        #
-        # We reconstruct this from the sorted donor/acceptor pairs.
-        donor_positions = sorted(donors["position"].tolist())
-        acceptor_positions = sorted(acceptors["position"].tolist())
-
-        strand = tx_sites["strand"].iloc[0]
-
-        # Build spans as (start_genomic, end_genomic) inclusive pairs
+        # Build exon spans by pairing donor + acceptor within the same exon.
+        # Each internal exon has both a donor (3' splice site) and an acceptor
+        # (5' splice site). The exon body runs between them in genomic coords.
+        # First/last exons have only one splice site — we skip them since we
+        # lack transcript start/end coordinates.
         spans: List[Tuple[int, int]] = []
 
-        if strand == "+":
-            # Exons run left-to-right
-            # Interleave: exon_start ... donor, acceptor ... exon_end
-            # First exon ends at donor_positions[0]
-            # For simplicity, treat each consecutive acceptor-donor pair as an exon body
-            for acc, don in zip(acceptor_positions, donor_positions):
-                if acc <= don:
-                    spans.append((acc, don))
-        else:
-            # Minus strand: donors < acceptors in genomic coords
-            # (donor is actually the 3' end of the exon on genomic coords)
-            for don, acc in zip(donor_positions, acceptor_positions):
-                if don <= acc:
-                    spans.append((don, acc))
+        for _rank, exon_sites in tx_sites.groupby(rank_col):
+            positions = exon_sites["position"].tolist()
+            if len(positions) >= 2:
+                # Both donor and acceptor → exon body spans between them
+                spans.append((min(positions), max(positions)))
 
         for gstart, gend in spans:
             # Convert to relative coordinates within the gene sequence
