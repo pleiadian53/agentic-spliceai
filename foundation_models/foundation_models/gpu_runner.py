@@ -314,6 +314,7 @@ def print_dry_run(config: dict, infra: InfraConfig, output_dir: Path) -> None:
     print(f"  GPU:   {gpu['label']} (${rate:.2f}/hr)")
     print()
     print("To execute, re-run with --execute")
+    print("To reuse an existing cluster: --execute --cluster <name> --no-teardown")
     print()
 
 
@@ -321,8 +322,19 @@ def launch(
     config: dict,
     output_local: Path,
     infra: InfraConfig,
+    cluster: Optional[str] = None,
+    teardown: bool = True,
 ) -> None:
-    """Launch a SkyPilot job, download results, and tear down."""
+    """Launch a SkyPilot job, download results, and optionally tear down.
+
+    Args:
+        config: SkyPilot config dict.
+        output_local: Local directory for downloaded results.
+        infra: Infrastructure configuration.
+        cluster: Existing cluster name to reuse (skips provisioning + setup).
+        teardown: Whether to tear down the cluster after the job. Set False
+            for iterative runs on the same pod.
+    """
     job_name = config["name"]
     gpu = GPU_SPECS[infra.gpu]
 
@@ -333,17 +345,24 @@ def launch(
     # Step 1: Launch
     print()
     print("=" * 70)
-    print(f"Launching: {job_name} ({gpu['label']})")
+    if cluster:
+        print(f"Reusing cluster: {cluster} — running: {job_name}")
+    else:
+        print(f"Launching: {job_name} ({gpu['label']})")
     print("=" * 70)
     print()
 
-    result = subprocess.run(["sky", "launch", str(yaml_path), "-y"], check=False)
+    launch_cmd = ["sky", "launch", str(yaml_path), "-y"]
+    if cluster:
+        launch_cmd.extend(["--cluster", cluster])
+
+    result = subprocess.run(launch_cmd, check=False)
     if result.returncode != 0:
         logger.error("sky launch failed (exit code %d)", result.returncode)
         sys.exit(result.returncode)
 
     # Find the actual cluster name (SkyPilot may prefix/hash our requested name)
-    cluster_name = _find_cluster_name(job_name)
+    cluster_name = cluster or _find_cluster_name(job_name)
 
     # Step 2: Download results
     logger.info("Downloading results...")
@@ -356,9 +375,15 @@ def launch(
         logger.error("  rsync -Pavz %s:%s/ %s/", cluster_name, infra.output_remote, output_local)
         sys.exit(rsync_result.returncode)
 
-    # Step 3: Tear down
-    logger.info("Tearing down pod (cluster: %s)...", cluster_name)
-    subprocess.run(["sky", "down", cluster_name, "-y"], check=False)
+    # Step 3: Tear down (unless --no-teardown)
+    if teardown:
+        logger.info("Tearing down pod (cluster: %s)...", cluster_name)
+        subprocess.run(["sky", "down", cluster_name, "-y"], check=False)
+    else:
+        print()
+        print(f"Cluster kept alive: {cluster_name}")
+        print(f"  Reuse:     --cluster {cluster_name}")
+        print(f"  Tear down: sky down {cluster_name} -y")
 
     elapsed = time.time() - t0
     rate = gpu["hourly_rate"]
@@ -370,6 +395,7 @@ def launch(
     print("=" * 70)
     print(f"  Output:     {output_local}")
     print(f"  GPU:        {gpu['label']}")
+    print(f"  Cluster:    {cluster_name}" + (" (still running)" if not teardown else ""))
     print(f"  Duration:   {elapsed / 60:.1f} min")
     print(f"  Est. cost:  ${rate * hours:.2f} ({rate:.2f}/hr x {hours:.2f} hr)")
     print()

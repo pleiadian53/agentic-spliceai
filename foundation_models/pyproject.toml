@@ -67,8 +67,8 @@ Documentation = "https://github.com/pleiadian53/agentic-spliceai/tree/main/found
 requires = ["setuptools>=65.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["foundation_models"]
+[tool.setuptools.packages.find]
+include = ["foundation_models*"]
 
 [tool.setuptools.package-data]
 foundation_models = ["py.typed"]

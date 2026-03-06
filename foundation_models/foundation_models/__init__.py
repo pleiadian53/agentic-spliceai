@@ -22,16 +22,23 @@ def _register_foundation_models():
         from agentic_spliceai.splice_engine.base_layer.models.registry import (
             register_foundation_model
         )
-        
+
         # Register Evo2
         register_foundation_model(
             name='evo2',
             loader_path='foundation_models.evo2.model:load_evo2_model'
         )
-        
-    except ImportError:
-        # Core package not installed, that's okay
-        pass
+
+    except Exception:
+        # Core package not installed, or registry not yet implemented.
+        # A failed import can leave partially-initialized entries (None values)
+        # in sys.modules, which breaks subsequent imports of the same packages.
+        # Clean these up to prevent cascading failures.
+        import sys
+        broken = [k for k in sys.modules
+                  if k.startswith('agentic_spliceai.') and sys.modules[k] is None]
+        for k in broken:
+            del sys.modules[k]
 
 
 # Attempt registration on import

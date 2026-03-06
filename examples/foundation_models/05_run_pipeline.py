@@ -30,6 +30,12 @@ Usage:
              --embeddings /workspace/embeddings/embeddings.h5 \\
              --output /workspace/output/ --architecture mlp --epochs 50
 
+    # Reuse an existing cluster (skip provisioning + setup, saves ~3 min)
+    python examples/foundation_models/05_run_pipeline.py --execute \\
+        --cluster sky-c0ec-pleiadian53 --no-teardown \\
+        -- python examples/foundation_models/06_extract_and_train.py \\
+             --all-genes --output /workspace/output/
+
     # Stage data to network volume (one-time)
     python examples/foundation_models/05_run_pipeline.py --stage-data
 
@@ -107,6 +113,12 @@ def _parse_args() -> tuple[argparse.Namespace, str]:
                         help='Local data root directory (overrides config)')
     parser.add_argument("--data-path", type=str, default=None,
                         help='Dataset subpath, e.g. "mane/GRCh38" (overrides config)')
+
+    # Cluster reuse
+    parser.add_argument("--cluster", type=str, default=None,
+                        help="Reuse an existing cluster (skip provisioning + setup)")
+    parser.add_argument("--no-teardown", action="store_true",
+                        help="Keep the cluster alive after the job (for iterative runs)")
 
     # Job settings
     parser.add_argument("--job-name", type=str, default=None,
@@ -196,7 +208,10 @@ def main() -> None:
     config = build_skypilot_config(infra, task_command, job_name=args.job_name)
 
     if args.execute:
-        launch(config, output_local=output_dir, infra=infra)
+        launch(
+            config, output_local=output_dir, infra=infra,
+            cluster=args.cluster, teardown=not args.no_teardown,
+        )
     else:
         print_dry_run(config, infra, output_dir)
 
