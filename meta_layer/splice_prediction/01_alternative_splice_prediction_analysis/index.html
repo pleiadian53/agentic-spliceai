@@ -1,0 +1,4188 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Context-Aware Novel Isoform Discovery for Drug Target Identification">
+      
+      
+        <meta name="author" content="pleiadian53">
+      
+      
+        <link rel="canonical" href="https://pleiadian53.github.io/agentic-spliceai/meta_layer/splice_prediction/01_alternative_splice_prediction_analysis/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+    
+    
+      
+        <title>Alternative Splice Site Prediction — Deep Analysis - Agentic-SpliceAI</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#alternative-splice-site-prediction-deep-analysis" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Agentic-SpliceAI" class="md-header__button md-logo" aria-label="Agentic-SpliceAI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Agentic-SpliceAI
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Alternative Splice Site Prediction — Deep Analysis
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pleiadian53/agentic-spliceai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pleiadian53/agentic-spliceai
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../QUICKSTART/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../system_design/" class="md-tabs__link">
+          
+  
+  
+  System Design
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../base_layer/DATA_PREPARATION_CLI/" class="md-tabs__link">
+          
+  
+  
+  Base Layer
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../" class="md-tabs__link">
+          
+  
+  
+  Meta Layer
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../foundation_models/" class="md-tabs__link">
+          
+  
+  
+  Foundation Models
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../isoform_discovery/" class="md-tabs__link">
+          
+  
+  
+  Isoform Discovery
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../variant_analysis/" class="md-tabs__link">
+          
+  
+  
+  Variant Analysis
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../agency/" class="md-tabs__link">
+          
+  
+  
+  Agency
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../tutorials/" class="md-tabs__link">
+          
+  
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../api/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../biology/" class="md-tabs__link">
+          
+  
+  
+  Biological Background
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../bioinformatics/" class="md-tabs__link">
+          
+  
+  
+  Bioinformatics
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../workflows/" class="md-tabs__link">
+          
+  
+  
+  Workflows
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../CONTRIBUTING/" class="md-tabs__link">
+          
+  
+  
+  About
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Agentic-SpliceAI" class="md-nav__button md-logo" aria-label="Agentic-SpliceAI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Agentic-SpliceAI
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pleiadian53/agentic-spliceai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pleiadian53/agentic-spliceai
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../QUICKSTART/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../SETUP/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting_started/RUNPODS_SETUP/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RunPods Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting_started/LATEX_SETUP/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LaTeX Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture/STRUCTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture/PACKAGE_ORGANIZATION/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Package Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    System Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../system_design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../system_design/resource_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../system_design/output_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output & Artifact Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../system_design/configuration_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../system_design/base_layer_architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Base Layer Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Base Layer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Base Layer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../base_layer/DATA_PREPARATION_CLI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Preparation CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../base_layer/PROCESSING_ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processing Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../base_layer/POSITION_COORDINATE_SYSTEMS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Position & Coordinate Systems
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meta Layer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Meta Layer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3" id="__nav_6_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../methods/ROADMAP/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../methods/PAIRED_DELTA_PREDICTION/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Paired Delta Prediction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../methods/VALIDATED_DELTA_PREDICTION/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validated Delta Prediction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Experiments
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/001_canonical_classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    001 Canonical Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/002_delta_prediction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    002 Delta Prediction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/003_binary_classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    003 Binary Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../experiments/004_validated_delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    004 Validated Delta
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Foundation Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Foundation Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../foundation_models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../foundation_models/evo2/junction_support_labels/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evo2 Junction Labels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../foundation_models/training/deepspeed_training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DeepSpeed Training
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Isoform Discovery
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Isoform Discovery
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../isoform_discovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Variant Analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Variant Analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../variant_analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agency
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agency
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../agency/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../agency/AGENTIC_MEMORY_TUTORIAL/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../agency/MEMORY_PATTERNS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tutorials/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tutorials/SPLICE_PREDICTION_GUIDE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Splice Prediction Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Biological Background
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Biological Background
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../biology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_14" id="__nav_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bioinformatics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_14">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Bioinformatics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../bioinformatics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_15" id="__nav_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_15">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflows
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_16" id="__nav_16_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_16">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    About
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../test_math/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Math Test Page
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table of Contents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisite-splicevardb-and-trainable-signals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisite — SpliceVarDB and Trainable Signals
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisite — SpliceVarDB and Trainable Signals">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-splicevardb-provides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What SpliceVarDB provides
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-labeling-gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The labeling gap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#approach-1-canonical-classification-experiment-001" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approach 1 — Canonical Classification (Experiment 001)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Approach 1 — Canonical Classification (Experiment 001)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#label-preparation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Label Preparation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optimization-objective" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optimization Objective
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assessment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assessment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#approach-2-paired-delta-prediction-experiment-002" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approach 2 — Paired Delta Prediction (Experiment 002)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Approach 2 — Paired Delta Prediction (Experiment 002)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#label-preparation_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Label Preparation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optimization-objective_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optimization Objective
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architecture_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assessment_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assessment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#approach-3-binary-classification-experiment-003" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approach 3 — Binary Classification (Experiment 003)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Approach 3 — Binary Classification (Experiment 003)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#label-preparation_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Label Preparation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optimization-objective_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optimization Objective
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architecture_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assessment_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assessment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#approach-4-validated-delta-prediction-experiment-004" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approach 4 — Validated Delta Prediction (Experiment 004)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Approach 4 — Validated Delta Prediction (Experiment 004)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#label-preparation_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Label Preparation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optimization-objective_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optimization Objective
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architecture_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assessment_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assessment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-splicevardb-actually-tells-us-and-what-it-doesnt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What SpliceVarDB Actually Tells Us (and What It Doesn't)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What SpliceVarDB Actually Tells Us (and What It Doesn&#39;t)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-it-provides-per-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it provides per record
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-variant-might-actually-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the variant might actually do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-is-not-a-standard-supervised-learning-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why This Is Not a Standard Supervised Learning Problem
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why This Is Not a Standard Supervised Learning Problem">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-label-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The label hierarchy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#systematic-ml-formulations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Systematic ML Formulations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Systematic ML Formulations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#formulation-a-conditional-splice-landscape-prediction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formulation A: Conditional Splice Landscape Prediction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formulation-b-latent-splice-state-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formulation B: Latent Splice State Model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formulation-c-contrastive-multi-resolution-learning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formulation C: Contrastive Multi-Resolution Learning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formulation-d-generalized-perturbation-framework" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formulation D: Generalized Perturbation Framework
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comparison-of-formulations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparison of Formulations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommendations-and-roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommendations and Roadmap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recommendations and Roadmap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-the-current-system-stands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the current system stands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#short-term-with-current-infrastructure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Short-term (with current infrastructure)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#medium-term-with-gpu-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Medium-term (with GPU access)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#long-term-full-formulation-d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long-term (full Formulation D)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-cutting-insights" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-Cutting Insights
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cross-Cutting Insights">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#experimental-progression-validates-the-design-thinking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experimental progression validates the design thinking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-core-limitation-shared-by-all-approaches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The core limitation shared by all approaches
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-documents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Documents
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/pleiadian53/agentic-spliceai/edit/main/docs/meta_layer/splice_prediction/01_alternative_splice_prediction_analysis.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="alternative-splice-site-prediction-deep-analysis">Alternative Splice Site Prediction — Deep Analysis<a class="headerlink" href="#alternative-splice-site-prediction-deep-analysis" title="Permanent link">&para;</a></h1>
+<p><strong>Created</strong>: March 2026
+<strong>Context</strong>: Review of meta-layer approaches for predicting alternative splice sites induced by genetic variants and other perturbations</p>
+<hr />
+<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[[#Prerequisite — SpliceVarDB and Trainable Signals]]</li>
+<li>[[#Approach 1 — Canonical Classification (Experiment 001)]]</li>
+<li>[[#Approach 2 — Paired Delta Prediction (Experiment 002)]]</li>
+<li>[[#Approach 3 — Binary Classification (Experiment 003)]]</li>
+<li>[[#Approach 4 — Validated Delta Prediction (Experiment 004)]]</li>
+<li>[[#What SpliceVarDB Actually Tells Us (and What It Doesn't)]]</li>
+<li>[[#Why This Is Not a Standard Supervised Learning Problem]]</li>
+<li>[[#Systematic ML Formulations]]</li>
+<li>[[#Recommendations and Roadmap]]</li>
+</ul>
+<hr />
+<h2 id="prerequisite-splicevardb-and-trainable-signals">Prerequisite — SpliceVarDB and Trainable Signals<a class="headerlink" href="#prerequisite-splicevardb-and-trainable-signals" title="Permanent link">&para;</a></h2>
+<p>Before dissecting the models, it's worth framing what "alternative splice site" means as a learning problem and what SpliceVarDB gives us.</p>
+<h3 id="what-splicevardb-provides">What SpliceVarDB provides<a class="headerlink" href="#what-splicevardb-provides" title="Permanent link">&para;</a></h3>
+<p>SpliceVarDB is a curated database of genetic variants with experimentally validated effects on splicing. Each record carries:</p>
+<ul>
+<li><strong>Genomic coordinates</strong> (hg19 and hg38), parsed from strings like <code>"1-100107682-T-C"</code></li>
+<li><strong>Classification</strong> — one of three labels:</li>
+<li><code>"Splice-altering"</code> — experimentally confirmed to change splicing</li>
+<li><code>"Non-splice-altering"</code> — confirmed NOT to change splicing</li>
+<li><code>"Low-frequency"</code> — uncertain / insufficient evidence</li>
+<li><strong>Location</strong> — exonic or intronic</li>
+<li><strong>Method</strong> — the experimental validation technique used</li>
+</ul>
+<blockquote>
+<p>[!info] Implementation Reference
+See <code>meta_layer/data/splicevardb_loader.py</code> — <code>VariantRecord</code> dataclass (lines 27–58) and <code>SpliceVarDBLoader</code> class (lines 61–308)</p>
+</blockquote>
+<h3 id="the-labeling-gap">The labeling gap<a class="headerlink" href="#the-labeling-gap" title="Permanent link">&para;</a></h3>
+<p>The fundamental challenge is that base models (SpliceAI, OpenSpliceAI) are trained on <strong>canonical</strong> splice sites from GTF annotations — the known GT-AG sites at exon-intron boundaries. They have no training signal for:</p>
+<ol>
+<li>Whether a <strong>single nucleotide variant</strong> activates or destroys a splice site</li>
+<li>Whether a cryptic splice site emerges from a mutation</li>
+<li>The <strong>magnitude</strong> of the effect (how much does donor/acceptor probability shift?)</li>
+</ol>
+<p>SpliceVarDB fills this gap, but it provides a <strong>categorical</strong> label (altering vs. not), while what we actually want to predict is a <strong>continuous delta</strong> (how much do the scores change?). This mismatch between available labels and desired output shapes the entire experimental trajectory.</p>
+<hr />
+<h2 id="approach-1-canonical-classification-experiment-001">Approach 1 — Canonical Classification (Experiment 001)<a class="headerlink" href="#approach-1-canonical-classification-experiment-001" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>[!summary] Outcome
+99.11% classification accuracy — but only 17% variant detection rate. <strong>Failed for the actual goal.</strong></p>
+</blockquote>
+<h3 id="label-preparation">Label Preparation<a class="headerlink" href="#label-preparation" title="Permanent link">&para;</a></h3>
+<p>Labels come directly from <strong>GTF annotations</strong> loaded via <code>ArtifactLoader</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># dataset.py:333-337</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_encode_label</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">splice_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="k">return</span> <span class="n">LABEL_ENCODING</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">splice_type</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="n">LABEL_ENCODING</span><span class="p">[</span><span class="s1">&#39;neither&#39;</span><span class="p">])</span>
+</span></code></pre></div>
+<p>where <code>LABEL_ENCODING = {'donor': 0, 'acceptor': 1, 'neither': 2, '': 2}</code> (defined in <code>feature_schema.py:196-201</code>).</p>
+<p>Each sample is a <strong>501nt window</strong> centered on a genomic position. If that position is an annotated donor site, label = 0; if annotated acceptor, label = 1; otherwise label = 2. Classes are balanced via undersampling (<code>dataset.py:533-567</code>).</p>
+<p>The 50+ numeric features are z-score normalized (<code>dataset.py:230-242</code>), and known leakage columns (<code>splice_type</code>, <code>pred_type</code>, <code>is_correct</code>, <code>error_type</code>, etc.) are explicitly excluded via <code>FeatureSchema.LEAKAGE_COLS</code>.</p>
+<h3 id="optimization-objective">Optimization Objective<a class="headerlink" href="#optimization-objective" title="Permanent link">&para;</a></h3>
+<p><strong>Cross-entropy with label smoothing (0.1) and inverse-frequency class weights</strong>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># trainer.py:403-428</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">loss</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">cross_entropy</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">class_weights</span><span class="p">,</span> <span class="n">label_smoothing</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Class weights are computed as <code>total / (3 * count_per_class)</code>, standard inverse-frequency balancing.</p>
+<h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
+<p><code>MetaSpliceModel</code> (<code>meta_splice_model.py:21-157</code>) is a two-stream multimodal network:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Sequence [B, 4, 501] ──→ CNN (kernels 3/5/7/11/15) ──→ GlobalAvgPool ──→ [B, 256]
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>                                                                                    ├── Fusion ──→ Classifier ──→ [B, 3]
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>Scores [B, ~50]       ──→ MLP (ScoreEncoder)         ──→                   [B, 256]
+</span></code></pre></div>
+<p><strong>Components:</strong>
+1. <strong>Sequence stream</strong>: CNN encoder processes <code>[B, 4, 501]</code> one-hot DNA → <code>[B, 256]</code> embedding via multi-scale convolutions with global average pooling
+2. <strong>Score stream</strong>: MLP (<code>ScoreEncoder</code>) processes <code>[B, ~50]</code> numeric features → <code>[B, 256]</code>
+3. <strong>Fusion</strong>: Concatenation (or optionally <code>CrossAttentionFusion</code> which does bidirectional attention between the two streams with residual connections)
+4. <strong>Head</strong>: <code>Linear(512→256) → LayerNorm → GELU → Dropout → Linear(256→3)</code> producing class logits</p>
+<p><strong>Training</strong>: AdamW (lr=1e-4, weight_decay=0.01), cosine annealing LR, gradient clipping at 1.0, early stopping on <code>val_pr_auc</code> with patience=10.</p>
+<h3 id="assessment">Assessment<a class="headerlink" href="#assessment" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>[!warning] Logically flawed for the stated goal
+This approach is logically flawed for variant detection, and the results confirm it.</p>
+</blockquote>
+<p>The reason is a <strong>distribution mismatch</strong>: the model learns <code>P(donor | sequence, scores)</code> for canonical positions — a near-trivial task since the base model scores already encode this information with high accuracy. When asked to detect <em>changes</em> caused by variants, it has never seen variant-perturbed inputs during training. Worse, the label-smoothed cross-entropy objective encourages confident canonical predictions, actively suppressing sensitivity to subtle score perturbations that would signal variant effects.</p>
+<p><strong>However</strong>, this experiment is not useless. It established that:
+- The multimodal fusion architecture works mechanically
+- Leakage detection infrastructure is sound
+- The feature schema is validated</p>
+<p>It serves as an upper bound on "how well can we classify known sites" and a proof that <strong>classification of known sites is the wrong proxy task</strong> for variant detection.</p>
+<hr />
+<h2 id="approach-2-paired-delta-prediction-experiment-002">Approach 2 — Paired Delta Prediction (Experiment 002)<a class="headerlink" href="#approach-2-paired-delta-prediction-experiment-002" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>[!summary] Outcome
+Best correlation: <strong>r=0.38</strong> (Gated CNN + Quantile loss). Moderate but insufficient.</p>
+</blockquote>
+<h3 id="label-preparation_1">Label Preparation<a class="headerlink" href="#label-preparation_1" title="Permanent link">&para;</a></h3>
+<p>Labels are now <strong>continuous deltas</strong> derived by running the base model on both reference and alternate sequences:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># variant_dataset.py:227-364</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">delta</span> <span class="o">=</span> <span class="n">alt_scores</span> <span class="o">-</span> <span class="n">ref_scores</span>  <span class="c1"># [L, 3]</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># Scan ±50bp window around variant for max absolute effect</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">max_donor_delta</span> <span class="o">=</span> <span class="n">donor_deltas</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">donor_deltas</span><span class="p">)</span><span class="o">.</span><span class="n">argmax</span><span class="p">()]</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">max_acceptor_delta</span> <span class="o">=</span> <span class="n">acceptor_deltas</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">acceptor_deltas</span><span class="p">)</span><span class="o">.</span><span class="n">argmax</span><span class="p">()]</span>
+</span></code></pre></div>
+<p>Each sample is a <code>VariantSample</code> containing:
+- <code>ref_sequence</code> and <code>alt_sequence</code> (501nt each, centered on variant)
+- <code>delta_donor</code> and <code>delta_acceptor</code> (scalar: max absolute delta in ±50bp)
+- <code>weight</code>: 2.0 for splice-altering, 1.0 for normal</p>
+<blockquote>
+<p>[!important] Critical limitation
+The target is the <strong>base model's own prediction difference</strong>, not ground truth.</p>
+</blockquote>
+<h3 id="optimization-objective_1">Optimization Objective<a class="headerlink" href="#optimization-objective_1" title="Permanent link">&para;</a></h3>
+<p>Multiple losses were tested (<code>delta_predictor_calibrated.py</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Loss</th>
+<th>Mechanism</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Weighted MSE</strong></td>
+<td><code>per_sample_MSE * class_weight</code>, averaged</td>
+<td>Baseline</td>
+</tr>
+<tr>
+<td><strong>Quantile/Pinball (τ=0.9)</strong></td>
+<td>Underpredictions penalized 9x more than overpredictions</td>
+<td><strong>Best (r=0.38)</strong></td>
+</tr>
+<tr>
+<td><strong>Output scaling</strong></td>
+<td>Learnable multiplicative constant <code>delta * scale</code></td>
+<td>r=0.22</td>
+</tr>
+<tr>
+<td><strong>Temperature scaling</strong></td>
+<td><code>delta / exp(log_temperature)</code></td>
+<td>r=-0.03</td>
+</tr>
+<tr>
+<td><strong>Hybrid classification + regression</strong></td>
+<td>Multi-task BCE + MSE</td>
+<td>r=-0.07</td>
+</tr>
+</tbody>
+</table>
+<p>The quantile loss at τ=0.9 is noteworthy:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># delta_predictor_calibrated.py:226-233</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">loss</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">error</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">tau</span> <span class="o">*</span> <span class="n">error</span><span class="p">,</span>        <span class="c1"># underprediction: penalized by τ=0.9</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="p">(</span><span class="n">tau</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">error</span>   <span class="c1"># overprediction: penalized by 0.1</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>This forces the model to focus on capturing large deltas rather than regressing to the mean — important because most variants have near-zero delta.</p>
+<h3 id="architecture_1">Architecture<a class="headerlink" href="#architecture_1" title="Permanent link">&para;</a></h3>
+<p><strong>Siamese network</strong> (<code>delta_predictor.py:35-169</code>):</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>ref_seq [B,4,501] ──→ SharedEncoder ──→ ref_emb [B,256]
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>                                                          diff = alt - ref ──→ DeltaHead ──→ [B,2]
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>alt_seq [B,4,501] ──→ SharedEncoder ──→ alt_emb [B,256]
+</span></code></pre></div>
+<ul>
+<li><strong>SharedEncoder</strong> (<code>delta_predictor.py:172-248</code>): 4 conv layers with exponentially dilated convolutions (dilation 1, 2, 4, 8), BatchNorm + ReLU, global average pooling, linear projection. Kaiming initialization on conv weights, Xavier on linear.</li>
+<li><strong>DeltaHead</strong>: <code>Linear(256→256) → ReLU → Dropout → Linear(256→128) → ReLU → Dropout → Linear(128→2)</code></li>
+</ul>
+<p>The best variant uses <code>SimpleCNNDeltaPredictor</code> (a GatedCNN) wrapped in <code>QuantileDeltaPredictor</code>.</p>
+<h3 id="assessment_1">Assessment<a class="headerlink" href="#assessment_1" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>[!note] Right intuition, poisoned target
+The Siamese architecture is the right geometric intuition — but the target is poisoned.</p>
+</blockquote>
+<p>By learning <code>base_model(alt) - base_model(ref)</code>, you can never exceed the base model's accuracy. For non-splice-altering variants where the base model falsely predicts a delta, you're training on noise. This ceiling is visible in the r=0.38 plateau.</p>
+<p><strong>What did help</strong>:
+- <strong>Gated CNN with dilated convolutions</strong> (r=0.36 vs. r=-0.04 for simple CNN)
+- <strong>Quantile loss at τ=0.9</strong> (r=0.38 vs r=0.36) — biasing toward the upper quantile forces the model to preserve signal for rare large-effect variants rather than predicting zero for everything</p>
+<p><strong>What failed</strong>:
+- <strong>Multi-task</strong> (classification + regression hybrid, r=-0.07) — the two tasks compete for representation capacity, and the classification head's gradient overwhelms the regression signal
+- <strong>Temperature scaling</strong> (r=-0.03) — adjusting a global scalar can't fix position-dependent errors</p>
+<blockquote>
+<p>[!tip] Key lesson
+<strong>Target quality is the bottleneck, not architecture or loss function.</strong></p>
+</blockquote>
+<hr />
+<h2 id="approach-3-binary-classification-experiment-003">Approach 3 — Binary Classification (Experiment 003)<a class="headerlink" href="#approach-3-binary-classification-experiment-003" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>[!summary] Outcome
+AUC=0.61, F1=0.53. Better than random but not practically useful. Needs F1 &gt; 0.7.</p>
+</blockquote>
+<h3 id="label-preparation_2">Label Preparation<a class="headerlink" href="#label-preparation_2" title="Permanent link">&para;</a></h3>
+<p>Labels are SpliceVarDB's <strong>categorical classifications</strong> used directly:</p>
+<ul>
+<li>Input: <code>alt_seq [B, 4, 501]</code> + <code>ref_base [B, 4]</code> + <code>alt_base [B, 4]</code> (one-hot encoded)</li>
+<li>Label: binary 0/1 from <code>variant.classification == "Splice-altering"</code></li>
+<li>Balanced: 50/50 splice-altering vs. normal</li>
+</ul>
+<p>This is the first approach to use <strong>ground truth labels from SpliceVarDB</strong> for training, not just evaluation.</p>
+<h3 id="optimization-objective_2">Optimization Objective<a class="headerlink" href="#optimization-objective_2" title="Permanent link">&para;</a></h3>
+<p><strong>Binary cross-entropy</strong> with sigmoid output:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># splice_classifier.py:253-255</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>  <span class="c1"># P(splice-altering) ∈ [0,1]</span>
+</span></code></pre></div>
+<p>For the <code>UnifiedSpliceClassifier</code> multi-task variant:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">total_loss</span> <span class="o">=</span> <span class="n">binary_weight</span> <span class="o">*</span> <span class="n">BCE</span><span class="p">(</span><span class="n">p_splice_altering</span><span class="p">,</span> <span class="n">label</span><span class="p">)</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>           <span class="o">+</span> <span class="n">effect_weight</span> <span class="o">*</span> <span class="n">CE</span><span class="p">(</span><span class="n">effect_logits</span><span class="p">,</span> <span class="n">effect_type</span><span class="p">)</span>
+</span></code></pre></div>
+<p>with <code>binary_weight=1.0</code> and <code>effect_weight=0.5</code>.</p>
+<h3 id="architecture_2">Architecture<a class="headerlink" href="#architecture_2" title="Permanent link">&para;</a></h3>
+<p><strong><code>SpliceInducingClassifier</code></strong> (<code>splice_classifier.py:165-275</code>):</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>alt_seq [B, 4, 501]
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  ↓
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>GatedCNNEncoder (6 layers, 128 hidden)
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>  ├── Conv1d(4 → 128, k=1) initial projection
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>  ├── 6x GatedResidualBlock:
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>  │     Conv1d(128 → 256, k=15, dilation=2^(i%4))
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>  │     Split → [content, gate]
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>  │     out = content * sigmoid(gate)
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>  │     LayerNorm → Dropout → residual add
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>  ├── AdaptiveAvgPool1d(1) → [B, 128]
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>  ↓
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>seq_features [B, 128]
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>ref_base [B, 4] ┐
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>                 cat → [B, 8] → Linear(8→128) → ReLU → Dropout → Linear(128→128)
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>alt_base [B, 4] ┘
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>  ↓
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>var_features [B, 128]
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>[seq_features, var_features] → cat → [B, 256]
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>  ↓
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>Linear(256→128) → ReLU → Dropout → Linear(128→1) → sigmoid
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>  ↓
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>P(splice-altering) [B, 1]
+</span></code></pre></div>
+<p>The <code>GatedResidualBlock</code> is the workhorse — dilations cycle through 1, 2, 4, 8, 1, 2 giving a receptive field of ~465bp over 6 layers with kernel size 15. The gating mechanism (<code>out * sigmoid(gate)</code>) allows the network to selectively pass or suppress information at each position, similar to LSTM gating but applied spatially.</p>
+<h3 id="assessment_2">Assessment<a class="headerlink" href="#assessment_2" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>[!note] Right question, insufficient input
+This is the right question to ask, but the sequence-only input may be insufficient to answer it.</p>
+</blockquote>
+<p>AUC=0.61 (vs. 0.5 random) confirms there <strong>is</strong> a learnable signal — the 501nt context around a variant carries some information about whether it will affect splicing. But F1=0.53 means the model is barely better than a coin flip in practice.</p>
+<p><strong>Why is the signal so weak?</strong></p>
+<ol>
+<li><strong>501nt is too narrow.</strong> Many splice-altering variants work by disrupting branch point sequences, exonic splicing enhancers/silencers, or regulatory elements that can be hundreds of nucleotides away. A 501nt window may simply not contain the relevant context.</li>
+<li><strong>No base model scores as input.</strong> Unlike Approach 1 which had 50+ precomputed features, this model only sees raw sequence + a 2-base variant description. It must independently learn the splice code from scratch.</li>
+<li><strong>The variant embedding is minimal.</strong> Concatenating two 4-dimensional one-hot vectors (ref + alt base) and projecting to 128 dimensions throws away positional context. The model knows <em>what</em> the mutation is but not <em>where</em> it sits relative to splice site motifs.</li>
+</ol>
+<p>The <strong>multi-step framework (Steps 2–4)</strong> was never tested because the prerequisite F1 &gt; 0.7 for Step 1 was not met. This was a sound gating decision.</p>
+<hr />
+<h2 id="approach-4-validated-delta-prediction-experiment-004">Approach 4 — Validated Delta Prediction (Experiment 004)<a class="headerlink" href="#approach-4-validated-delta-prediction-experiment-004" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>[!summary] Outcome
+<strong>r=0.41 (p=1.4e-07)</strong> — best so far. +8% improvement over paired prediction.</p>
+</blockquote>
+<h3 id="label-preparation_3">Label Preparation<a class="headerlink" href="#label-preparation_3" title="Permanent link">&para;</a></h3>
+<p>This is where the experimental design gets most interesting. The <strong>hybrid labeling strategy</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>If SpliceVarDB says &quot;Splice-altering&quot;:
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    target = base_model(alt) - base_model(ref)   # Trust the delta direction
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>If SpliceVarDB says &quot;Normal&quot;:
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    target = [0, 0, 0]                           # Override: no effect, period
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>If SpliceVarDB says &quot;Low-frequency&quot; or &quot;Conflicting&quot;:
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    SKIP                                          # Don&#39;t train on uncertainty
+</span></code></pre></div>
+<blockquote>
+<p>[!tip] Key insight
+This is a <strong>hybrid labeling strategy</strong>: it uses the base model's continuous delta for confirmed splice-altering variants (where the base model is likely directionally correct, even if not calibrated), but overrides the base model with ground truth zeros for confirmed non-altering variants (where the base model may produce spurious deltas).</p>
+</blockquote>
+<p><strong>Data</strong>: ~2000 samples (1000 SA, 1000 Normal), balanced, train/test split by chromosome (1-20 train, 21-22 test).</p>
+<h3 id="optimization-objective_3">Optimization Objective<a class="headerlink" href="#optimization-objective_3" title="Permanent link">&para;</a></h3>
+<p><strong>MSE</strong> against the validated delta targets, trained with AdamW (lr=5e-5, weight_decay=0.02) and OneCycleLR scheduler (max_lr=5e-4). 40 epochs, batch_size=32.</p>
+<p>The delta head outputs raw values (no activation function on the final layer):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># validated_delta_predictor.py:206-213</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">delta_head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dim</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="n">hidden_dim</span><span class="p">),</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="n">dropout</span><span class="p">),</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dim</span><span class="p">,</span> <span class="n">hidden_dim</span> <span class="o">//</span> <span class="mi">2</span><span class="p">),</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dim</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># [Δ_donor, Δ_acceptor, Δ_neither]</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="architecture_3">Architecture<a class="headerlink" href="#architecture_3" title="Permanent link">&para;</a></h3>
+<p><strong><code>ValidatedDeltaPredictor</code></strong> (<code>validated_delta_predictor.py:144-256</code>, ~3M parameters):</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>alt_seq [B, 4, 501]
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  ↓
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>GatedCNNEncoder (6 layers, 128 hidden)
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  ├── Conv1d(4 → 128, k=1)
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  ├── 6x GatedResidualBlock(k=15, dilation=1,2,4,8,1,2)
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>  ├── AdaptiveAvgPool1d(1)
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>  ↓
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>seq_features [B, 128]
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>ref_base [B, 4] ┐
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>                 cat → [B, 8] → Linear(8→128) → ReLU → Dropout → Linear(128→128)
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>alt_base [B, 4] ┘
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>  ↓
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>var_features [B, 128]
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>
+</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>[seq_features, var_features] → cat → [B, 256]
+</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>  ↓
+</span><span id="__span-11-18"><a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>Linear(256→128) → ReLU → Dropout → Linear(128→64) → ReLU → Linear(64→3)
+</span><span id="__span-11-19"><a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>  ↓
+</span><span id="__span-11-20"><a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a>Δ = [Δ_donor, Δ_acceptor, Δ_neither]
+</span></code></pre></div>
+<p>Optionally includes base model scores as additional input (<code>include_base_scores=True</code> adds 3 dims to the variant input, enabling residual learning on top of the base model).</p>
+<p>An attention variant (<code>ValidatedDeltaPredictorWithAttention</code>) replaces global average pooling with learned position attention:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">attn_logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">position_attention</span><span class="p">(</span><span class="n">per_pos_features</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># [B, L]</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">attention</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">attn_logits</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">seq_features</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;bl,blh-&gt;bh&#39;</span><span class="p">,</span> <span class="n">attention</span><span class="p">,</span> <span class="n">per_pos_features</span><span class="p">)</span>  <span class="c1"># weighted pool</span>
+</span></code></pre></div>
+<h3 id="assessment_3">Assessment<a class="headerlink" href="#assessment_3" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>[!note] Advantage is in label engineering, not architecture
+The model architecture is nearly identical to Approach 3's <code>SpliceInducingClassifier</code>. The improvement comes almost entirely from cleaning up the training targets.</p>
+</blockquote>
+<p><strong>Why validated targets work — asymmetric trust:</strong></p>
+<p>For splice-altering variants, the base model's delta is a reasonable (if noisy) target — the direction is probably right even if the magnitude is off. For non-splice-altering variants, the base model's delta is unreliable noise — any predicted delta is a false positive by definition. By forcing zeros for the non-SA class, you remove approximately half the noise from the training signal.</p>
+<blockquote>
+<p>[!warning] Concerns
+1. <strong>r=0.41 is measured on SA samples only.</strong> The model's ability to discriminate SA from non-SA (ROC-AUC=0.58) is barely better than Approach 3 (AUC=0.61).
+2. <strong>False negative blindness.</strong> For SA variants where the base model predicts near-zero delta (false negatives), the validated target still uses <code>base_model(alt) - base_model(ref) ≈ 0</code>. The meta-layer has no mechanism to "discover" effects the base model completely misses.
+3. <strong>2000 samples is very small.</strong> The full SpliceVarDB has ~50K variants. The r=0.41 should be taken with appropriate uncertainty bounds.
+4. <strong>At inference</strong>, <code>final = base_scores + Δ</code>. This means the meta-layer is a residual correction — it can sharpen or attenuate base model predictions but fundamentally cannot detect novel splice sites the base model scores as zero.</p>
+</blockquote>
+<hr />
+<h2 id="what-splicevardb-actually-tells-us-and-what-it-doesnt">What SpliceVarDB Actually Tells Us (and What It Doesn't)<a class="headerlink" href="#what-splicevardb-actually-tells-us-and-what-it-doesnt" title="Permanent link">&para;</a></h2>
+<h3 id="what-it-provides-per-record">What it provides per record<a class="headerlink" href="#what-it-provides-per-record" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Example</th>
+<th>Available?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Genomic locus + variant</td>
+<td><code>chr1:100107682 T→C</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>"Does it affect splicing?"</td>
+<td><code>Splice-altering</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Location (exonic/intronic)</td>
+<td><code>Intronic</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Experimental method</td>
+<td>varies</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><strong>Where</strong> the affected splice site is</td>
+<td><em>unknown</em></td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td><strong>Gain or loss?</strong></td>
+<td><em>unknown</em></td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td><strong>Donor or acceptor?</strong></td>
+<td><em>unknown</em></td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td><strong>Magnitude</strong> of the effect</td>
+<td><em>unknown</em></td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td><strong>Resulting transcript</strong></td>
+<td><em>unknown</em></td>
+<td><strong>No</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-the-variant-might-actually-do">What the variant might actually do<a class="headerlink" href="#what-the-variant-might-actually-do" title="Permanent link">&para;</a></h3>
+<p>Knowing that <code>chr1:100107682 T→C</code> is "splice-altering" tells us <em>something happens to splicing</em> but not <em>what, where, or how much</em>. The variant might:</p>
+<ol>
+<li><strong>Directly destroy</strong> a canonical GT/AG dinucleotide (trivial case)</li>
+<li><strong>Weaken</strong> a splice site by disrupting the surrounding consensus motif</li>
+<li><strong>Create a new cryptic splice site</strong> nearby</li>
+<li><strong>Disrupt an exonic splicing enhancer (ESE)</strong>, causing exon skipping at a site hundreds of bp away</li>
+<li><strong>Alter a branch point sequence</strong>, changing acceptor site selection</li>
+<li><strong>Modify RNA secondary structure</strong>, exposing or hiding a splice site</li>
+</ol>
+<p>Cases 1-2 are local and detectable within 501nt. Cases 3-6 may require much longer range context and are the truly "alternative" splice events that current approaches struggle with.</p>
+<hr />
+<h2 id="why-this-is-not-a-standard-supervised-learning-problem">Why This Is Not a Standard Supervised Learning Problem<a class="headerlink" href="#why-this-is-not-a-standard-supervised-learning-problem" title="Permanent link">&para;</a></h2>
+<h3 id="the-label-hierarchy">The label hierarchy<a class="headerlink" href="#the-label-hierarchy" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Level 0: Genome-wide       &quot;Which positions are splice sites?&quot;
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>                            → Labels: GTF annotations (complete for canonical sites)
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>                            → Supervision: Strong, but STATIC (reference genome only)
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>Level 1: Variant-level      &quot;Does this variant affect splicing?&quot;
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>                            → Labels: SpliceVarDB (binary, ~50K variants)
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>                            → Supervision: Weak — tells us IF, not WHERE/HOW
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>Level 2: Effect type        &quot;Gain or loss? Donor or acceptor?&quot;
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>                            → Labels: NOT in SpliceVarDB directly
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>                            → Can be partially INFERRED from base model deltas
+</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>                            → Supervision: Inferred, noisy
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>
+</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>Level 3: Position-level     &quot;At which position does the new/lost splice site occur?&quot;
+</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>                            → Labels: Almost completely ABSENT
+</span><span id="__span-13-16"><a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a>                            → Supervision: None (this is what we want to predict)
+</span><span id="__span-13-17"><a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>
+</span><span id="__span-13-18"><a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>Level 4: Magnitude          &quot;How strong is the effect (PSI change)?&quot;
+</span><span id="__span-13-19"><a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a>                            → Labels: Available in RNA-seq (not currently used)
+</span><span id="__span-13-20"><a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a>                            → Supervision: Available but requires different data source
+</span></code></pre></div>
+<blockquote>
+<p>[!important] The fundamental gap
+<strong>We want to predict at Level 3 (positional) but our best labels exist at Level 1 (binary variant-level).</strong> The current approaches try to bridge this gap through the base model's delta scores, which provide a noisy Level 3 signal — but only for effects the base model already partially detects.</p>
+</blockquote>
+<hr />
+<h2 id="systematic-ml-formulations">Systematic ML Formulations<a class="headerlink" href="#systematic-ml-formulations" title="Permanent link">&para;</a></h2>
+<h3 id="formulation-a-conditional-splice-landscape-prediction">Formulation A: Conditional Splice Landscape Prediction<a class="headerlink" href="#formulation-a-conditional-splice-landscape-prediction" title="Permanent link">&para;</a></h3>
+<p>The most natural formulation. Instead of predicting "is this variant splice-altering?", predict the <strong>full per-position splice site probability map conditioned on a perturbation</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>f(sequence, perturbation) → P(donor_i), P(acceptor_i)  for all positions i
+</span></code></pre></div>
+<p>where <code>perturbation</code> can be:
+- A variant (SNV, indel)
+- An epigenetic mark at position j
+- A splicing factor binding event
+- A condition label (stress, disease state)</p>
+<p><strong>The delta</strong> then falls out naturally:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>Δ_i = f(sequence, perturbation)_i - f(sequence, null)_i
+</span></code></pre></div>
+<p><strong>Why this is better than the current approach</strong>: The current system predicts deltas directly, which means it can only learn <em>corrections</em> to the base model. Formulation A predicts the full landscape, meaning it can discover splice sites the base model never scored. The delta is derived, not directly predicted.</p>
+<p><strong>Training signal</strong>:
+- For <code>perturbation = null</code> (reference genome): Strong supervision from GTF annotations at Level 0
+- For <code>perturbation = variant</code>: Weak supervision from SpliceVarDB at Level 1 — we know the landscape <em>should change</em> but not <em>where</em></p>
+<p><strong>Bridging the label gap (Levels 1→3)</strong>:
+1. <strong>Consistency constraints</strong>: For non-SA variants, the predicted landscape should be identical to reference: <code>f(seq, variant) ≈ f(seq, null)</code>. This is a self-supervised signal.
+2. <strong>Sparsity priors</strong>: For SA variants, the difference <code>Δ</code> should be sparse (only a few positions change). Enforce with L1 regularization on the delta map.
+3. <strong>Motif constraints</strong>: New splice sites should conform to known motifs (GT for donor, AG for acceptor, polypyrimidine tract for branch points). Physics-informed prior.</p>
+<h3 id="formulation-b-latent-splice-state-model">Formulation B: Latent Splice State Model<a class="headerlink" href="#formulation-b-latent-splice-state-model" title="Permanent link">&para;</a></h3>
+<p>Think of each position as having a latent "splice competence" that is modulated by context:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>z_i = encoder(sequence_context_around_i)           # latent splice competence
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>s_i = modulator(z_i, perturbation)                  # perturbed state
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>P(donor_i), P(acceptor_i) = decoder(s_i)           # observed probabilities
+</span></code></pre></div>
+<blockquote>
+<p>[!tip] Key insight
+The encoder learns position-level representations from canonical sites (Level 0, abundant labels), and the modulator learns how perturbations shift these representations (Level 1, scarce labels). This <strong>separates "understanding splice sites" from "understanding perturbation effects"</strong> — two very different learning problems with very different amounts of supervision.</p>
+</blockquote>
+<p><strong>Training</strong>:
+- <strong>Phase 1</strong>: Train encoder + decoder on canonical splice sites (GTF labels, millions of examples)
+- <strong>Phase 2</strong>: Freeze encoder, train modulator on SpliceVarDB variants</p>
+<p>The modulator can be small because it only needs to learn a low-dimensional perturbation, while the heavy lifting of sequence understanding is done by the encoder with abundant labels.</p>
+<h3 id="formulation-c-contrastive-multi-resolution-learning">Formulation C: Contrastive Multi-Resolution Learning<a class="headerlink" href="#formulation-c-contrastive-multi-resolution-learning" title="Permanent link">&para;</a></h3>
+<p>Address the label gap directly by using <strong>contrastive objectives</strong> at multiple resolutions:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>Resolution 1 (position-level):
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>  Known donor sites should have similar representations
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>  Known acceptor sites should have similar representations
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>  Donor ≠ Acceptor ≠ Neither
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>  → Supervision: GTF annotations (abundant)
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>Resolution 2 (variant-level):
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>  SA variants should produce representation SHIFTS
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>  Non-SA variants should produce NO representation shift
+</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>  → Supervision: SpliceVarDB (moderate)
+</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>
+</span><span id="__span-17-12"><a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>Resolution 3 (effect-level):
+</span><span id="__span-17-13"><a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>  Similar effect types should cluster
+</span><span id="__span-17-14"><a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>  → Supervision: Inferred from base model deltas (noisy)
+</span></code></pre></div>
+<p>This formulation doesn't require Level 3 positional labels because it learns <strong>representations</strong> rather than <strong>predictions</strong> directly. The position-level prediction emerges from the learned representation space.</p>
+<h3 id="formulation-d-generalized-perturbation-framework">Formulation D: Generalized Perturbation Framework<a class="headerlink" href="#formulation-d-generalized-perturbation-framework" title="Permanent link">&para;</a></h3>
+<p>The observation that "external factors can be anything including variants, diseases, stress, epigenetic marks" points toward a more general formulation:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>SpliceLandscape(position) = BaseModel(sequence) + Σ_k  δ_k(position, perturbation_k)
+</span></code></pre></div>
+<p>where each perturbation type <code>k</code> has its own delta function, but they share the same underlying sequence representation. This is a <strong>multi-task perturbation model</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Train On</th>
+<th>Perturbation Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Variant effects</td>
+<td>SpliceVarDB</td>
+<td>Genetic variants</td>
+</tr>
+<tr>
+<td>Epigenetic effects</td>
+<td>ENCODE methylation + splice junction data</td>
+<td>Methylation, histone mods</td>
+</tr>
+<tr>
+<td>Splicing factor effects</td>
+<td>eCLIP + splice junction data</td>
+<td>Protein binding</td>
+</tr>
+<tr>
+<td>Disease/tissue state effects</td>
+<td>GTEx tissue-specific splicing</td>
+<td>Condition labels</td>
+</tr>
+</tbody>
+</table>
+<p>Each task has different supervision, but they all answer the same question: <strong>how does this perturbation change the splice landscape?</strong> The shared sequence encoder benefits from all tasks simultaneously (multi-task transfer).</p>
+<h3 id="comparison-of-formulations">Comparison of Formulations<a class="headerlink" href="#comparison-of-formulations" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>A: Conditional Landscape</th>
+<th>B: Latent State</th>
+<th>C: Contrastive</th>
+<th>D: Perturbation Framework</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Can discover novel sites</td>
+<td><strong>Yes</strong></td>
+<td><strong>Yes</strong></td>
+<td>Indirectly</td>
+<td><strong>Yes</strong></td>
+</tr>
+<tr>
+<td>Handles label gap</td>
+<td>Consistency + sparsity</td>
+<td>Two-phase training</td>
+<td>Multi-resolution</td>
+<td>Multi-task</td>
+</tr>
+<tr>
+<td>Non-variant perturbations</td>
+<td>Natural</td>
+<td>Natural</td>
+<td>Requires redesign</td>
+<td><strong>Primary design goal</strong></td>
+</tr>
+<tr>
+<td>Data efficiency</td>
+<td>Moderate</td>
+<td><strong>High</strong> (phase separation)</td>
+<td>Moderate</td>
+<td>Requires multiple data sources</td>
+</tr>
+<tr>
+<td>Implementation complexity</td>
+<td>Moderate</td>
+<td>Moderate</td>
+<td>High</td>
+<td>High</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="recommendations-and-roadmap">Recommendations and Roadmap<a class="headerlink" href="#recommendations-and-roadmap" title="Permanent link">&para;</a></h2>
+<h3 id="where-the-current-system-stands">Where the current system stands<a class="headerlink" href="#where-the-current-system-stands" title="Permanent link">&para;</a></h3>
+<p>The current meta-layer is closest to <strong>a simplified version of Formulation A</strong>, but with critical limitations:</p>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Current System</th>
+<th>Ideal (Formulation A)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Predicts</td>
+<td>Δ directly (residual)</td>
+<td>Full landscape, Δ derived</td>
+</tr>
+<tr>
+<td>Can discover novel sites</td>
+<td>No (constrained by base model)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Context</td>
+<td>501nt</td>
+<td>5000nt+</td>
+</tr>
+<tr>
+<td>Variant supervision</td>
+<td>SpliceVarDB binary → cleaned deltas</td>
+<td>SpliceVarDB + consistency + sparsity constraints</td>
+</tr>
+<tr>
+<td>Non-variant perturbations</td>
+<td>Not supported</td>
+<td>Naturally supported</td>
+</tr>
+</tbody>
+</table>
+<h3 id="short-term-with-current-infrastructure">Short-term (with current infrastructure)<a class="headerlink" href="#short-term-with-current-infrastructure" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The Validated Delta Predictor (Approach 4) is the right starting point</li>
+<li>But reframe it: instead of predicting the scalar max-delta, predict a <strong>per-position delta profile</strong> <code>[L, 3]</code> — this naturally provides Level 3 information</li>
+<li>Add the <strong>consistency constraint</strong>: for non-SA variants, the loss penalizes any non-zero delta at any position. This is free supervision</li>
+<li>Add the <strong>sparsity prior</strong>: for SA variants, L1-regularize the delta profile. Real splice effects are sparse (1-3 positions change significantly)</li>
+</ul>
+<h3 id="medium-term-with-gpu-access">Medium-term (with GPU access)<a class="headerlink" href="#medium-term-with-gpu-access" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Move toward <strong>Formulation B</strong>: pre-train a position-level encoder on canonical sites genome-wide, then fine-tune a lightweight perturbation modulator on SpliceVarDB</li>
+<li>Extend context to <strong>2000-5000nt</strong> to capture branch points and regulatory elements</li>
+<li>Use <strong>HyenaDNA</strong> or equivalent as the pre-trained encoder backbone</li>
+</ul>
+<h3 id="long-term-full-formulation-d">Long-term (full Formulation D)<a class="headerlink" href="#long-term-full-formulation-d" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Integrate <strong>RNA-seq junction data</strong> (e.g., GTEx) as continuous Level 4 supervision</li>
+<li>Multi-task across perturbation types</li>
+<li>This is where "predicting alternative splicing from any external factor" becomes tractable</li>
+</ul>
+<hr />
+<h2 id="cross-cutting-insights">Cross-Cutting Insights<a class="headerlink" href="#cross-cutting-insights" title="Permanent link">&para;</a></h2>
+<h3 id="experimental-progression-validates-the-design-thinking">Experimental progression validates the design thinking<a class="headerlink" href="#experimental-progression-validates-the-design-thinking" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Transition</th>
+<th>What was learned</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>001 → 002</td>
+<td>Classification of known sites is the wrong proxy task for variant detection</td>
+</tr>
+<tr>
+<td>002 → 004</td>
+<td>Target quality (not model capacity) is the bottleneck</td>
+</tr>
+<tr>
+<td>003 (parallel)</td>
+<td>There IS a learnable signal from sequence alone (AUC &gt; 0.5), but 501nt is insufficient</td>
+</tr>
+<tr>
+<td>All → Future</td>
+<td>The meta-layer is a <strong>calibration layer</strong>, not a <strong>discovery engine</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-core-limitation-shared-by-all-approaches">The core limitation shared by all approaches<a class="headerlink" href="#the-core-limitation-shared-by-all-approaches" title="Permanent link">&para;</a></h3>
+<p>All four approaches can only refine what the base model already partially detects. True alternative splice site prediction — identifying cryptic splice sites, deep intronic activations, or complex multi-exon effects — requires:</p>
+<ol>
+<li><strong>Longer context</strong> (thousands of bp) to capture branch points, enhancers/silencers, and RNA secondary structure</li>
+<li><strong>Direct sequence-to-function learning</strong> rather than refining an existing model's outputs</li>
+<li><strong>More diverse training signal</strong> — RNA-seq data showing actual isoform usage, not just binary SA/non-SA labels</li>
+<li><strong>Addressing the false negative problem</strong> — variants that create entirely new splice sites the base model has never scored</li>
+</ol>
+<hr />
+<blockquote>
+<p>[!abstract] Bottom line
+The recognition that this is fundamentally a <strong>weak-supervision problem with a label hierarchy</strong> (not a standard input→label mapping) is the key insight that should drive the system design. The current experiments have established what <em>doesn't</em> work (canonical classification, raw base model targets) and what the signal looks like (validated targets, r=0.41). The next step is formalizing the problem structure itself and designing training objectives that bridge the gap between Level 1 labels (SpliceVarDB) and Level 3 predictions (positional splice landscapes).</p>
+</blockquote>
+<hr />
+<h2 id="related-documents">Related Documents<a class="headerlink" href="#related-documents" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[[experiments/001_canonical_classification/README|Experiment 001 — Canonical Classification]]</li>
+<li>[[experiments/002_delta_prediction/README|Experiment 002 — Paired Delta Prediction]]</li>
+<li>[[experiments/003_binary_classification/README|Experiment 003 — Binary Classification]]</li>
+<li>[[experiments/004_validated_delta/README|Experiment 004 — Validated Delta Prediction]]</li>
+<li>[[methods/VALIDATED_DELTA_PREDICTION|Validated Delta Prediction Method]]</li>
+<li>[[methods/PAIRED_DELTA_PREDICTION|Paired Delta Prediction Method]]</li>
+<li>[[methods/ROADMAP|Methodology Roadmap]]</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 pleiadian53
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/pleiadian53/agentic-spliceai" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
