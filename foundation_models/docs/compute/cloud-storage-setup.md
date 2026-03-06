@@ -12,8 +12,7 @@ doesn't need to be re-uploaded on every SkyPilot launch.
 | AWS S3 | ~$0.23/month + egress | Fast | If you already use AWS |
 | Local rsync (current) | Free | Slow (~10 min per launch) | Quick experiments |
 
-**Current setup**: RunPod Network Volume "AI lab extension" (150 GB, CA-MTL-1).
-Use `--stage-data` once, then `--use-volume` for all future runs.
+**Recommendation**: Cloudflare R2 for reference data (free, zero egress fees).
 
 ---
 
@@ -123,84 +122,69 @@ First launch: ~5 min upload + normal setup. Subsequent launches: instant mount.
 
 ---
 
-## Option 2: RunPod Network Volumes (Current Setup)
+## Option 2: RunPod Network Volumes
 
 RunPod's native persistent storage. Faster I/O than cloud buckets but locked
-to a specific datacenter zone. **This is what we use.**
+to a specific datacenter zone.
 
-Our volume: **AI lab extension** (150 GB, CA-MTL-1, ID: w92bineh2j)
-
-### Import an Existing Volume (if created via RunPod dashboard)
+### Create a Volume
 
 ```yaml
-# /tmp/import-volume.yaml
-name: AI lab extension
+# runpod-ref-data.yaml
+name: spliceai-ref-data
 type: runpod-network-volume
-infra: runpod/CA/CA-MTL-1
-size: 150Gi
-use_existing: true
+infra: runpod/CA/CA-MTL-1        # must match your training region
+size: 20Gi                        # 20 GB for reference data + headroom
 ```
 
 ```bash
-sky volumes apply /tmp/import-volume.yaml
-sky volumes ls   # verify it shows up
+sky volumes apply runpod-ref-data.yaml
 ```
 
-### Stage Reference Data (One-Time)
+### Upload Data to the Volume
 
-Use the pipeline orchestrator to upload data to the volume:
+RunPod provides an S3-compatible API for uploading without launching a pod:
 
 ```bash
-python examples/foundation_models/05_run_pipeline.py --stage-data
+# Configure RunPod S3 API (one-time)
+aws configure --profile runpod-s3
+# Access Key: your RunPod S3 API key (from dashboard)
+# Secret: your RunPod S3 secret
+# Region: CA-MTL-1
+
+# Upload reference data
+aws s3 cp --profile runpod-s3 \
+  --endpoint-url https://s3api-ca-mtl-1.runpod.io/ \
+  ./data/mane/GRCh38/ \
+  s3://YOUR_VOLUME_ID/ \
+  --recursive
 ```
 
-This launches a pod with both the volume and file_mounts, copies data from
-`./data/mane/GRCh38/` to `/runpod-volume/data/mane/GRCh38/`, then tears down.
-
-### Use in Pipeline (Fast — No Upload)
-
-```bash
-# Pipeline orchestrator: --use-volume skips the 10 GB upload
-python examples/foundation_models/05_run_pipeline.py \
-    --execute --use-volume \
-    --genes BRCA1 TP53 BRCA2 RB1 CFTR EGFR PTEN MLH1 MSH2 APC
-
-# Or directly with a YAML config:
-sky launch foundation_models/configs/skypilot/extract_embeddings_a40_volume.yaml
-```
-
-### How It Works in YAML
+### Use in SkyPilot YAML
 
 ```yaml
 name: extract-emb-7b
-workdir: .
 
 resources:
   accelerators: A40:1
   cloud: runpod
 
-# Mount the network volume (no file_mounts needed — data is already there)
 volumes:
-  /runpod-volume: AI lab extension
+  /workspace/data: spliceai-ref-data
 
 setup: |
-  set -e
   pip install -e .
   pip install -e ./foundation_models
   pip install evo2
 
 run: |
-  set -e
-  # Symlink volume data to the path the extraction script expects
-  mkdir -p data/mane
-  ln -sfn /runpod-volume/data/mane/GRCh38 data/mane/GRCh38
   python examples/foundation_models/03_embedding_extraction.py \
     --genes BRCA1 TP53 \
     --model evo2 --model-size 7b \
     --output /workspace/output/
 ```
 
-**Cost**: $0.07/GB/month = ~$1.40/month for 20 GB used on a 150 GB volume.
+**Cost**: $0.07/GB/month = ~$1.40/month for 20 GB volume.
 
 ---
 

@@ -16,6 +16,7 @@ workdir: .
 resources:
   accelerators: A100-80GB:1
   cloud: runpod
+  image_id: docker:nvcr.io/nvidia/pytorch:25.02-py3
 
 file_mounts:
   /workspace/data: ./data/mane/GRCh38
@@ -28,6 +29,8 @@ setup: |
 
 run: |
   set -e
+  mkdir -p data/mane
+  ln -sfn /workspace/data data/mane/GRCh38
   mkdir -p /workspace/output
   python examples/foundation_models/03_embedding_extraction.py \
     --genes BRCA1 TP53 BRCA2 RB1 CFTR EGFR PTEN MLH1 MSH2 APC \

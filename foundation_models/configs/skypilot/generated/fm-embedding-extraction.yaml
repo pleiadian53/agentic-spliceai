@@ -1,0 +1,22 @@
+name: fm-embedding-extraction
+workdir: .
+resources:
+  accelerators: A40:1
+  cloud: runpod
+  image_id: docker:nvcr.io/nvidia/pytorch:25.02-py3
+setup: 'set -e
+
+  pip install -e .
+
+  pip install -e ./foundation_models
+
+  pip install evo2'
+volumes:
+  /runpod-volume: AI lab extension
+run: "set -e\nmkdir -p data/mane\nln -sfn /runpod-volume/data/mane/GRCh38 data/mane/GRCh38\n\
+  echo 'Using network volume data:'\nls data/mane/GRCh38/ | head -5\nmkdir -p /workspace/output\n\
+  \npython examples/foundation_models/03_embedding_extraction.py --genes BRCA1 TP53\
+  \ --model evo2 --model-size 7b --output /workspace/output/\n\necho \"\"\necho \"\
+  ============================================\"\necho \"DONE \u2014 download results\
+  \ before tearing down:\"\necho \"  rsync -Pavz fm-embedding-extraction:/workspace/output/\
+  \ ./output/\"\necho \"  sky down fm-embedding-extraction -y\"\necho \"============================================\""

@@ -1,0 +1,14 @@
+name: stage-data
+resources:
+  accelerators: A40:1
+  cloud: runpod
+  image_id: docker:nvcr.io/nvidia/pytorch:25.02-py3
+volumes:
+  /runpod-volume: AI lab extension
+file_mounts:
+  /tmp/upload-data: data/mane/GRCh38
+run: "set -e\necho 'Staging reference data to network volume...'\nmkdir -p /runpod-volume/data/mane/GRCh38\n\
+  rsync -av --progress /tmp/upload-data/ /runpod-volume/data/mane/GRCh38/\necho ''\n\
+  echo 'Data staged. Contents:'\nls -lh /runpod-volume/data/mane/GRCh38/\ndu -sh /runpod-volume/data/mane/GRCh38\n\
+  echo ''\necho '============================================'\necho 'DONE \u2014\
+  \ tear down staging pod:'\necho '  sky down stage-data -y'\necho '============================================'"

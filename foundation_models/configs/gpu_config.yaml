@@ -1,0 +1,41 @@
+# GPU Runner Infrastructure Defaults
+#
+# This file configures the infrastructure for remote GPU jobs.
+# Edit once, reuse across all tasks. CLI flags override these values.
+#
+# Usage:
+#   python examples/foundation_models/05_run_pipeline.py --execute \
+#       -- python your_script.py --your-args
+#
+# Override specific values on the CLI:
+#   python examples/foundation_models/05_run_pipeline.py --execute --gpu a100 \
+#       -- python your_script.py --your-args
+
+# GPU type: a40, a100, h100
+gpu: a40
+
+# Cloud provider
+cloud: runpod
+
+# Docker image (must have Python >= 3.11)
+docker_image: "docker:nvcr.io/nvidia/pytorch:25.02-py3"
+
+# RunPod Network Volume for persistent data (avoids re-uploading ~10GB each run)
+# Stage data once: python examples/foundation_models/05_run_pipeline.py --stage-data
+use_volume: true
+volume_name: "AI lab extension"
+
+# Data paths — compose as {data_prefix}/{data_path}
+# Scripts expect data at this path relative to CWD on the remote pod.
+# Change data_path for different annotation sources (e.g., gencode/GRCh38, ensembl/GRCh37)
+# or different domains entirely. Change data_prefix if your local data root differs.
+data_prefix: "data"
+data_path: "mane/GRCh38"
+
+# Extra pip packages to install during setup (space-separated or multi-line)
+extra_setup: "pip install evo2"
+
+# Additional file mounts (remote_path: local_path)
+# Uncomment and edit as needed for your task:
+# extra_file_mounts:
+#   /workspace/embeddings: ./output/embeddings

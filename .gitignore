@@ -78,6 +78,7 @@ data_backup_old_symlinks/
 
 # Output files
 output/
+*.tsv
 *.pdf
 *.png
 *.jpg

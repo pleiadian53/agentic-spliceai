@@ -1,17 +1,17 @@
-# SkyPilot: Extract Evo2 7B embeddings on A40
+# SkyPilot: Extract Evo2 7B embeddings on A40 (using RunPod Network Volume)
+#
+# Reads reference data from a pre-staged network volume — no 10GB upload.
+# First stage data once:
+#   python examples/foundation_models/05_run_pipeline.py --stage-data
 #
 # Usage:
-#   sky launch foundation_models/configs/skypilot/extract_embeddings_a40.yaml
+#   sky launch foundation_models/configs/skypilot/extract_embeddings_a40_volume.yaml
 #
 #   # Download results to local machine (before tearing down!)
 #   rsync -Pavz extract-emb-7b:/workspace/output/ ./output/embeddings/
 #
 #   # Tear down
 #   sky down extract-emb-7b -y
-#
-# To use network volume instead of uploading data each time:
-#   1. Stage data once:  python examples/foundation_models/05_run_pipeline.py --stage-data
-#   2. Use extract_embeddings_a40_volume.yaml instead
 
 name: extract-emb-7b
 
@@ -22,8 +22,8 @@ resources:
   cloud: runpod
   image_id: docker:nvcr.io/nvidia/pytorch:25.02-py3
 
-file_mounts:
-  /workspace/data: ./data/mane/GRCh38
+volumes:
+  /runpod-volume: AI lab extension
 
 setup: |
   set -e
@@ -34,7 +34,9 @@ setup: |
 run: |
   set -e
   mkdir -p data/mane
-  ln -sfn /workspace/data data/mane/GRCh38
+  ln -sfn /runpod-volume/data/mane/GRCh38 data/mane/GRCh38
+  echo "Using network volume data:"
+  ls data/mane/GRCh38/ | head -5
   mkdir -p /workspace/output
   python examples/foundation_models/03_embedding_extraction.py \
     --genes BRCA1 TP53 BRCA2 RB1 CFTR EGFR PTEN MLH1 MSH2 APC \
