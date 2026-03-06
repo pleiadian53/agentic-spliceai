@@ -37,6 +37,7 @@ class Evo2Model:
     def __init__(self, config: Optional[Evo2Config] = None) -> None:
         self.config = config or Evo2Config()
         self._evo2 = None
+        self._hidden_dim: Optional[int] = None
         self._load_model()
 
     def _load_model(self) -> None:
@@ -62,20 +63,100 @@ class Evo2Model:
                 "  pip install evo2"
             )
 
+        # Disable FP8 on GPUs that don't support it (compute capability < 8.9).
+        # Vortex hardcodes fp8_autocast(enabled=True) but FP8 requires Hopper/Ada
+        # (H100, L40S). A40/A100 are Ampere (8.0/8.6) and will crash without this.
+        self._patch_fp8_if_needed()
+
         checkpoint = self.config.checkpoint_name
         logger.info("Loading Evo2 %s model...", self.config.model_size)
         print(f"Loading Evo2 {self.config.model_size} model...")
         print(f"  Checkpoint: {checkpoint}")
 
         self._evo2 = Evo2(checkpoint)
+        self._hidden_dim = self._probe_hidden_dim()
 
-        logger.info("Evo2 %s loaded successfully", self.config.model_size)
-        print(f"  Loaded Evo2 {self.config.model_size} successfully")
+        logger.info("Evo2 %s loaded successfully (hidden_dim=%d)", self.config.model_size, self.hidden_dim)
+        print(f"  Loaded Evo2 {self.config.model_size} successfully (hidden_dim={self.hidden_dim})")
+
+    def _probe_hidden_dim(self) -> Optional[int]:
+        """Discover hidden_dim from the loaded model weights.
+
+        Tries (in order):
+        1. Model's ``d_model`` attribute (vortex convention)
+        2. Embedding weight shape from the backbone
+        3. Falls back to None (config default will be used)
+        """
+        model = getattr(self._evo2, "model", None)
+        if model is None:
+            return None
+
+        # Vortex models expose d_model directly
+        if hasattr(model, "d_model"):
+            return model.d_model
+
+        # Check the backbone's embedding layer
+        backbone = getattr(model, "backbone", model)
+        if hasattr(backbone, "d_model"):
+            return backbone.d_model
+
+        # Try first block's norm weight shape
+        try:
+            blocks = getattr(backbone, "blocks", None)
+            if blocks and len(blocks) > 0:
+                norm = getattr(blocks[0], "norm", None)
+                if norm is not None and hasattr(norm, "weight"):
+                    return norm.weight.shape[0]
+        except Exception:
+            pass
+
+        return None
+
+    @staticmethod
+    def _patch_fp8_if_needed() -> None:
+        """Disable FP8 autocast on GPUs with compute capability < 8.9.
+
+        Vortex (evo2's backbone) hardcodes ``fp8_autocast(enabled=True)`` in its
+        linear layers. FP8 requires Hopper (sm_89+). On Ampere GPUs (A40=sm_86,
+        A100=sm_80) this raises ``AssertionError: Device compute capability 8.9
+        or higher required for FP8 execution``.
+
+        Fix: monkey-patch ``transformer_engine.pytorch.fp8.fp8_autocast`` to
+        force ``enabled=False`` when the device doesn't support FP8.
+        """
+        cap = torch.cuda.get_device_capability()
+        if cap[0] > 8 or (cap[0] == 8 and cap[1] >= 9):
+            return  # FP8 supported — no patch needed
+
+        try:
+            import contextlib
+            import transformer_engine.pytorch.fp8 as te_fp8
+
+            _original = te_fp8.fp8_autocast
+
+            @contextlib.contextmanager
+            def _fp8_disabled(*args, **kwargs):
+                kwargs["enabled"] = False
+                with _original(*args, **kwargs) as ctx:
+                    yield ctx
+
+            te_fp8.fp8_autocast = _fp8_disabled
+            # Also patch the module-level import that vortex uses
+            import transformer_engine.pytorch as te
+            te.fp8_autocast = _fp8_disabled
+
+            logger.info(
+                "FP8 disabled (GPU compute capability %d.%d < 8.9)", cap[0], cap[1]
+            )
+        except ImportError:
+            pass  # transformer_engine not installed — no patch needed
 
     @property
     def hidden_dim(self) -> int:
-        """Get hidden dimension of model."""
-        return self.config.hidden_dim
+        """Get hidden dimension of model (probed from loaded weights)."""
+        if self._hidden_dim is not None:
+            return self._hidden_dim
+        return self.config.hidden_dim  # fallback to default estimate
 
     @property
     def device(self) -> torch.device:

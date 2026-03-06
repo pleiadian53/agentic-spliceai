@@ -74,7 +74,7 @@ def main() -> None:
     parser.add_argument("--model-size", type=str, default=None)
 
     # Extraction
-    parser.add_argument("--chunk-size", type=int, default=8192)
+    parser.add_argument("--chunk-size", type=int, default=4096)
     parser.add_argument("--overlap", type=int, default=256)
     parser.add_argument("--force-extract", action="store_true",
                         help="Re-extract embeddings even if they exist")
@@ -128,13 +128,24 @@ def main() -> None:
     # ------------------------------------------------------------------
     per_chromosome = args.all_genes or args.chromosomes is not None
 
-    # Check if embeddings already exist
+    # Check if embeddings already exist AND contain data
+    import h5py
+
     if per_chromosome:
         existing_h5 = sorted(embeddings_dir.glob("embeddings_chr*.h5"))
     else:
         existing_h5 = list(embeddings_dir.glob("embeddings.h5"))
 
-    embeddings_exist = len(existing_h5) > 0
+    # Only count files that have at least one gene dataset
+    non_empty_h5 = []
+    for h5f in existing_h5:
+        try:
+            with h5py.File(h5f, "r") as f:
+                if len(f.keys()) > 0:
+                    non_empty_h5.append(h5f)
+        except Exception:
+            pass
+    embeddings_exist = len(non_empty_h5) > 0
     skip_extraction = embeddings_exist and not args.force_extract and not args.extract_only
 
     if args.train_only:
@@ -144,7 +155,7 @@ def main() -> None:
         skip_extraction = True
 
     if skip_extraction:
-        print(f"[Step 1/2] SKIP — Embeddings already exist ({len(existing_h5)} files)")
+        print(f"[Step 1/2] SKIP — Embeddings already exist ({len(non_empty_h5)} files with data)")
         print(f"  Directory: {embeddings_dir}")
         print(f"  (Use --force-extract to re-extract)")
         print()

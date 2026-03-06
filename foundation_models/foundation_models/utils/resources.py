@@ -18,14 +18,14 @@ logger = logging.getLogger(__name__)
 MODEL_SPECS: Dict[str, dict] = {
     "evo2-7b": {
         "params_b": 7,
-        "hidden_dim": 2560,
+        "hidden_dim": 4096,
         "fp16_gb": 14.0,
         "int8_gb": 7.0,
         "int4_gb": 3.5,
     },
     "evo2-40b": {
         "params_b": 40,
-        "hidden_dim": 5120,
+        "hidden_dim": 8192,
         "fp16_gb": 80.0,
         "int8_gb": 40.0,
         "int4_gb": 20.0,

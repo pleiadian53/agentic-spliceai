@@ -197,7 +197,7 @@ def stitch_embeddings(
     for chunk, emb in zip(chunks, chunk_embeddings):
         # Convert torch tensors to numpy (handles MPS/CUDA/CPU)
         if hasattr(emb, "cpu"):
-            emb = emb.detach().cpu().numpy()
+            emb = emb.detach().cpu().float().numpy()
         # Slice the "keep" portion of this chunk's embeddings
         keep_emb = emb[chunk.keep_start : chunk.keep_end]  # [keep_len, H]
         global_s = chunk.global_start + chunk.keep_start

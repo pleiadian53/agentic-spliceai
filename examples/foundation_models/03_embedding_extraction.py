@@ -148,6 +148,9 @@ def _extract_genes_to_hdf5(
             chunk_embs = []
             for chunk in chunks:
                 emb = embedder.encode(chunk.sequence)
+                # Move to CPU immediately to free GPU memory for the next chunk
+                if hasattr(emb, 'cpu'):
+                    emb = emb.cpu()
                 chunk_embs.append(emb)
 
             full_emb = stitch_embeddings(
@@ -158,6 +161,12 @@ def _extract_genes_to_hdf5(
             )
 
             hf.create_dataset(gene_id, data=full_emb, compression="gzip")
+
+            # Free GPU memory between genes
+            import torch as _torch
+            del chunk_embs, full_emb
+            if _torch.cuda.is_available():
+                _torch.cuda.empty_cache()
 
             if splice_sites_df is not None:
                 labels = build_exon_labels(
@@ -216,8 +225,9 @@ def main() -> None:
         help="Skip resource feasibility check (not recommended)",
     )
     parser.add_argument(
-        "--chunk-size", type=int, default=8192,
-        help="Sequence chunk size (default: 8192)",
+        "--chunk-size", type=int, default=4096,
+        help="Sequence chunk size (default: 4096). Evo2 7b needs ~5 GB/1K tokens "
+             "for activations; 4096 fits A40 (48 GB), 8192 needs A100 (80 GB).",
     )
     parser.add_argument(
         "--overlap", type=int, default=256,
@@ -340,12 +350,19 @@ def main() -> None:
     # Per-chromosome mode: one HDF5 file per chromosome
     # ------------------------------------------------------------------
     if per_chromosome:
-        for chrom in chromosomes:
+        total_genes_all = 0
+        total_bytes_all = 0
+        chrom_t0 = time.time()
+
+        for chrom_idx, chrom in enumerate(chromosomes, 1):
             chrom_label = chrom if chrom.startswith("chr") else f"chr{chrom}"
             hdf5_path = output_dir / f"embeddings_{chrom_label}.h5"
             labels_path = output_dir / f"embeddings_{chrom_label}.labels.npz"
 
-            logger.info("Loading genes for %s...", chrom_label)
+            logger.info(
+                "=== Chromosome %s (%d/%d) ===",
+                chrom_label, chrom_idx, len(chromosomes),
+            )
             gene_data = prepare_gene_data(
                 chromosomes=[chrom],
                 build="GRCh38",
@@ -356,6 +373,7 @@ def main() -> None:
                 logger.warning("No genes found for %s, skipping", chrom_label)
                 continue
 
+            total_genes_all += len(gene_data)
             logger.info("Processing %d genes on %s", len(gene_data), chrom_label)
 
             labels_dict = _extract_genes_to_hdf5(
@@ -380,6 +398,21 @@ def main() -> None:
                 logger.info("Saved labels: %s", labels_path)
 
             all_labels.update(labels_dict)
+
+            # Per-chromosome summary
+            if hdf5_path.exists():
+                h5_size = hdf5_path.stat().st_size
+                total_bytes_all += h5_size
+                chrom_elapsed = time.time() - chrom_t0
+                logger.info(
+                    "✓ %s done: %d genes, %.1f GB (cumulative: %d genes, %.1f GB, %.0f min)",
+                    chrom_label,
+                    len(gene_data),
+                    h5_size / (1024**3),
+                    total_genes_all,
+                    total_bytes_all / (1024**3),
+                    chrom_elapsed / 60,
+                )
 
     # ------------------------------------------------------------------
     # Single-file mode: specific genes -> one HDF5 file
@@ -433,9 +466,10 @@ def main() -> None:
 
     if per_chromosome:
         h5_files = sorted(output_dir.glob("embeddings_chr*.h5"))
-        print(f"  HDF5 files:  {len(h5_files)}")
+        total_size = sum(f.stat().st_size for f in h5_files)
+        print(f"  HDF5 files:  {len(h5_files)} ({total_size / (1024**3):.1f} GB total)")
         for f in h5_files:
-            print(f"    {f.name} ({f.stat().st_size / (1024**2):.1f} MB)")
+            print(f"    {f.name} ({f.stat().st_size / (1024**3):.1f} GB)")
     else:
         hdf5_path = output_dir / "embeddings.h5"
         print(f"  Embeddings:  {hdf5_path}")

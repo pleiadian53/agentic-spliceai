@@ -15,10 +15,12 @@ _DEFAULT_EMBEDDING_LAYERS = {
     "40b": "blocks.63.mlp.l3",  # 64 blocks (0-63)
 }
 
-# Known hidden dimensions
-HIDDEN_DIMS = {
-    "7b": 2560,
-    "40b": 5120,
+# Default hidden dimensions — used ONLY for pre-load resource estimation.
+# The actual hidden_dim is probed from the loaded model at runtime
+# (see Evo2Model._probe_hidden_dim). Update these if defaults drift.
+_DEFAULT_HIDDEN_DIMS = {
+    "7b": 4096,
+    "40b": 8192,
 }
 
 
@@ -71,8 +73,12 @@ class Evo2Config:
 
     @property
     def hidden_dim(self) -> int:
-        """Known hidden dimension for this model size."""
-        return HIDDEN_DIMS[self.model_size]
+        """Default hidden dimension for this model size (pre-load estimate).
+
+        For the actual runtime value, use ``Evo2Model.hidden_dim`` which
+        probes the loaded model.
+        """
+        return _DEFAULT_HIDDEN_DIMS[self.model_size]
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""

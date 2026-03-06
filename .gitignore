@@ -64,14 +64,10 @@ dmypy.json
 # Ruff
 .ruff_cache/
 
-# Data directory - exclude everything except docs
-data/*
-!data/README.md
-!data/.gitkeep
+# Data directory — local `data` is a symlink to ../meta-spliceai/data.
+# Use `/data` (not `data/*`) so rsync skips the symlink itself on workdir sync.
+/data
 
-# Keep local LLM data
-!data/llm/
-!data/llm/**
 
 # Backup directory from old symlinks
 data_backup_old_symlinks/

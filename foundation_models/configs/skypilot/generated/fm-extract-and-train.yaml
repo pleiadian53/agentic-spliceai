@@ -16,8 +16,8 @@ volumes:
 run: "set -e\n[ -L data ] && rm -f data\nmkdir -p data/mane\nln -sfn /runpod-volume/data/mane/GRCh38\
   \ data/mane/GRCh38\necho 'Using network volume data:'\nls data/mane/GRCh38/ | head\
   \ -5\nmkdir -p /workspace/output\n\npython examples/foundation_models/06_extract_and_train.py\
-  \ --all-genes --output /workspace/output/ --model evo2 --split-preset spliceai --homology-filter\
-  \ --architecture mlp --epochs 50 --model-size 7b\n\necho \"\"\necho \"============================================\"\
-  \necho \"DONE \u2014 download results before tearing down:\"\necho \"  rsync -Pavz\
-  \ fm-extract-and-train:/workspace/output/ ./output/\"\necho \"  sky down fm-extract-and-train\
-  \ -y\"\necho \"============================================\""
+  \ --all-genes --output /workspace/output/ --model evo2 --model-size 7b --split-preset\
+  \ spliceai --homology-filter --architecture mlp --epochs 50 --force-extract --chunk-size\
+  \ 4096\n\necho \"\"\necho \"============================================\"\necho\
+  \ \"DONE \u2014 download results before tearing down:\"\necho \"  rsync -Pavz fm-extract-and-train:/workspace/output/\
+  \ ./output/\"\necho \"  sky down fm-extract-and-train -y\"\necho \"============================================\""

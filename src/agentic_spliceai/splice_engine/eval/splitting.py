@@ -406,9 +406,12 @@ def gene_chromosomes_from_dataframe(
     try:
         import polars as pl
         if isinstance(df, pl.DataFrame):
-            # Try alternate column names
-            if chrom_col not in df.columns and "seqname" in df.columns:
-                chrom_col = "seqname"
+            # Try alternate column names (chrom ↔ seqname)
+            if chrom_col not in df.columns:
+                for alt in ("chrom", "seqname"):
+                    if alt in df.columns:
+                        chrom_col = alt
+                        break
             if gene_col not in df.columns and "gene_name" in df.columns:
                 gene_col = "gene_name"
             return dict(zip(
@@ -420,8 +423,11 @@ def gene_chromosomes_from_dataframe(
 
     import pandas as pd
     if isinstance(df, pd.DataFrame):
-        if chrom_col not in df.columns and "seqname" in df.columns:
-            chrom_col = "seqname"
+        if chrom_col not in df.columns:
+            for alt in ("chrom", "seqname"):
+                if alt in df.columns:
+                    chrom_col = alt
+                    break
         if gene_col not in df.columns and "gene_name" in df.columns:
             gene_col = "gene_name"
         return dict(zip(df[gene_col], df[chrom_col]))
@@ -454,4 +460,4 @@ def gene_chromosomes_from_gtf(
         import polars as pl
         df = df.filter(pl.col("gene_type") == gene_type)
 
-    return gene_chromosomes_from_dataframe(df, gene_col="gene_name", chrom_col="seqname")
+    return gene_chromosomes_from_dataframe(df, gene_col="gene_name", chrom_col="chrom")
