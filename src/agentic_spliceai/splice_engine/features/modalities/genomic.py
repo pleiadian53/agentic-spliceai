@@ -79,13 +79,27 @@ class GenomicContextModality(Modality):
         """Add genomic context features to the DataFrame."""
         gene_len = pl.col("gene_end") - pl.col("gene_start")
 
+        # Genomic relative position (always left-to-right on reference)
+        genomic_rel = (
+            (pl.col("position") - pl.col("gene_start")).cast(pl.Float64)
+            / gene_len.cast(pl.Float64).clip(lower_bound=1)
+        )
+
+        # Transcriptomic relative position: 0.0 = 5' (TSS), 1.0 = 3' (TES)
+        # + strand: same as genomic. - strand: reversed.
+        if "strand" in df.columns:
+            transcriptomic_rel = (
+                pl.when(pl.col("strand") == "-")
+                .then(1.0 - genomic_rel)
+                .otherwise(genomic_rel)
+            )
+        else:
+            transcriptomic_rel = genomic_rel
+
         df = df.with_columns(
-            # Relative position within the gene (0.0 = start, 1.0 = end)
-            (
-                (pl.col("position") - pl.col("gene_start")).cast(pl.Float64)
-                / gene_len.cast(pl.Float64).clip(lower_bound=1)
-            ).alias("relative_gene_position"),
-            # Absolute distances to gene boundaries
+            # Transcriptomic coordinate (0.0 = 5'/TSS, 1.0 = 3'/TES)
+            transcriptomic_rel.alias("relative_gene_position"),
+            # Absolute distances to gene boundaries (genomic, not strand-corrected)
             (pl.col("position") - pl.col("gene_start")).alias(
                 "distance_to_gene_start"
             ),

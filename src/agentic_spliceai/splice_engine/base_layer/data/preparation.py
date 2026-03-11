@@ -682,6 +682,146 @@ def normalize_chromosome_names(chromosomes: List[str]) -> List[str]:
     return list(set(normalized))  # Remove duplicates
 
 
+# ---------------------------------------------------------------------------
+# Canonical chromosome filtering
+# ---------------------------------------------------------------------------
+
+# Hardcoded fallback — used only when settings.yaml is unavailable.
+_FALLBACK_CHROMOSOMES: Dict[str, Dict[str, Any]] = {
+    "GRCh38": {
+        "autosomes": [str(i) for i in range(1, 23)],
+        "sex": ["X", "Y"],
+        "mito": ["M", "MT"],
+        "chr_prefix": True,
+    },
+    "GRCh37": {
+        "autosomes": [str(i) for i in range(1, 23)],
+        "sex": ["X", "Y"],
+        "mito": ["MT"],
+        "chr_prefix": False,
+    },
+}
+
+
+def _normalize_build_key(build: str) -> str:
+    """Normalize build string to a canonical key (e.g. GRCh38, GRCh37)."""
+    key = build.replace("_MANE", "").replace("_mane", "")
+    key_lower = key.lower()
+    if key_lower in ("hg38", "grch38"):
+        return "GRCh38"
+    elif key_lower in ("hg19", "grch37"):
+        return "GRCh37"
+    return key
+
+
+def _get_chromosome_spec(build: str) -> Dict[str, Any]:
+    """Resolve chromosome spec from settings.yaml, with hardcoded fallback."""
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    key = _normalize_build_key(build)
+
+    # Try loading from the resources config (settings.yaml)
+    try:
+        from ...config import load_config
+        cfg = load_config()
+        build_cfg = cfg.builds.get(build) or cfg.builds.get(key)
+        if build_cfg and "chromosomes" in build_cfg:
+            return build_cfg["chromosomes"]
+    except Exception:
+        pass  # Fall through to hardcoded defaults
+
+    spec = _FALLBACK_CHROMOSOMES.get(key)
+    if spec is None:
+        _logger.warning(
+            "Unknown build %r for canonical chromosomes, falling back to GRCh38", build,
+        )
+        spec = _FALLBACK_CHROMOSOMES["GRCh38"]
+    return spec
+
+
+def get_canonical_chromosomes(
+    build: str = "GRCh38",
+    include_mito: bool = True,
+) -> set[str]:
+    """Return the set of canonical chromosome names for a given genome build.
+
+    Reads chromosome conventions from ``settings.yaml`` (per-build
+    ``chromosomes`` section).  Falls back to hardcoded defaults if the
+    config is unavailable.
+
+    Includes both ``chr``-prefixed and bare formats so callers can match
+    regardless of the naming convention in their data.
+
+    Args:
+        build: Genome build (``GRCh38``, ``GRCh37``, ``GRCh38_MANE``,
+            ``hg38``, ``hg19``).
+        include_mito: Whether to include the mitochondrial chromosome.
+
+    Returns:
+        Set of canonical chromosome name strings in both formats.
+
+    Examples:
+        >>> chroms = get_canonical_chromosomes("GRCh38")
+        >>> "chr1" in chroms and "1" in chroms
+        True
+        >>> "chr19_MU273384v1_fix" in chroms
+        False
+    """
+    spec = _get_chromosome_spec(build)
+
+    bare = set(spec["autosomes"] + spec["sex"])
+    if include_mito:
+        bare.update(spec.get("mito", []))
+
+    # Return both formats for flexible matching
+    prefixed = {f"chr{c}" for c in bare}
+    return bare | prefixed
+
+
+def filter_to_canonical_chromosomes(
+    df: pl.DataFrame,
+    build: str = "GRCh38",
+    chrom_column: str = "chrom",
+    include_mito: bool = True,
+) -> pl.DataFrame:
+    """Filter a Polars DataFrame to canonical chromosomes only.
+
+    Excludes GRCh38 patch scaffolds (``_fix``, ``_alt``, ``_random``,
+    ``_decoy``) and non-standard contigs that may not be present in the
+    reference FASTA or that bias sampling.
+
+    Args:
+        df: DataFrame with a chromosome column.
+        build: Genome build (``GRCh38``, ``GRCh37``, ``GRCh38_MANE``).
+        chrom_column: Name of the chromosome column.  Falls back to
+            ``seqname`` if ``chrom_column`` is not found.
+        include_mito: Whether to keep the mitochondrial chromosome.
+
+    Returns:
+        Filtered DataFrame containing only canonical chromosomes.
+
+    Examples:
+        >>> filtered = filter_to_canonical_chromosomes(gene_df, build="GRCh38")
+        >>> filtered = filter_to_canonical_chromosomes(gene_df, build="GRCh37",
+        ...                                           chrom_column="seqname")
+    """
+    # Resolve column name
+    if chrom_column not in df.columns:
+        if "seqname" in df.columns:
+            chrom_column = "seqname"
+        elif "chrom" in df.columns:
+            chrom_column = "chrom"
+        else:
+            raise ValueError(
+                f"Chromosome column {chrom_column!r} not found. "
+                f"Available: {df.columns}"
+            )
+
+    canonical = get_canonical_chromosomes(build=build, include_mito=include_mito)
+    return df.filter(pl.col(chrom_column).is_in(canonical))
+
+
 # ==== Helper functions for working with gene data ====
 
 def get_gene_count(gene_df: pl.DataFrame) -> int:

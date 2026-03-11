@@ -135,6 +135,10 @@ class FeaturePipeline:
             else:
                 cfg = mod_cls.default_config()
 
+            # Propagate pipeline-level base_model to modality configs
+            if hasattr(cfg, "base_model") and cfg.base_model != self.config.base_model:
+                cfg.base_model = self.config.base_model
+
             if not cfg.enabled:
                 logger.info("Modality '%s' is disabled, skipping.", name)
                 continue

@@ -58,11 +58,13 @@ class ArtifactManager:
         model_name: str,
         genomic_build: str,
         mode: str = "test",
+        resume: bool = False,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.model_name = model_name
         self.genomic_build = genomic_build
         self.mode = mode
+        self.resume = resume
 
         if self.mode not in ("production", "test"):
             raise ValueError(f"Invalid mode '{mode}'. Must be 'production' or 'test'.")
@@ -165,7 +167,7 @@ class ArtifactManager:
     def save_aggregated(self, df: pl.DataFrame, artifact_type: str = "predictions") -> Path:
         """Save the final aggregated artifact (all chunks concatenated)."""
         path = self.get_aggregated_path(artifact_type)
-        self._check_overwrite(path)
+        self._check_overwrite(path, is_aggregated=True)
         self._atomic_write_tsv(df, path)
         logger.info("Saved aggregated %s (%d rows) → %s", artifact_type, df.height, path)
         return path
@@ -173,7 +175,7 @@ class ArtifactManager:
     def save_manifest(self, manifest_df: pl.DataFrame) -> Path:
         """Save the gene processing manifest."""
         path = self.get_manifest_path()
-        self._check_overwrite(path)
+        self._check_overwrite(path, is_aggregated=True)
         self._atomic_write_tsv(manifest_df, path)
         logger.info("Saved manifest (%d genes) → %s", manifest_df.height, path)
         return path
@@ -181,7 +183,7 @@ class ArtifactManager:
     def save_summary(self, summary: Dict[str, Any]) -> Path:
         """Save workflow summary as JSON."""
         path = self.get_summary_path()
-        self._check_overwrite(path)
+        self._check_overwrite(path, is_aggregated=True)
         with open(path, "w") as f:
             json.dump(summary, f, indent=2, default=str)
         logger.info("Saved summary → %s", path)
@@ -225,17 +227,25 @@ class ArtifactManager:
         """Create the output directory if it doesn't exist."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def _check_overwrite(self, path: Path) -> None:
+    def _check_overwrite(self, path: Path, is_aggregated: bool = False) -> None:
         """Enforce overwrite policy.
 
-        In production mode, raises FileExistsError if file already exists.
+        In production mode, raises FileExistsError if file already exists,
+        unless ``resume=True`` and the file is an aggregated artifact
+        (predictions.tsv, manifest.tsv, summary.json). These are re-generated
+        from all chunks when resuming with new chromosomes.
+
         In test mode, overwrites silently.
         """
-        if path.exists() and self.mode == "production":
-            raise FileExistsError(
-                f"Production mode: refusing to overwrite existing artifact '{path}'. "
-                "Use mode='test' to allow overwrites or delete the file manually."
-            )
+        if not path.exists() or self.mode == "test":
+            return
+        if self.resume and is_aggregated:
+            logger.info("Resume mode: overwriting aggregated artifact %s", path.name)
+            return
+        raise FileExistsError(
+            f"Production mode: refusing to overwrite existing artifact '{path}'. "
+            "Use mode='test' to allow overwrites or delete the file manually."
+        )
 
     def _validate_artifact_type(self, artifact_type: str) -> None:
         if artifact_type not in self.ARTIFACT_TYPES:

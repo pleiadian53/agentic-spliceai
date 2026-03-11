@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 import polars as pl
 
 from .pipeline import FeaturePipeline, FeaturePipelineConfig
+from .sampling import PositionSamplingConfig, sample_positions
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,11 @@ class FeatureWorkflow:
         ``{input_dir}/../analysis_sequences/``.
     resume : bool
         If True, skip chromosomes that already have output files.
+    sampling_config : PositionSamplingConfig, optional
+        Position sampling configuration. If None, no sampling is applied
+        (all positions retained). Enable to reduce storage from ~271 GB
+        to ~1-5 GB for full genome by keeping only splice-relevant
+        positions and a configurable background sample.
 
     Examples
     --------
@@ -100,10 +106,12 @@ class FeatureWorkflow:
         input_dir: Path | str,
         output_dir: Optional[Path | str] = None,
         resume: bool = False,
+        sampling_config: Optional[PositionSamplingConfig] = None,
     ) -> None:
         self.pipeline_config = pipeline_config
         self.input_dir = Path(input_dir)
         self.resume = resume
+        self.sampling_config = sampling_config
 
         if output_dir is not None:
             self.output_dir = Path(output_dir)
@@ -124,6 +132,12 @@ class FeatureWorkflow:
     ) -> FeatureWorkflowResult:
         """Run the feature engineering workflow.
 
+        Predictions are loaded lazily — only one chromosome is materialized
+        in memory at a time.  This keeps peak memory proportional to the
+        largest single chromosome (~1.7 GB for chr1) rather than the full
+        genome (~40 GB), enabling genome-scale runs on memory-constrained
+        machines.
+
         Parameters
         ----------
         chromosomes : list of str, optional
@@ -143,16 +157,18 @@ class FeatureWorkflow:
         )
 
         try:
-            # Load input predictions
-            predictions = self._load_predictions()
-            if predictions.height == 0:
+            # Build lazy scanner (no data loaded yet)
+            lazy = self._build_lazy_scanner()
+            if lazy is None:
                 result.error = "No predictions found in input directory."
                 return result
 
-            # Determine chromosomes to process
-            available_chroms = predictions["chrom"].unique().sort().to_list()
+            # Discover available chromosomes (lightweight — reads only chrom column)
+            available_chroms = (
+                lazy.select("chrom").unique().sort("chrom").collect()["chrom"].to_list()
+            )
+
             if chromosomes is not None:
-                # Normalize chromosome names
                 target_chroms = [
                     c if c.startswith("chr") else f"chr{c}" for c in chromosomes
                 ]
@@ -166,9 +182,7 @@ class FeatureWorkflow:
                 target_chroms = available_chroms
 
             logger.info(
-                "Feature workflow: %d chromosomes, %d total positions",
-                len(target_chroms),
-                predictions.height,
+                "Feature workflow: %d chromosomes to process", len(target_chroms),
             )
 
             total_positions = 0
@@ -181,13 +195,12 @@ class FeatureWorkflow:
                 if self.resume and output_path.exists():
                     logger.info("Resuming: skipping %s (output exists)", chrom)
                     result.chromosomes_skipped.append(chrom)
-                    # Count positions in existing file
-                    existing = self._read_output(output_path, fmt)
-                    total_positions += existing.height
+                    # Count positions without loading full file
+                    total_positions += self._count_output(output_path, fmt)
                     continue
 
-                # Filter to this chromosome
-                chrom_df = predictions.filter(pl.col("chrom") == chrom)
+                # Lazy filter + collect: only this chromosome is materialized
+                chrom_df = lazy.filter(pl.col("chrom") == chrom).collect()
                 logger.info(
                     "Processing %s: %d positions...", chrom, chrom_df.height
                 )
@@ -195,10 +208,25 @@ class FeatureWorkflow:
                 # Apply pipeline
                 enriched = self._pipeline.transform(chrom_df)
 
+                # Free input before writing (only enriched is needed)
+                del chrom_df
+
+                # Apply position sampling (if configured)
+                if self.sampling_config is not None:
+                    n_before = enriched.height
+                    enriched = sample_positions(enriched, self.sampling_config)
+                    logger.info(
+                        "Sampled %s: %d → %d positions (%.1f%%)",
+                        chrom,
+                        n_before,
+                        enriched.height,
+                        100 * enriched.height / n_before if n_before > 0 else 0,
+                    )
+
                 # Save atomically
                 self._atomic_write(enriched, output_path, fmt)
                 logger.info(
-                    "Saved %s: %d positions, %d columns → %s",
+                    "Saved %s: %d positions, %d columns -> %s",
                     chrom,
                     enriched.height,
                     enriched.width,
@@ -207,6 +235,9 @@ class FeatureWorkflow:
 
                 result.chromosomes_processed.append(chrom)
                 total_positions += enriched.height
+
+                # Free enriched before next chromosome
+                del enriched
 
             result.total_positions = total_positions
             result.success = True
@@ -226,28 +257,51 @@ class FeatureWorkflow:
     # I/O helpers
     # ------------------------------------------------------------------
 
-    def _load_predictions(self) -> pl.DataFrame:
-        """Load base layer predictions from the input directory.
+    def _build_lazy_scanner(self) -> Optional[pl.LazyFrame]:
+        """Build a lazy scanner over prediction files.
 
-        Looks for aggregated ``predictions.tsv`` first, then falls back
-        to concatenating ``predictions_chunk_*.tsv`` files.
+        Returns a LazyFrame that can be filtered per-chromosome and
+        collected on demand — no data is loaded into memory until
+        ``.collect()`` is called with a filter.
+
+        Resolution order:
+        1. Per-chromosome parquet files (``predictions_chr*.parquet``)
+        2. Aggregated ``predictions.tsv``
+        3. Chunk TSV files (``predictions_chunk_*.tsv``)
         """
         from agentic_spliceai.splice_engine.resources import ensure_chrom_column
 
+        # 1. Per-chromosome parquet (best case — zero unnecessary I/O)
+        chrom_parquets = sorted(self.input_dir.glob("predictions_chr*.parquet"))
+        if chrom_parquets:
+            logger.info(
+                "Using %d per-chromosome parquet files", len(chrom_parquets)
+            )
+            lazy = pl.concat([pl.scan_parquet(f) for f in chrom_parquets])
+            return self._ensure_chrom_lazy(lazy)
+
+        # 2. Aggregated TSV (common case — lazy scan streams through file)
         aggregated = self.input_dir / "predictions.tsv"
         if aggregated.exists():
-            logger.info("Loading aggregated predictions: %s", aggregated)
-            df = pl.read_csv(aggregated, separator="\t")
-            return ensure_chrom_column(df)
+            logger.info("Lazy-scanning aggregated predictions: %s", aggregated)
+            lazy = pl.scan_csv(aggregated, separator="\t")
+            return self._ensure_chrom_lazy(lazy)
 
-        # Fall back to chunk files
+        # 3. Chunk TSV files
         chunks = sorted(self.input_dir.glob("predictions_chunk_*.tsv"))
         if not chunks:
-            return pl.DataFrame()
+            return None
 
-        logger.info("Loading %d prediction chunk files...", len(chunks))
-        frames = [pl.read_csv(f, separator="\t") for f in chunks]
-        return ensure_chrom_column(pl.concat(frames))
+        logger.info("Lazy-scanning %d prediction chunk files...", len(chunks))
+        lazy = pl.concat([pl.scan_csv(f, separator="\t") for f in chunks])
+        return self._ensure_chrom_lazy(lazy)
+
+    def _ensure_chrom_lazy(self, lazy: pl.LazyFrame) -> pl.LazyFrame:
+        """Ensure the LazyFrame has a ``chrom`` column (may be ``seqname``)."""
+        cols = lazy.collect_schema().names()
+        if "chrom" not in cols and "seqname" in cols:
+            lazy = lazy.rename({"seqname": "chrom"})
+        return lazy
 
     def _get_chrom_output_path(self, chrom: str, fmt: str) -> Path:
         """Get the output path for a chromosome artifact."""
@@ -266,11 +320,11 @@ class FeatureWorkflow:
             df.write_csv(tmp, separator="\t")
         tmp.rename(path)
 
-    def _read_output(self, path: Path, fmt: str) -> pl.DataFrame:
-        """Read a previously saved output file."""
+    def _count_output(self, path: Path, fmt: str) -> int:
+        """Count rows in an output file without loading it into memory."""
         if fmt == "parquet" or path.suffix == ".parquet":
-            return pl.read_parquet(path)
-        return pl.read_csv(path, separator="\t")
+            return pl.scan_parquet(path).select(pl.len()).collect().item()
+        return pl.scan_csv(path, separator="\t").select(pl.len()).collect().item()
 
     def _save_summary(self, result: FeatureWorkflowResult) -> None:
         """Save workflow summary as JSON."""
@@ -281,6 +335,12 @@ class FeatureWorkflow:
             "modalities": self.pipeline_config.modalities,
             "output_format": self.pipeline_config.output_format,
         }
+        if self.sampling_config is not None and self.sampling_config.enabled:
+            summary["sampling"] = {
+                "score_threshold": self.sampling_config.score_threshold,
+                "proximity_window": self.sampling_config.proximity_window,
+                "background_rate": self.sampling_config.background_rate,
+            }
 
         path = self.output_dir / "feature_summary.json"
         with open(path, "w") as f:

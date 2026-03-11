@@ -3,16 +3,17 @@
 
 Demonstrates FeatureWorkflow for production-scale feature engineering
 on precomputed base layer predictions:
-1. Load predictions from Phase 3 output (predictions.tsv or chunk files)
+1. Auto-detect or generate base-layer predictions (self-sufficient)
 2. Apply FeaturePipeline per chromosome with atomic writes
 3. Resume support for interrupted runs
 4. Output as parquet or TSV with per-chromosome files
 
-Prerequisite: Run base_layer/05_genome_precomputation.py first to generate
-predictions at data/mane/GRCh38/openspliceai_eval/precomputed/.
+If precomputed predictions exist (from base_layer/05_genome_precomputation.py),
+they are reused. If not, predictions are generated on-demand and saved to the
+registry path for future reuse.
 
 Usage:
-    # Single chromosome (default)
+    # Single chromosome (default) — auto-predicts if needed
     python 04_genome_scale_workflow.py --chromosomes chr22
 
     # Multiple chromosomes
@@ -23,8 +24,41 @@ Usage:
         --modalities base_scores genomic \\
         --output-format tsv
 
-    # Resume an interrupted run
+    # Resume an interrupted run (skips chromosomes with existing output)
     python 04_genome_scale_workflow.py --chromosomes chr22 --resume
+
+    # Add chromosomes incrementally (predictions are merged, new chroms processed)
+    python 04_genome_scale_workflow.py --chromosomes chr20 chr21 chr22 --resume
+
+    # Control prediction chunk size (for on-demand prediction)
+    python 04_genome_scale_workflow.py --chromosomes chr22 --chunk-size 200
+
+    # --- Position sampling (reduces storage ~100-170x) ---
+
+    # Enable sampling with defaults (score>0.01, 0.5% background, ~1.5 GB genome)
+    python 04_genome_scale_workflow.py --chromosomes chr22 --sample
+
+    # Sampling with proximity window (retains local context for CNN meta-layers)
+    python 04_genome_scale_workflow.py --chromosomes chr22 --sample \\
+        --sample-window 50
+
+    # Tighter sampling (~0.4 GB genome: score>0.01, 0.1% background)
+    python 04_genome_scale_workflow.py --chromosomes chr22 --sample \\
+        --sample-bg-rate 0.001
+
+    # Broader splice capture with context (score>0.001, window=100, 0.1% bg)
+    python 04_genome_scale_workflow.py --chromosomes chr22 --sample \\
+        --sample-threshold 0.001 --sample-window 100 --sample-bg-rate 0.001
+
+    # --- Fresh run (redo from scratch) ---
+
+    # Write to a new output directory (avoids --resume picking up old files)
+    python 04_genome_scale_workflow.py --chromosomes chr20 chr21 chr22 \\
+        --sample --output-dir /path/to/new/output
+
+    # Or remove existing artifacts first, then run without --resume
+    #   rm -rf data/mane/GRCh38/openspliceai_eval/analysis_sequences/
+    python 04_genome_scale_workflow.py --chromosomes chr20 chr21 chr22 --sample
 
 Example:
     python 04_genome_scale_workflow.py --chromosomes chr22
@@ -32,6 +66,7 @@ Example:
 
 import argparse
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -40,7 +75,84 @@ from agentic_spliceai.splice_engine.features import (
     FeaturePipelineConfig,
     FeatureWorkflow,
 )
-from agentic_spliceai.splice_engine.resources import get_model_resources
+from agentic_spliceai.splice_engine.resources import ensure_chrom_column, get_model_resources
+
+log = logging.getLogger(__name__)
+
+
+def _ensure_predictions(
+    model: str,
+    chromosomes: list[str],
+    chunk_size: int,
+) -> Path:
+    """Ensure base-layer predictions exist, generating them on-demand if needed.
+
+    New chromosome predictions are generated in a temporary directory, then
+    merged into the registry-managed production path. This avoids chunk index
+    conflicts with existing predictions from other chromosomes.
+
+    Returns the production precomputed directory path.
+    """
+    import shutil
+    import tempfile
+
+    import polars as pl
+
+    from agentic_spliceai.splice_engine.base_layer.models.config import (
+        create_workflow_config,
+    )
+    from agentic_spliceai.splice_engine.base_layer.workflows import PredictionWorkflow
+    from agentic_spliceai.splice_engine.resources import get_model_resources
+
+    # Resolve the production output directory
+    resources = get_model_resources(model)
+    registry = resources.get_registry()
+    production_dir = registry.get_base_model_eval_dir(model) / "precomputed"
+
+    print(f"\n   Predicting {', '.join(chromosomes)} with {model} "
+          f"(chunk_size={chunk_size})...")
+
+    # Run predictions in a temp directory to avoid chunk index conflicts
+    with tempfile.TemporaryDirectory(prefix="spliceai_predict_") as tmp_dir:
+        cfg = create_workflow_config(
+            base_model=model,
+            chunk_size=chunk_size,
+            mode="test",
+            coverage="full_genome",
+            output_dir=tmp_dir,
+        )
+
+        workflow = PredictionWorkflow(cfg)
+        result = workflow.run(chromosomes=chromosomes)
+
+        if not result.success:
+            raise RuntimeError(f"Prediction failed: {result.error}")
+
+        new_predictions = result.predictions
+        n_new = new_predictions.height if new_predictions is not None else 0
+        print(f"   Generated: {n_new:,} positions in {result.runtime_seconds:.0f}s")
+
+        # Merge into production directory
+        production_dir.mkdir(parents=True, exist_ok=True)
+        agg_file = production_dir / "predictions.tsv"
+
+        if agg_file.exists() and new_predictions is not None and new_predictions.height > 0:
+            # Append new predictions to existing file
+            existing = pl.read_csv(agg_file, separator="\t")
+            # Normalize: legacy files use 'seqname', new output uses 'chrom'
+            existing = ensure_chrom_column(existing)
+            new_predictions = ensure_chrom_column(new_predictions)
+            merged = pl.concat([existing, new_predictions])
+            merged.write_csv(agg_file, separator="\t")
+            print(f"   Merged into {agg_file.name}: "
+                  f"{existing.height:,} + {new_predictions.height:,} = {merged.height:,}")
+        elif new_predictions is not None and new_predictions.height > 0:
+            # No existing file — write directly
+            new_predictions.write_csv(agg_file, separator="\t")
+            print(f"   Saved: {n_new:,} positions to {agg_file}")
+
+    print(f"   Production path: {production_dir}")
+    return production_dir
 
 
 def main():
@@ -60,8 +172,8 @@ def main():
     )
     parser.add_argument(
         "--modalities", nargs="+",
-        default=["base_scores", "genomic"],
-        help="Modalities to apply (default: base_scores genomic)",
+        default=["base_scores", "annotation", "genomic"],
+        help="Modalities to apply (default: base_scores annotation genomic)",
     )
     parser.add_argument(
         "--input-dir", default=None,
@@ -77,8 +189,30 @@ def main():
         help="Output format (default: parquet)",
     )
     parser.add_argument(
+        "--chunk-size", type=int, default=200,
+        help="Genes per chunk for on-demand prediction (default: 200)",
+    )
+    parser.add_argument(
         "--resume", action="store_true",
         help="Resume from existing output files",
+    )
+    # Position sampling — reduces storage from ~271 GB to ~1-5 GB for full genome
+    parser.add_argument(
+        "--sample", action="store_true",
+        help="Enable splice-aware position sampling (reduces storage ~100x)",
+    )
+    parser.add_argument(
+        "--sample-threshold", type=float, default=0.01,
+        help="Score threshold for splice site retention (default: 0.01)",
+    )
+    parser.add_argument(
+        "--sample-window", type=int, default=0,
+        help="Proximity window (bp) around splice sites to retain (default: 0). "
+             "Set to 50-200 for local context around splice sites.",
+    )
+    parser.add_argument(
+        "--sample-bg-rate", type=float, default=0.005,
+        help="Background sampling rate for distant positions (default: 0.005 = 0.5%%)",
     )
     args = parser.parse_args()
 
@@ -90,28 +224,62 @@ def main():
     print("=" * 70)
     print("Feature Engineering Example 4: Genome-Scale Workflow")
     print("=" * 70)
-    print(f"\n📋 Chromosomes: {', '.join(chromosomes)}")
-    print(f"🧬 Model: {args.model}")
-    print(f"🔬 Modalities: {args.modalities}")
-    print(f"📄 Output format: {args.output_format}")
-    print(f"🔄 Resume: {args.resume}")
+    print(f"\n  Chromosomes: {', '.join(chromosomes)}")
+    print(f"  Model: {args.model}")
+    print(f"  Modalities: {args.modalities}")
+    print(f"  Output format: {args.output_format}")
+    print(f"  Resume: {args.resume}")
+    if args.sample:
+        print(f"  Sampling: ON (threshold={args.sample_threshold}, "
+              f"window={args.sample_window}bp, bg_rate={args.sample_bg_rate})")
 
     # ---------------------------------------------------------------
-    # Step 1: Resolve input directory
+    # Step 1: Resolve or generate predictions
     # ---------------------------------------------------------------
     if args.input_dir:
         input_dir = Path(args.input_dir)
+        if not input_dir.exists():
+            print(f"\n  Input directory not found: {input_dir}")
+            return 1
     else:
         resources = get_model_resources(args.model)
         registry = resources.get_registry()
         input_dir = registry.get_base_model_eval_dir(args.model) / "precomputed"
 
     if not input_dir.exists():
-        print(f"\n❌ Input directory not found: {input_dir}")
-        print(f"   Run base_layer/05_genome_precomputation.py first to generate predictions.")
-        return 1
+        print(f"\n  No precomputed predictions found at: {input_dir}")
+        print(f"  Generating predictions on-demand (saved for reuse)...")
+        input_dir = _ensure_predictions(args.model, chromosomes, args.chunk_size)
+    else:
+        # Check if requested chromosomes are available in existing predictions
+        import polars as pl
 
-    print(f"\n📁 Input: {input_dir}")
+        agg_file = input_dir / "predictions.tsv"
+        if agg_file.exists():
+            lazy = pl.scan_csv(agg_file, separator="\t")
+            # Normalize: legacy files use 'seqname', new output uses 'chrom'
+            cols = lazy.collect_schema().names()
+            if "chrom" not in cols and "seqname" in cols:
+                lazy = lazy.rename({"seqname": "chrom"})
+            available = (
+                lazy.select("chrom")
+                .unique()
+                .collect()["chrom"]
+                .to_list()
+            )
+            # Normalize: predictions may use 'chr22' or '22'
+            available_norm = {
+                c if c.startswith("chr") else f"chr{c}" for c in available
+            }
+            missing = [c for c in chromosomes if c not in available_norm]
+            if missing:
+                print(f"\n  Precomputed predictions found but missing: "
+                      f"{', '.join(missing)}")
+                print(f"  Generating missing chromosomes on-demand...")
+                _ensure_predictions(args.model, missing, args.chunk_size)
+                # Predictions are appended; FeatureWorkflow will re-load
+
+    print(f"\n  Input: {input_dir}")
 
     # ---------------------------------------------------------------
     # Step 2: Configure and run workflow
@@ -123,11 +291,23 @@ def main():
         verbosity=1,
     )
 
+    # Position sampling (optional — for storage-efficient genome-scale runs)
+    sampling_config = None
+    if args.sample:
+        from agentic_spliceai.splice_engine.features import PositionSamplingConfig
+        sampling_config = PositionSamplingConfig(
+            enabled=True,
+            score_threshold=args.sample_threshold,
+            proximity_window=args.sample_window,
+            background_rate=args.sample_bg_rate,
+        )
+
     workflow = FeatureWorkflow(
         pipeline_config=pipeline_config,
         input_dir=input_dir,
         output_dir=args.output_dir,
         resume=args.resume,
+        sampling_config=sampling_config,
     )
 
     print(f"📁 Output: {workflow.output_dir}")

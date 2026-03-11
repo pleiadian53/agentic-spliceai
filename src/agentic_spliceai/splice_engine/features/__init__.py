@@ -22,6 +22,7 @@ Example
 
 from .modality import Modality, ModalityConfig, ModalityMeta
 from .pipeline import FeaturePipeline, FeaturePipelineConfig
+from .sampling import PositionSamplingConfig, sample_positions
 from .workflow import FeatureWorkflow, FeatureWorkflowResult
 
 # Trigger modality auto-registration
@@ -33,6 +34,8 @@ __all__ = [
     "ModalityMeta",
     "FeaturePipeline",
     "FeaturePipelineConfig",
+    "PositionSamplingConfig",
+    "sample_positions",
     "FeatureWorkflow",
     "FeatureWorkflowResult",
 ]

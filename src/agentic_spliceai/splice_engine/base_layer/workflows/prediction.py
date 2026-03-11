@@ -137,6 +137,7 @@ class PredictionWorkflow:
             model_name=config.base_model,
             genomic_build=config.genomic_build,
             mode=config.mode,
+            resume=config.resume,
         )
         self._manifest = GeneManifest(
             base_model=config.base_model,
