@@ -3,6 +3,9 @@
 Separates infrastructure (GPU, cloud, volumes) from task commands.
 The runner builds SkyPilot YAML configs and handles launch/download/teardown.
 
+Model-agnostic: dependency profiles in gpu_config.yaml support any ML framework
+(genomic models, vision, NLP, etc.). Select via ``--model <name>`` on the CLI.
+
 Usage from Python::
 
     from foundation_models.gpu_runner import InfraConfig, build_skypilot_config, launch
@@ -11,7 +14,7 @@ Usage from Python::
     config = build_skypilot_config(infra, run_command="python my_script.py --arg val")
     launch(config, output_local=Path("./output/my_run/"))
 
-Usage from CLI: see ``examples/foundation_models/05_run_pipeline.py``.
+Usage from CLI: see ``examples/foundation_models/ops_run_pipeline.py``.
 """
 
 from __future__ import annotations
@@ -88,9 +91,28 @@ class InfraConfig:
     volume_mount: str = _DEFAULT_VOLUME_MOUNT
     data_prefix: str = "data"
     data_path: str = "mane/GRCh38"
+    model: str = ""
+    models: dict[str, dict] = field(default_factory=dict)
+    default_model: str = "evo2"
     extra_setup: str = ""
     extra_file_mounts: dict[str, str] = field(default_factory=dict)
     output_remote: str = _DEFAULT_OUTPUT_REMOTE
+
+    @property
+    def resolved_model(self) -> str:
+        """Active model name: explicit ``model`` field, or ``default_model``."""
+        return self.model or self.default_model
+
+    @property
+    def model_pip(self) -> str:
+        """Pip install spec for the active model, or empty string if 'none'."""
+        name = self.resolved_model
+        if not name or name == "none":
+            return ""
+        profile = self.models.get(name)
+        if profile:
+            return profile.get("pip", "")
+        return ""
 
     @property
     def local_data_dir(self) -> str:
@@ -122,6 +144,9 @@ class InfraConfig:
             volume_mount=data.get("volume_mount", cls.volume_mount),
             data_prefix=data.get("data_prefix", cls.data_prefix),
             data_path=data.get("data_path", cls.data_path),
+            model=data.get("model", cls.model),
+            models=data.get("models", None) or {},
+            default_model=data.get("default_model", cls.default_model),
             extra_setup=data.get("extra_setup", cls.extra_setup),
             extra_file_mounts=data.get("extra_file_mounts", None) or {},
             output_remote=data.get("output_remote", cls.output_remote),
@@ -173,11 +198,21 @@ def build_skypilot_config(
     gpu = GPU_SPECS[infra.gpu]
 
     # Base setup: install project packages
-    setup_lines = [
-        "set -e",
+    # Use volume pip cache if available to speed up repeated provisions
+    setup_lines = ["set -e"]
+    if infra.use_volume:
+        pip_cache = f"{infra.volume_mount}/pip-cache"
+        setup_lines.append(f"export PIP_CACHE_DIR={pip_cache}")
+        setup_lines.append(f"mkdir -p {pip_cache}")
+    setup_lines.extend([
         "pip install -e .",
         "pip install -e ./foundation_models",
-    ]
+    ])
+    # Model dependency: conditional install (skip if already cached)
+    model_pip = infra.model_pip
+    if model_pip:
+        for pkg in model_pip.split():
+            setup_lines.append(f"pip show {pkg} >/dev/null 2>&1 || pip install {pkg}")
     if infra.extra_setup:
         setup_lines.append(infra.extra_setup)
 
@@ -200,7 +235,7 @@ def build_skypilot_config(
     data_parent = str(Path(data_local).parent)  # e.g. "data/mane"
     prefix = infra.data_prefix  # e.g. "data"
 
-    run_lines = ["set -e", f"[ -L {prefix} ] && rm -f {prefix}", f"mkdir -p {data_parent}"]
+    run_lines = ["set -e", f"[ -L {prefix} ] && rm -f {prefix} || true", f"mkdir -p {data_parent}"]
 
     if infra.use_volume:
         config["volumes"] = {infra.volume_mount: infra.volume_name}
@@ -468,6 +503,6 @@ def stage_data(infra: InfraConfig) -> None:
 
     print()
     print("Data staged successfully. Future runs:")
-    print("  python examples/foundation_models/05_run_pipeline.py --execute \\")
+    print("  python examples/foundation_models/ops_run_pipeline.py --execute \\")
     print("      --use-volume -- python your_script.py --your-args")
     print()

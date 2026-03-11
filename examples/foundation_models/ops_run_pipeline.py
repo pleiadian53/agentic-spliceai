@@ -13,34 +13,34 @@ Modes:
 
 Usage:
     # Dry-run — see what would happen (default, no cost)
-    python examples/foundation_models/05_run_pipeline.py \\
-        -- python examples/foundation_models/03_embedding_extraction.py \\
+    python examples/foundation_models/ops_run_pipeline.py \\
+        -- python examples/foundation_models/02_embedding_extraction.py \\
              --genes BRCA1 TP53 --model evo2 --model-size 7b \\
              --output /workspace/output/
 
     # Execute — launch on remote GPU
-    python examples/foundation_models/05_run_pipeline.py --execute \\
-        -- python examples/foundation_models/03_embedding_extraction.py \\
+    python examples/foundation_models/ops_run_pipeline.py --execute \\
+        -- python examples/foundation_models/02_embedding_extraction.py \\
              --genes BRCA1 TP53 --model evo2 --model-size 7b \\
              --output /workspace/output/
 
     # Override infrastructure for one run
-    python examples/foundation_models/05_run_pipeline.py --execute --gpu a100 \\
-        -- python examples/foundation_models/04_train_and_evaluate.py \\
+    python examples/foundation_models/ops_run_pipeline.py --execute --gpu a100 \\
+        -- python examples/foundation_models/03_train_and_evaluate.py \\
              --embeddings /workspace/embeddings/embeddings.h5 \\
              --output /workspace/output/ --architecture mlp --epochs 50
 
     # Reuse an existing cluster (skip provisioning + setup, saves ~3 min)
-    python examples/foundation_models/05_run_pipeline.py --execute \\
+    python examples/foundation_models/ops_run_pipeline.py --execute \\
         --cluster sky-c0ec-pleiadian53 --no-teardown \\
-        -- python examples/foundation_models/06_extract_and_train.py \\
+        -- python examples/foundation_models/04_extract_and_train.py \\
              --all-genes --output /workspace/output/
 
     # Stage data to network volume (one-time)
-    python examples/foundation_models/05_run_pipeline.py --stage-data
+    python examples/foundation_models/ops_run_pipeline.py --stage-data
 
     # Local synthetic pipeline (no cloud, no GPU)
-    python examples/foundation_models/05_run_pipeline.py --local-only \\
+    python examples/foundation_models/ops_run_pipeline.py --local-only \\
         --output-dir /tmp/fm_pipeline/
 """
 
@@ -99,6 +99,9 @@ def _parse_args() -> tuple[argparse.Namespace, str]:
     # Infrastructure overrides (override gpu_config.yaml)
     parser.add_argument("--gpu", type=str, default=None,
                         help="GPU type: a40, a100, h100 (overrides config)")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Model dependency profile from gpu_config.yaml "
+                             "(e.g., evo2, hyenadna; 'none' to skip model deps)")
     parser.add_argument("--cloud", type=str, default=None,
                         help="Cloud provider (overrides config)")
     parser.add_argument("--use-volume", action="store_true", default=None,
@@ -170,6 +173,8 @@ def main() -> None:
     overrides = {}
     if args.gpu is not None:
         overrides["gpu"] = args.gpu
+    if args.model is not None:
+        overrides["model"] = args.model
     if args.cloud is not None:
         overrides["cloud"] = args.cloud
     if args.use_volume is not None:
@@ -198,8 +203,8 @@ def main() -> None:
         print("ERROR: No task command provided. Use '--' followed by the command.")
         print()
         print("Example:")
-        print("  python examples/foundation_models/05_run_pipeline.py --execute \\")
-        print("      -- python examples/foundation_models/03_embedding_extraction.py \\")
+        print("  python examples/foundation_models/ops_run_pipeline.py --execute \\")
+        print("      -- python examples/foundation_models/02_embedding_extraction.py \\")
         print("           --genes BRCA1 TP53 --model evo2 --model-size 7b \\")
         print("           --output /workspace/output/")
         sys.exit(1)
@@ -227,7 +232,7 @@ def _run_local_only(args: argparse.Namespace) -> None:
     print()
 
     cmd = [
-        sys.executable, "examples/foundation_models/02_synthetic_training_pipeline.py",
+        sys.executable, "examples/foundation_models/01_synthetic_pipeline.py",
         "--output", str(output_dir),
         "--n-genes", "5",
     ]

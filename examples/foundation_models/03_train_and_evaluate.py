@@ -14,13 +14,13 @@ Supports both single-file and per-chromosome directory input.
 
 Usage:
     # From single HDF5 file (small gene set, naive split)
-    python examples/foundation_models/04_train_and_evaluate.py \
+    python examples/foundation_models/03_train_and_evaluate.py \
         --embeddings /tmp/fm_demo/embeddings.h5 \
         --labels /tmp/fm_demo/embeddings.labels.npz \
         --output /tmp/fm_demo/model/
 
     # From per-chromosome directory with SpliceAI split (recommended)
-    python examples/foundation_models/04_train_and_evaluate.py \
+    python examples/foundation_models/03_train_and_evaluate.py \
         --embeddings-dir /workspace/output/embeddings/ \
         --output /workspace/output/model/ \
         --split-preset spliceai \
@@ -28,7 +28,7 @@ Usage:
         --architecture mlp --epochs 50
 
     # Custom split
-    python examples/foundation_models/04_train_and_evaluate.py \
+    python examples/foundation_models/03_train_and_evaluate.py \
         --embeddings-dir /workspace/output/embeddings/ \
         --output /workspace/output/model/ \
         --split-preset spliceai \

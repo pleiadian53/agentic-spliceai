@@ -181,6 +181,7 @@ class ExonClassifier(nn.Module):
         checkpoint_dir: Optional[str] = None,
         patience: int = 10,
         lr_schedule: bool = True,
+        monitor_metric: Literal["auroc", "auprc"] = "auprc",
     ) -> Dict:
         """
         Train classifier.
@@ -198,11 +199,14 @@ class ExonClassifier(nn.Module):
             verbose: Print training progress
             checkpoint_dir: Directory to save best model checkpoint (None = no disk save)
             patience: Early stopping patience in epochs (0 = disabled)
-            lr_schedule: Use ReduceLROnPlateau on val AUROC
+            lr_schedule: Use ReduceLROnPlateau on monitored metric
+            monitor_metric: Metric for early stopping and LR scheduling.
+                "auprc" (default) — better for class-imbalanced data.
+                "auroc" — use when classes are balanced.
 
         Returns:
             Training history dict with keys: train_loss, val_loss, val_auroc,
-            val_auprc, best_epoch, best_val_auroc, stopped_early.
+            val_auprc, best_epoch, best_val_metric, best_metric_name, stopped_early.
         """
         from torch.utils.data import TensorDataset, DataLoader
 
@@ -243,7 +247,7 @@ class ExonClassifier(nn.Module):
         history: Dict[str, List] = {
             "train_loss": [], "val_loss": [], "val_auroc": [], "val_auprc": [],
         }
-        best_val_auroc = 0.0
+        best_val_metric = 0.0
         best_epoch = 0
         best_state: Optional[dict] = None
         epochs_without_improvement = 0
@@ -284,9 +288,10 @@ class ExonClassifier(nn.Module):
                         f"val_auprc={val_metrics['auprc']:.4f}"
                     )
 
-                # Track best model
-                if val_metrics["auroc"] > best_val_auroc:
-                    best_val_auroc = val_metrics["auroc"]
+                # Track best model (monitor AUPRC or AUROC)
+                current_metric = val_metrics[monitor_metric]
+                if current_metric > best_val_metric:
+                    best_val_metric = current_metric
                     best_epoch = epoch
                     best_state = {
                         k: v.cpu().clone() for k, v in self.state_dict().items()
@@ -299,14 +304,15 @@ class ExonClassifier(nn.Module):
 
                 # LR scheduling
                 if scheduler is not None:
-                    scheduler.step(val_metrics["auroc"])
+                    scheduler.step(current_metric)
 
                 # Early stopping
                 if patience > 0 and epochs_without_improvement >= patience:
                     if verbose:
                         print(
                             f"Early stopping at epoch {epoch+1} "
-                            f"(best AUROC: {best_val_auroc:.4f} at epoch {best_epoch+1})"
+                            f"(best {monitor_metric.upper()}: {best_val_metric:.4f} "
+                            f"at epoch {best_epoch+1})"
                         )
                     break
             else:
@@ -320,11 +326,17 @@ class ExonClassifier(nn.Module):
             if verbose:
                 print(
                     f"Restored best model from epoch {best_epoch+1} "
-                    f"(AUROC: {best_val_auroc:.4f})"
+                    f"({monitor_metric.upper()}: {best_val_metric:.4f})"
                 )
 
         history["best_epoch"] = best_epoch
-        history["best_val_auroc"] = best_val_auroc
+        history["best_val_metric"] = best_val_metric
+        history["best_metric_name"] = monitor_metric
+        # Backward compat alias
+        history["best_val_auroc"] = (
+            best_val_metric if monitor_metric == "auroc"
+            else (history["val_auroc"][best_epoch] if history["val_auroc"] else 0.0)
+        )
         history["stopped_early"] = stopped_early
         return history
     

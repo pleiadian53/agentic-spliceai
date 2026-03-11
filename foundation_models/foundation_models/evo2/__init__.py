@@ -24,7 +24,7 @@ References:
 from foundation_models.evo2.config import Evo2Config
 from foundation_models.evo2.model import Evo2Model, load_evo2_model
 from foundation_models.evo2.embedder import Evo2Embedder
-from foundation_models.evo2.classifier import ExonClassifier
+from foundation_models.evo2.exon_classifier import ExonClassifier
 
 __all__ = [
     "Evo2Config",

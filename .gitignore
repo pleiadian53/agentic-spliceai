@@ -95,6 +95,9 @@ dev/**/*
 tests/
 tests/**/*
 
+# SkyPilot generated configs (user-specific, may contain tokens)
+foundation_models/configs/skypilot/generated/
+
 # RunPods configuration (user-specific, NOT for public)
 # Contains local paths, SSH configs, and personal workflow
 runpods/

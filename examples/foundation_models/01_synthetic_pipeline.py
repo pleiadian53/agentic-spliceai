@@ -7,11 +7,11 @@ ExonClassifier, and evaluate — without needing Evo2 or a GPU. Always works
 on any hardware.
 
 Usage:
-    python examples/foundation_models/02_synthetic_training_pipeline.py \
+    python examples/foundation_models/01_synthetic_pipeline.py \
         --output /tmp/fm_demo/
 
     # With custom parameters
-    python examples/foundation_models/02_synthetic_training_pipeline.py \
+    python examples/foundation_models/01_synthetic_pipeline.py \
         --output /tmp/fm_demo/ \
         --n-genes 10 \
         --architecture cnn \

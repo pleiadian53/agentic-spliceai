@@ -15,32 +15,32 @@ Requirements:
 
 Usage:
     # Specific genes (quick test)
-    python examples/foundation_models/03_embedding_extraction.py \
+    python examples/foundation_models/02_embedding_extraction.py \
         --genes BRCA1 TP53 \
         --model evo2 \
         --output /workspace/output/embeddings/
 
     # Entire chromosome(s)
-    python examples/foundation_models/03_embedding_extraction.py \
+    python examples/foundation_models/02_embedding_extraction.py \
         --chromosomes 21 22 \
         --model evo2 \
         --output /workspace/output/embeddings/
 
     # All MANE genes (produces per-chromosome HDF5 files)
-    python examples/foundation_models/03_embedding_extraction.py \
+    python examples/foundation_models/02_embedding_extraction.py \
         --all-genes \
         --model evo2 \
         --output /workspace/output/embeddings/
 
     # Resume after interruption (skips already-extracted genes)
-    python examples/foundation_models/03_embedding_extraction.py \
+    python examples/foundation_models/02_embedding_extraction.py \
         --all-genes --resume \
         --model evo2 \
         --output /workspace/output/embeddings/
 
     # On remote GPU via SkyPilot
-    python examples/foundation_models/05_run_pipeline.py --execute \
-        -- python examples/foundation_models/03_embedding_extraction.py \
+    python examples/foundation_models/ops_run_pipeline.py --execute \
+        -- python examples/foundation_models/02_embedding_extraction.py \
              --all-genes --model evo2 --output /workspace/output/embeddings/
 """
 
@@ -479,11 +479,11 @@ def main() -> None:
     print()
     print("Next step: train classifier")
     if per_chromosome:
-        print(f"  python examples/foundation_models/04_train_and_evaluate.py \\")
+        print(f"  python examples/foundation_models/03_train_and_evaluate.py \\")
         print(f"      --embeddings-dir {output_dir} \\")
         print(f"      --output {output_dir / 'model'}/")
     else:
-        print(f"  python examples/foundation_models/04_train_and_evaluate.py \\")
+        print(f"  python examples/foundation_models/03_train_and_evaluate.py \\")
         print(f"      --embeddings {output_dir / 'embeddings.h5'} \\")
         print(f"      --labels {output_dir / 'embeddings.labels.npz'} \\")
         print(f"      --output {output_dir / 'model'}/")

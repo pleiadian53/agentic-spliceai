@@ -4,11 +4,11 @@
 # Edit once, reuse across all tasks. CLI flags override these values.
 #
 # Usage:
-#   python examples/foundation_models/05_run_pipeline.py --execute \
+#   python examples/foundation_models/ops_run_pipeline.py --execute \
 #       -- python your_script.py --your-args
 #
 # Override specific values on the CLI:
-#   python examples/foundation_models/05_run_pipeline.py --execute --gpu a100 \
+#   python examples/foundation_models/ops_run_pipeline.py --execute --gpu a100 \
 #       -- python your_script.py --your-args
 
 # GPU type: a40, a100, h100
@@ -21,7 +21,7 @@ cloud: runpod
 docker_image: "docker:nvcr.io/nvidia/pytorch:25.02-py3"
 
 # RunPod Network Volume for persistent data (avoids re-uploading ~10GB each run)
-# Stage data once: python examples/foundation_models/05_run_pipeline.py --stage-data
+# Stage data once: python examples/foundation_models/ops_run_pipeline.py --stage-data
 use_volume: true
 volume_name: "AI lab extension"
 
@@ -32,8 +32,36 @@ volume_name: "AI lab extension"
 data_prefix: "data"
 data_path: "mane/GRCh38"
 
-# Extra pip packages to install during setup (space-separated or multi-line)
-extra_setup: "pip install evo2"
+# Model dependency profiles — pip packages for each model/framework.
+# Works for any ML workload: genomic foundation models, vision, NLP, etc.
+# Select via CLI: --model evo2 (or any key defined below)
+# The runner generates: pip show <pkg> >/dev/null 2>&1 || pip install <pkg>
+# Add your own profiles freely — keys are arbitrary, pip is space-separated for multiple packages.
+models:
+  evo2:
+    pip: "evo2"
+    description: "Evo2 7b/40b (Arc Institute) — causal DNA language model"
+  splicebert:
+    pip: "multimolecule"
+    description: "SpliceBERT (Sun Yat-sen U) — BERT pre-trained on 2M pre-mRNAs from 72 vertebrates"
+  alphagenome:
+    pip: "alphagenome"
+    description: "AlphaGenome (DeepMind) — 1Mb context, splice junctions + usage (non-commercial)"
+  hyenadna:
+    pip: "hyena-dna"
+    description: "HyenaDNA (Hazy Research) — long-range genomic model, up to 1M context"
+  pangolin:
+    pip: "pangolin-splice"
+    description: "Pangolin — tissue-specific splice site strength prediction"
+  dnabert:
+    pip: "dnabert2"
+    description: "DNABERT-2 — multi-species genome foundation model, 117M params"
+
+# Default model (must match a key in 'models' above; set to 'none' to skip model deps)
+default_model: evo2
+
+# Extra setup commands beyond model deps (leave empty unless you need custom installs)
+extra_setup: ""
 
 # Additional file mounts (remote_path: local_path)
 # Uncomment and edit as needed for your task:
