@@ -146,27 +146,40 @@ sky volumes apply /tmp/import-volume.yaml
 sky volumes ls   # verify it shows up
 ```
 
-### Stage Reference Data (One-Time)
+### Stage Reference Data
 
-Use the pipeline orchestrator to upload data to the volume:
+**Recommended**: Use the staging script after provisioning a cluster:
 
 ```bash
-python examples/foundation_models/05_run_pipeline.py --stage-data
+# 1. Provision a pod (no data staging — fast)
+python examples/foundation_models/ops_provision_cluster.py --gpu rtxa5000
+
+# 2. Stage data + weights to the running pod
+python examples/foundation_models/ops_stage_data.py \
+    data/ensembl/GRCh37 --weights spliceai
+
+# Or for OpenSpliceAI:
+python examples/foundation_models/ops_stage_data.py \
+    data/mane/GRCh38 --weights openspliceai
 ```
 
-This launches a pod with both the volume and file_mounts, copies data from
-`./data/mane/GRCh38/` to `/runpod-volume/data/mane/GRCh38/`, then tears down.
+This rsyncs directly to the pod (one hop) — faster than `file_mounts` staging.
+See [data staging guide](data-staging-verification.md) for details.
+
+**Alternative**: Stage during provisioning (slower, but all-in-one):
+
+```bash
+python examples/foundation_models/ops_provision_cluster.py \
+    --stage-data --data-path ensembl/GRCh37 --stage-weights spliceai
+```
 
 ### Use in Pipeline (Fast — No Upload)
 
 ```bash
-# Pipeline orchestrator: --use-volume skips the 10 GB upload
-python examples/foundation_models/05_run_pipeline.py \
-    --execute --use-volume \
-    --genes BRCA1 TP53 BRCA2 RB1 CFTR EGFR PTEN MLH1 MSH2 APC
-
-# Or directly with a YAML config:
-sky launch foundation_models/configs/skypilot/extract_embeddings_a40_volume.yaml
+# Run a job on the existing cluster (data already on volume)
+python examples/foundation_models/ops_run_pipeline.py --execute \
+    --cluster <cluster-name> --no-teardown \
+    -- python your_script.py --your-args
 ```
 
 ### How It Works in YAML

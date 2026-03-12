@@ -28,6 +28,10 @@ Usage:
     python examples/foundation_models/ops_provision_cluster.py --stage-data \\
         --data-path ensembl/GRCh37
 
+    # Stage data + model weights (e.g., SpliceAI .h5 files)
+    python examples/foundation_models/ops_provision_cluster.py --stage-data \\
+        --data-path ensembl/GRCh37 --stage-weights spliceai
+
     # Provision with specific GPU
     python examples/foundation_models/ops_provision_cluster.py --gpu a100
 
@@ -175,6 +179,24 @@ def cmd_provision(args: argparse.Namespace) -> None:
     stage_data = args.stage_data
     job_name = "fm-workspace"
 
+    # Resolve model weights path if staging weights
+    stage_weights = args.stage_weights
+    local_weights: Path | None = None
+    if stage_weights:
+        from agentic_spliceai.splice_engine.resources import get_model_resources
+        resources = get_model_resources(stage_weights)
+        registry = resources.get_registry()
+        local_weights = registry.get_model_weights_dir(stage_weights)
+        if not local_weights.exists():
+            logger.error("Model weights not found: %s", local_weights)
+            logger.error("Expected .h5 or .pt files in %s", local_weights)
+            sys.exit(1)
+        weight_files = list(local_weights.glob("*"))
+        if not weight_files:
+            logger.error("Model weights directory is empty: %s", local_weights)
+            sys.exit(1)
+        logger.info("Will stage %d weight files from %s", len(weight_files), local_weights)
+
     # Validate local data exists if staging
     local_data = Path(infra.local_data_dir)
     if stage_data and not local_data.exists():
@@ -243,6 +265,21 @@ def cmd_provision(args: argparse.Namespace) -> None:
             f"mkdir -p {infra.volume_data_dir}",
             f"rsync -av --progress /tmp/upload-data/ {infra.volume_data_dir}/",
             "echo 'Data staged successfully.'",
+            "",
+        ])
+
+    # Stage model weights: upload to volume alongside data
+    if stage_weights and local_weights:
+        weights_vol = f"{infra.volume_mount}/data/models/{stage_weights}"
+        weights_local = f"data/models/{stage_weights}"
+        run_lines.extend([
+            "",
+            f"echo 'Staging {stage_weights} model weights to network volume...'",
+            f"mkdir -p {weights_vol}",
+            f"rsync -av --progress /tmp/upload-weights/ {weights_vol}/",
+            f"mkdir -p data/models",
+            f"ln -sfn {weights_vol} {weights_local}",
+            f"echo 'Weights staged: {weights_vol}'",
             "",
         ])
 
@@ -318,6 +355,11 @@ def cmd_provision(args: argparse.Namespace) -> None:
         config.setdefault("file_mounts", {})
         config["file_mounts"]["/tmp/upload-data"] = str(local_data)
 
+    # If staging weights, upload model weights via file_mounts
+    if stage_weights and local_weights:
+        config.setdefault("file_mounts", {})
+        config["file_mounts"]["/tmp/upload-weights"] = str(local_weights)
+
     yaml_path = _write_config(config, job_name)
 
     print()
@@ -330,6 +372,8 @@ def cmd_provision(args: argparse.Namespace) -> None:
     print(f"  Data:    {infra.local_data_dir}")
     if stage_data:
         print(f"  Staging: {local_data.resolve()} -> {infra.volume_data_dir}")
+    if stage_weights and local_weights:
+        print(f"  Weights: {local_weights} -> {infra.volume_mount}/data/models/{stage_weights}")
     print(f"  Config:  {yaml_path}")
     print("=" * 60)
     print()
@@ -383,7 +427,9 @@ def main() -> None:
     action.add_argument("--down-all", action="store_true",
                         help="Tear down ALL clusters")
 
-    parser.add_argument("--gpu", type=str, default=None, choices=["a40", "a100", "h100"],
+    parser.add_argument("--gpu", type=str, default=None,
+                        choices=["rtx4000ada", "rtxa5000", "rtx5090", "rtx4090",
+                                 "l4", "a40", "a100", "h100"],
                         help="GPU type (default: from gpu_config.yaml)")
     parser.add_argument("--model", type=str, default=None,
                         help="Model dependency profile from gpu_config.yaml "
@@ -395,6 +441,9 @@ def main() -> None:
     parser.add_argument("--data-path", type=str, default=None,
                         help="Dataset subpath, e.g. 'mane/GRCh38', 'ensembl/GRCh37' "
                              "(default: from gpu_config.yaml)")
+    parser.add_argument("--stage-weights", type=str, default=None, metavar="MODEL",
+                        help="Upload model weights (e.g. 'spliceai', 'openspliceai'). "
+                             "Stages data/models/<MODEL>/ to volume.")
 
     args = parser.parse_args()
 

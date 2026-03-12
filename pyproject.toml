@@ -90,11 +90,25 @@ test = [
     "pytest-asyncio>=0.21",
 ]
 
+# Base model backends — install the one(s) you need
+spliceai = [
+    "tensorflow>=2.15",
+    "keras>=3.0",
+]
+openspliceai = [
+    "torch>=2.0",
+]
+
 # Bioinformatics extensions
 bio = [
     "biopython>=1.80",
     "pysam>=0.20",
     "pyvcf3>=1.0",
+]
+
+# Conservation / epigenetic track access (bigWig format)
+conservation = [
+    "pyBigWig>=0.3.18",
 ]
 
 # Documentation
@@ -106,7 +120,7 @@ docs = [
 
 # All optional dependencies
 all = [
-    "agentic-spliceai[dev,test,bio,docs]",
+    "agentic-spliceai[dev,test,bio,conservation,docs,spliceai,openspliceai]",
 ]
 
 [project.urls]

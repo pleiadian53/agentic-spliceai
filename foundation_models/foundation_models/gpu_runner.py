@@ -37,6 +37,41 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 GPU_SPECS = {
+    "rtx4000ada": {
+        "accelerator": "RTX4000-Ada:1",
+        "vram_gb": 20,
+        "hourly_rate": 0.26,
+        "hardware_profile": "rtx4000ada-20gb",
+        "label": "NVIDIA RTX 4000 Ada 20 GB",
+    },
+    "rtxa5000": {
+        "accelerator": "RTXA5000:1",
+        "vram_gb": 24,
+        "hourly_rate": 0.27,
+        "hardware_profile": "rtxa5000-24gb",
+        "label": "NVIDIA RTX A5000 24 GB",
+    },
+    "rtx5090": {
+        "accelerator": "RTX5090:1",
+        "vram_gb": 32,
+        "hourly_rate": 0.89,
+        "hardware_profile": "rtx5090-32gb",
+        "label": "NVIDIA RTX 5090 32 GB",
+    },
+    "rtx4090": {
+        "accelerator": "RTX4090:1",
+        "vram_gb": 24,
+        "hourly_rate": 0.59,
+        "hardware_profile": "rtx4090-24gb",
+        "label": "NVIDIA RTX 4090 24 GB",
+    },
+    "l4": {
+        "accelerator": "L4:1",
+        "vram_gb": 24,
+        "hourly_rate": 0.39,
+        "hardware_profile": "l4-24gb",
+        "label": "NVIDIA L4 24 GB",
+    },
     "a40": {
         "accelerator": "A40:1",
         "vram_gb": 48,

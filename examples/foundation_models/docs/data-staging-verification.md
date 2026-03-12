@@ -1,7 +1,8 @@
 # Data Staging & Verification Guide
 
-How to stage datasets to a RunPod Network Volume for GPU training pipelines,
-verify the data is correctly placed, and troubleshoot common issues.
+How to stage datasets and model weights to a RunPod Network Volume for GPU
+training pipelines, verify the data is correctly placed, and troubleshoot
+common issues.
 
 **Prerequisites**: SkyPilot configured with RunPod
 ([cloud storage setup](cloud-storage-setup.md)), a network volume created via
@@ -16,72 +17,126 @@ model weights). Uploading these via SkyPilot `file_mounts` on every launch is
 slow and wastes time. A **network volume** provides persistent storage that
 survives pod teardowns — stage data once, reuse on every run.
 
+### Recommended Workflow
+
 ```
-                        Stage (one-time)
-Local machine ──file_mounts──> Pod ──rsync──> Network Volume
-                                                   │
-                        Execute (every run)         │
-                 Pod <──mount + symlink────────────-┘
+1. Provision    ops_provision_cluster.py [--stage-data]     Acquire pod + optional initial data
+2. Stage        ops_stage_data.py <paths> [--weights MODEL] Upload additional data to running pod
+3. Run          ops_run_pipeline.py --execute -- <command>   Execute your training/inference job
+4. Tear down    ops_provision_cluster.py --down              Release resources when done
+```
+
+**Two ways to stage data:**
+
+| Method | When to use |
+|--------|-------------|
+| `ops_provision_cluster.py --stage-data` | First time setup — stages data during provisioning (slower: SkyPilot `file_mounts` → volume) |
+| **`ops_stage_data.py`** (recommended) | After pod is running — direct rsync, no SkyPilot overhead, supports arbitrary paths |
+
+```
+ops_stage_data.py:
+Local machine ──rsync──> Pod volume     (one hop, fast)
+                          │
+               symlink ──-┘  (scripts find data at expected paths)
+
+ops_provision_cluster.py --stage-data:
+Local machine ──file_mounts──> Pod ──rsync──> Volume     (two hops, slower)
 ```
 
 ---
 
-## 1. Configure Your Data Paths
+## 1. Stage Data with `ops_stage_data.py` (Recommended)
 
-Data paths are defined in `gpu_config.yaml`:
+The staging script handles rsync + symlinks in one command, supporting arbitrary
+datasets and model weights. It auto-detects the running cluster and preserves
+the local directory structure on the volume.
 
-```yaml
-# foundation_models/configs/gpu_config.yaml
-
-# Network volume settings
-use_volume: true
-volume_name: "My Volume"          # must match RunPod dashboard name exactly
-volume_mount: "/runpod-volume"    # where SkyPilot mounts the volume on the pod
-volume_data_dir: "/runpod-volume/data/my_dataset"   # where your data lives on the volume
-```
-
-The `volume_data_dir` is the directory on the volume where your dataset will be
-staged and later read from. Choose a path that makes sense for your data:
-
-```
-/runpod-volume/data/grch38/          # genome reference
-/runpod-volume/embeddings/evo2-7b/   # pre-extracted embeddings
-/runpod-volume/models/checkpoints/   # model weights
-```
-
-The `stage_data()` function in `gpu_runner.py` reads from a **local source
-directory** and copies to `volume_data_dir`. The local source path is currently
-set to `data/mane/GRCh38` but can be customized by editing the `stage_data()`
-function or the generated YAML before launching.
-
----
-
-## 2. Stage Data to the Volume
+### Stage reference data
 
 ```bash
-python examples/foundation_models/05_run_pipeline.py --stage-data
+# Stage GRCh37 reference data (Ensembl, for SpliceAI)
+python examples/foundation_models/ops_stage_data.py data/ensembl/GRCh37
+
+# Stage GRCh38 reference data (MANE, for OpenSpliceAI)
+python examples/foundation_models/ops_stage_data.py data/mane/GRCh38
+
+# Stage any custom dataset
+python examples/foundation_models/ops_stage_data.py data/my_images/train
 ```
 
-This:
-1. Launches a pod with both `file_mounts` (your local data) and the volume
-2. Runs `rsync` from the uploaded data to the volume's `volume_data_dir`
-3. Prints a directory listing and total size for verification
-4. Tears down the pod (volume persists)
+### Stage model weights
 
-### What happens under the hood
+Use `--weights` with a model name — the script resolves the weights directory
+via the resource manager (no need to remember paths):
 
-```yaml
-# Generated SkyPilot config (simplified)
-volumes:
-  /runpod-volume: "My Volume"         # mount the network volume
-file_mounts:
-  /tmp/upload-data: ./local/data/     # upload local data to pod
-run: |
-  rsync -av /tmp/upload-data/ /runpod-volume/data/my_dataset/
+```bash
+# SpliceAI weights (TensorFlow .h5 files)
+python examples/foundation_models/ops_stage_data.py --weights spliceai
+
+# OpenSpliceAI weights (PyTorch .pt files)
+python examples/foundation_models/ops_stage_data.py --weights openspliceai
 ```
 
-The data takes two hops: local → pod (via `file_mounts`) → volume (via `rsync`
-in the `run:` block). After teardown, only the volume copy persists.
+### Stage everything for a model in one command
+
+```bash
+# SpliceAI: GRCh37 data + model weights
+python examples/foundation_models/ops_stage_data.py \
+    data/ensembl/GRCh37 --weights spliceai
+
+# OpenSpliceAI: GRCh38 data + model weights
+python examples/foundation_models/ops_stage_data.py \
+    data/mane/GRCh38 --weights openspliceai
+```
+
+### Preview before transferring
+
+```bash
+python examples/foundation_models/ops_stage_data.py --dry-run \
+    data/ensembl/GRCh37 --weights spliceai
+```
+
+### Target a specific cluster
+
+If multiple clusters are running, specify which one:
+
+```bash
+python examples/foundation_models/ops_stage_data.py \
+    --cluster sky-d5c6-pleiadian53 \
+    data/mane/GRCh38
+```
+
+### How it works
+
+For each path, `ops_stage_data.py`:
+1. Rsyncs the local directory to the network volume (preserving structure)
+2. Creates a symlink in `~/sky_workdir/` so scripts find data at expected paths
+
+```
+Local:   data/ensembl/GRCh37/
+Volume:  /runpod-volume/data/ensembl/GRCh37/
+Symlink: ~/sky_workdir/data/ensembl/GRCh37 -> /runpod-volume/data/ensembl/GRCh37
+```
+
+---
+
+## 2. Stage Data During Provisioning (Alternative)
+
+If this is your first time setting up, you can stage data as part of provisioning:
+
+```bash
+python examples/foundation_models/ops_provision_cluster.py \
+    --stage-data --data-path ensembl/GRCh37 --stage-weights spliceai
+```
+
+This bundles data upload into the `sky launch` process via `file_mounts`. It's
+convenient for initial setup but slower than `ops_stage_data.py` because:
+- Data takes two hops: local → pod temp → volume
+- The entire `sky launch` blocks until upload finishes (setup + run don't start)
+- You can't stage additional datasets without re-launching
+
+**Use `ops_stage_data.py` for subsequent data staging** — it rsyncs directly
+to the running pod, is incremental, and supports multiple paths in one command.
 
 ---
 
@@ -173,55 +228,40 @@ ls data/my_dataset/       # lists actual files via symlink
 
 ## 4. Running with Staged Data
 
-Once data is staged, use `--use-volume` to skip re-upload:
+Once data is staged, jobs use the network volume directly — no re-upload:
 
 ```bash
-# With the pipeline runner
-python examples/foundation_models/05_run_pipeline.py --execute --use-volume \
+# With the pipeline runner (use_volume: true is the default in gpu_config.yaml)
+python examples/foundation_models/ops_run_pipeline.py --execute \
     -- python your_script.py --your-args
 
-# Or set use_volume: true in gpu_config.yaml (then --use-volume is automatic)
+# Or on an existing cluster
+python examples/foundation_models/ops_run_pipeline.py --execute \
+    --cluster sky-d5c6-pleiadian53 --no-teardown \
+    -- python your_script.py --your-args
 ```
 
-This mounts the volume and symlinks `volume_data_dir` to the relative path your
-scripts expect — no `file_mounts` upload needed.
+The runner mounts the volume and symlinks data to the expected relative paths.
 
 ---
 
 ## 5. Updating Staged Data
 
-`rsync` is idempotent — re-running `--stage-data` only copies new or changed
-files. To update your dataset after local changes:
+`rsync` is incremental — re-running only transfers new or changed files:
 
 ```bash
-# Re-stage (only transfers diffs)
-python examples/foundation_models/05_run_pipeline.py --stage-data
+# Re-stage after local changes (only transfers diffs)
+python examples/foundation_models/ops_stage_data.py data/ensembl/GRCh37
 ```
 
-To stage to a different path or from a different source, edit the `stage_data()`
-function in `gpu_runner.py` or manually create a SkyPilot YAML:
-
-```yaml
-name: stage-custom-data
-resources:
-  accelerators: A40:1
-  cloud: runpod
-volumes:
-  /runpod-volume: "My Volume"
-file_mounts:
-  /tmp/upload: ./path/to/local/data
-run: |
-  mkdir -p /runpod-volume/custom/path/
-  rsync -av --progress /tmp/upload/ /runpod-volume/custom/path/
-  echo "Contents:"
-  ls -lh /runpod-volume/custom/path/
-  du -sh /runpod-volume/custom/path/
-```
+You can stage entirely new datasets at any time without reprovisioning:
 
 ```bash
-sky launch stage-custom-data.yaml -y
-# Verify, then tear down
-sky down stage-custom-data -y
+# Add a new dataset to the running pod
+python examples/foundation_models/ops_stage_data.py data/my_new_dataset
+
+# Add weights for a new model
+python examples/foundation_models/ops_stage_data.py --weights openspliceai
 ```
 
 ---
@@ -301,14 +341,36 @@ sky logs --provision <cluster>     # provisioning log (infrastructure setup)
 
 ---
 
-## Reference: Configuration Fields
+## Reference
 
-| Field in `gpu_config.yaml` | Default | Description |
-|---------------------------|---------|-------------|
-| `use_volume` | `false` | Whether to mount the network volume |
+### Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `ops_provision_cluster.py` | Acquire a pod, install packages, optionally stage initial data |
+| **`ops_stage_data.py`** | Stage data/weights to a running pod (recommended for ongoing use) |
+| `ops_run_pipeline.py` | Execute a job on a running or new cluster |
+| `ops_compute_check.py` | Verify GPU and compute environment |
+
+### `ops_stage_data.py` flags
+
+| Flag | Description |
+|------|-------------|
+| `<paths>` | Local directories to stage (positional, e.g., `data/ensembl/GRCh37`) |
+| `--weights MODEL` | Stage model weights by name (repeatable) |
+| `--cluster NAME` | Target cluster (auto-detects if one running) |
+| `--volume-mount PATH` | Volume mount point (default: `/runpod-volume`) |
+| `--data-prefix DIR` | Data prefix directory (default: `data`) |
+| `--dry-run` | Preview without transferring |
+
+### Configuration (`gpu_config.yaml`)
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `use_volume` | `true` | Whether to mount the network volume |
 | `volume_name` | `"AI lab extension"` | Volume name (must match RunPod dashboard) |
 | `volume_mount` | `/runpod-volume` | Mount point on the pod |
-| `volume_data_dir` | `/runpod-volume/data/mane/GRCh38` | Data directory on the volume |
+| `data_prefix` | `"data"` | Top-level data directory |
+| `data_path` | `"mane/GRCh38"` | Dataset subpath (compose as `{data_prefix}/{data_path}`) |
 
-These can be overridden per-run via CLI flags (`--use-volume`, `--no-volume`) or
-by editing the config file. See `gpu_runner.py:InfraConfig` for the full list.
+See `gpu_runner.py:InfraConfig` for the full list of fields.
