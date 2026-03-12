@@ -30,7 +30,14 @@ def _register_genomic() -> None:
     FeaturePipeline.register("genomic", GenomicContextModality, GenomicContextConfig)
 
 
+def _register_conservation() -> None:
+    from .conservation import ConservationConfig, ConservationModality
+
+    FeaturePipeline.register("conservation", ConservationModality, ConservationConfig)
+
+
 # Register modalities that may have heavier dependencies lazily
 _register_annotation()
 _register_sequence()
 _register_genomic()
+_register_conservation()

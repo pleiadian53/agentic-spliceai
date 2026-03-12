@@ -405,8 +405,11 @@ def extract_sparse_embeddings(
     )
 
     embeddings = np.zeros((len(sequences), hidden_dim * 2), dtype=np.float32)
+    t_extract = time.time()
 
     for i, (seq_fwd, seq_rev) in enumerate(sequences):
+        t_pos = time.time()
+
         # Forward strand: encode and take last position
         with torch.no_grad():
             emb_fwd = model.encode(seq_fwd, layer=layer)  # [context_size, hidden_dim]
@@ -424,8 +427,18 @@ def extract_sparse_embeddings(
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
+        elapsed_pos = time.time() - t_pos
+        elapsed_total = time.time() - t_extract
+
+        if i == 0:
+            logger.info("  [1/%d] first embedding: %.1fs", len(sequences), elapsed_pos)
         if (i + 1) % 50 == 0 or (i + 1) == len(sequences):
-            logger.info("  [%d/%d] embeddings extracted", i + 1, len(sequences))
+            rate = (i + 1) / elapsed_total
+            eta = (len(sequences) - i - 1) / rate if rate > 0 else 0
+            logger.info(
+                "  [%d/%d] embeddings extracted (%.1fs/pos, ETA %.0fm)",
+                i + 1, len(sequences), elapsed_pos, eta / 60,
+            )
 
     logger.info("Embeddings shape: %s (%.1f MB)", embeddings.shape,
                 embeddings.nbytes / (1024**2))

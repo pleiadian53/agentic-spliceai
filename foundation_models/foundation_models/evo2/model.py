@@ -73,11 +73,26 @@ class Evo2Model:
         print(f"Loading Evo2 {self.config.model_size} model...")
         print(f"  Checkpoint: {checkpoint}")
 
-        self._evo2 = Evo2(checkpoint)
+        # Load model in bfloat16 to fit in GPU memory.
+        # Evo2 7B in float32 needs ~28 GB weights + 14 GB checkpoint = ~42 GB during
+        # loading, exceeding A40 (48 GB) with no room for inference. BFloat16 halves
+        # the model allocation to ~14 GB, leaving ample room for activations.
+        # Safe on all Ampere+ GPUs (A40, A100, H100) which have native bf16 support.
+        prev_dtype = torch.get_default_dtype()
+        torch.set_default_dtype(torch.bfloat16)
+        try:
+            self._evo2 = Evo2(checkpoint)
+        finally:
+            torch.set_default_dtype(prev_dtype)
         self._hidden_dim = self._probe_hidden_dim()
 
         logger.info("Evo2 %s loaded successfully (hidden_dim=%d)", self.config.model_size, self.hidden_dim)
         print(f"  Loaded Evo2 {self.config.model_size} successfully (hidden_dim={self.hidden_dim})")
+
+        # Warmup: run a short dummy sequence to trigger CUDA kernel JIT compilation.
+        # The first forward pass compiles custom Hyena/FFT kernels for the GPU arch —
+        # doing this with a small sequence is faster than hitting it with 8K tokens.
+        self._warmup()
 
     def _probe_hidden_dim(self) -> Optional[int]:
         """Discover hidden_dim from the loaded model weights.
@@ -111,6 +126,39 @@ class Evo2Model:
             pass
 
         return None
+
+    def _warmup(self) -> None:
+        """Run a short dummy forward pass to trigger CUDA kernel compilation.
+
+        The first forward pass through StripedHyena compiles custom FFT/Hyena
+        convolution kernels for the specific GPU architecture. Doing this with
+        a tiny sequence (64 tokens) is much faster than hitting it with a full
+        8K-token context window. Kernels are cached in memory for the process
+        lifetime, so all subsequent calls are fast regardless of length.
+        """
+        import time
+
+        print("  Warming up CUDA kernels (first forward pass)...", end="", flush=True)
+        t0 = time.time()
+
+        dummy_seq = "ATCG" * 16  # 64 bp — minimal sequence
+        try:
+            with torch.no_grad():
+                self._evo2.tokenizer.tokenize(dummy_seq)
+                tokens = self._evo2.tokenizer.tokenize(dummy_seq)
+                input_ids = (
+                    torch.tensor(tokens, dtype=torch.int)
+                    .unsqueeze(0)
+                    .to("cuda:0")
+                )
+                self._evo2(input_ids)
+                torch.cuda.synchronize()
+        except Exception as e:
+            logger.warning("Warmup failed (non-fatal): %s", e)
+
+        elapsed = time.time() - t0
+        print(f" done ({elapsed:.1f}s)")
+        logger.info("CUDA warmup complete (%.1fs)", elapsed)
 
     @staticmethod
     def _patch_fp8_if_needed() -> None:
