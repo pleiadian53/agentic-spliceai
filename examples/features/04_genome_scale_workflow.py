@@ -30,6 +30,9 @@ Usage:
     # Add chromosomes incrementally (predictions are merged, new chroms processed)
     python 04_genome_scale_workflow.py --chromosomes chr20 chr21 chr22 --resume
 
+    # Use SpliceAI (GRCh37) — chromosomes auto-normalized to bare numbers
+    python 04_genome_scale_workflow.py --chromosomes chr21 chr22 --model spliceai --sample
+
     # Control prediction chunk size (for on-demand prediction)
     python 04_genome_scale_workflow.py --chromosomes chr22 --chunk-size 200
 
@@ -49,6 +52,15 @@ Usage:
     # Broader splice capture with context (score>0.001, window=100, 0.1% bg)
     python 04_genome_scale_workflow.py --chromosomes chr22 --sample \\
         --sample-threshold 0.001 --sample-window 100 --sample-bg-rate 0.001
+
+    # --- All chromosomes (full genome) ---
+
+    # Process all 24 canonical chromosomes (1-22 + X + Y)
+    python 04_genome_scale_workflow.py --chromosomes all --model spliceai --sample --resume
+
+    nohup python -u examples/features/04_genome_scale_workflow.py \
+    --chromosomes all --model spliceai --sample --resume \
+    > /workspace/output/spliceai_genome_features.log 2>&1 &
 
     # --- Fresh run (redo from scratch) ---
 
@@ -75,9 +87,20 @@ from agentic_spliceai.splice_engine.features import (
     FeaturePipelineConfig,
     FeatureWorkflow,
 )
+from agentic_spliceai.splice_engine.base_layer.data import normalize_chromosomes_for_build
 from agentic_spliceai.splice_engine.resources import ensure_chrom_column, get_model_resources
 
 log = logging.getLogger(__name__)
+
+
+def _chrom_sort_key(chrom: str) -> tuple[int, str]:
+    """Natural sort key: autosomes numerically, then X, Y, M."""
+    bare = chrom.replace("chr", "")
+    order = {"X": 23, "Y": 24, "M": 25, "MT": 25}
+    try:
+        return (int(bare), "")
+    except ValueError:
+        return (order.get(bare, 99), bare)
 
 
 def _ensure_predictions(
@@ -163,7 +186,8 @@ def main():
     )
     parser.add_argument(
         "--chromosomes", nargs="+", default=["chr22"],
-        help="Chromosomes to process (default: chr22)",
+        help="Chromosomes to process (default: chr22). "
+             "Use 'all' for all canonical autosomes + sex chromosomes.",
     )
     parser.add_argument(
         "--model", default="openspliceai",
@@ -216,10 +240,18 @@ def main():
     )
     args = parser.parse_args()
 
-    # Normalize chromosome names
-    chromosomes = [
-        c if c.startswith("chr") else f"chr{c}" for c in args.chromosomes
-    ]
+    # Resolve "all" to canonical chromosomes for this build
+    resources = get_model_resources(args.model)
+    if args.chromosomes == ["all"]:
+        from agentic_spliceai.splice_engine.base_layer.data import get_canonical_chromosomes
+        all_chroms = get_canonical_chromosomes(resources.build, include_mito=False)
+        # Keep only the build's native format (chr-prefixed or bare)
+        normalized = set(normalize_chromosomes_for_build(list(all_chroms), resources.build))
+        chromosomes = sorted(normalized, key=_chrom_sort_key)
+    else:
+        # Normalize user-provided names to match the model's build convention
+        # (GRCh38/MANE → chr22, GRCh37/Ensembl → 22)
+        chromosomes = normalize_chromosomes_for_build(args.chromosomes, resources.build)
 
     print("=" * 70)
     print("Feature Engineering Example 4: Genome-Scale Workflow")
@@ -242,7 +274,6 @@ def main():
             print(f"\n  Input directory not found: {input_dir}")
             return 1
     else:
-        resources = get_model_resources(args.model)
         registry = resources.get_registry()
         input_dir = registry.get_base_model_eval_dir(args.model) / "precomputed"
 
@@ -267,10 +298,10 @@ def main():
                 .collect()["chrom"]
                 .to_list()
             )
-            # Normalize: predictions may use 'chr22' or '22'
-            available_norm = {
-                c if c.startswith("chr") else f"chr{c}" for c in available
-            }
+            # Normalize available chroms to the build's convention for comparison
+            available_norm = set(normalize_chromosomes_for_build(
+                available, resources.build
+            ))
             missing = [c for c in chromosomes if c not in available_norm]
             if missing:
                 print(f"\n  Precomputed predictions found but missing: "

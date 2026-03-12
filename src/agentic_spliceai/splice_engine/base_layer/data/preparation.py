@@ -645,30 +645,30 @@ def filter_by_chromosomes(
 
 def normalize_chromosome_names(chromosomes: List[str]) -> List[str]:
     """Normalize chromosome names to standard format.
-    
+
     Converts between 'chr1' and '1' formats to match the format used
     in the input data.
-    
+
     Parameters
     ----------
     chromosomes : List[str]
         List of chromosome names in any format
-    
+
     Returns
     -------
     List[str]
         Normalized chromosome names (both formats included)
-    
+
     Examples
     --------
     >>> normalize_chromosome_names(['1', 'chr21', 'X'])
     ['1', 'chr1', '21', 'chr21', 'X', 'chrX']
     """
     normalized = []
-    
+
     for chrom in chromosomes:
         chrom_str = str(chrom)
-        
+
         # Add both formats to be safe
         if chrom_str.startswith('chr'):
             # Has 'chr' prefix
@@ -678,8 +678,50 @@ def normalize_chromosome_names(chromosomes: List[str]) -> List[str]:
             # No prefix
             normalized.append(chrom_str)  # 1
             normalized.append(f'chr{chrom_str}')  # chr1
-    
+
     return list(set(normalized))  # Remove duplicates
+
+
+def normalize_chromosomes_for_build(
+    chromosomes: List[str],
+    build: str,
+) -> List[str]:
+    """Normalize chromosome names to match a specific genome build's convention.
+
+    GRCh38/MANE uses ``chr`` prefix (``chr22``), GRCh37/Ensembl uses bare
+    numbers (``22``).  This function strips or adds the prefix as needed so
+    that chromosome names match what the prediction output and reference
+    files actually contain.
+
+    Parameters
+    ----------
+    chromosomes : List[str]
+        Chromosome names in any format (``chr22``, ``22``, ``chrX``, etc.).
+    build : str
+        Genome build (``GRCh38``, ``GRCh37``, ``GRCh38_MANE``, ``hg38``,
+        ``hg19``).
+
+    Returns
+    -------
+    List[str]
+        Chromosome names in the build's native format.
+
+    Examples
+    --------
+    >>> normalize_chromosomes_for_build(["chr21", "chr22"], "GRCh37")
+    ['21', '22']
+    >>> normalize_chromosomes_for_build(["21", "22"], "GRCh38")
+    ['chr21', 'chr22']
+    """
+    spec = _get_chromosome_spec(build)
+    use_prefix = spec.get("chr_prefix", True)
+
+    result = []
+    for chrom in chromosomes:
+        chrom_str = str(chrom)
+        bare = chrom_str[3:] if chrom_str.startswith("chr") else chrom_str
+        result.append(f"chr{bare}" if use_prefix else bare)
+    return result
 
 
 # ---------------------------------------------------------------------------
