@@ -169,9 +169,9 @@ class FeatureWorkflow:
             )
 
             if chromosomes is not None:
-                target_chroms = [
-                    c if c.startswith("chr") else f"chr{c}" for c in chromosomes
-                ]
+                # Use chromosomes as-is — caller is responsible for
+                # build-appropriate naming (see normalize_chromosomes_for_build)
+                target_chroms = list(chromosomes)
                 missing = set(target_chroms) - set(available_chroms)
                 if missing:
                     logger.warning(
@@ -297,10 +297,16 @@ class FeatureWorkflow:
         return self._ensure_chrom_lazy(lazy)
 
     def _ensure_chrom_lazy(self, lazy: pl.LazyFrame) -> pl.LazyFrame:
-        """Ensure the LazyFrame has a ``chrom`` column (may be ``seqname``)."""
+        """Ensure the LazyFrame has a ``chrom`` column (may be ``seqname``).
+
+        Also casts ``chrom`` to Utf8 — Polars infers bare numeric chromosome
+        names (e.g., ``22``) as Int64, but all downstream code uses strings.
+        """
         cols = lazy.collect_schema().names()
         if "chrom" not in cols and "seqname" in cols:
             lazy = lazy.rename({"seqname": "chrom"})
+        # Ensure chrom is always string (Polars infers "22" as Int64 from TSV)
+        lazy = lazy.with_columns(pl.col("chrom").cast(pl.Utf8))
         return lazy
 
     def _get_chrom_output_path(self, chrom: str, fmt: str) -> Path:
