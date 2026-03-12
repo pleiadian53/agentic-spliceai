@@ -28,7 +28,7 @@ class ExonClassifier(nn.Module):
     
     Example:
         >>> classifier = ExonClassifier(
-        ...     input_dim=2560,  # Evo2 7B hidden dim
+        ...     input_dim=4096,  # Evo2 7B hidden dim
         ...     architecture="mlp"
         ... )
         >>> 
@@ -41,7 +41,7 @@ class ExonClassifier(nn.Module):
     
     def __init__(
         self,
-        input_dim: int = 2560,
+        input_dim: int = 4096,
         hidden_dim: int = 256,
         num_layers: int = 2,
         architecture: Literal["linear", "mlp", "cnn", "lstm"] = "mlp",

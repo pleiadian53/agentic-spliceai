@@ -158,7 +158,7 @@ def estimate_embedding_extraction(
 def estimate_classifier_training(
     n_windows: int = 500,
     window_size: int = 1024,
-    hidden_dim: int = 2560,
+    hidden_dim: int = 4096,
     hardware: Optional[str] = None,
 ) -> dict:
     """Estimate feasibility and resources for ExonClassifier training.

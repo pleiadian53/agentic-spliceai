@@ -142,7 +142,7 @@ def extract_synthetic_embeddings(args: argparse.Namespace) -> None:
     from foundation_models.utils.synthetic import save_synthetic_embeddings
 
     output_path = Path(args.output)
-    hidden_dim = args.hidden_dim or 2560
+    hidden_dim = args.hidden_dim or 4096
 
     logger.info(
         "Generating synthetic embeddings: %d genes, hidden_dim=%d",
@@ -217,7 +217,7 @@ def main():
     )
     parser.add_argument(
         "--hidden-dim", type=int, default=None,
-        help="Embedding dimension (default: 2560 for Evo2 7B)",
+        help="Embedding dimension (default: 4096 for Evo2 7B)",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
 

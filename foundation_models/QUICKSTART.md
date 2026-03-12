@@ -29,7 +29,7 @@ python foundation_models/examples/01_load_evo2_local.py
 **Expected output**:
 ```
 ✓ Model loaded successfully!
-✓ Embeddings shape: [200, 2560]
+✓ Embeddings shape: [200, 4096]
 SUCCESS!
 ```
 
@@ -72,7 +72,7 @@ embedder = Evo2Embedder(model_size="7b", quantize=True)
 # Single sequence
 sequence = "ATCGATCGATCG" * 100  # 1.2kb
 embeddings = embedder.encode(sequence)
-print(embeddings.shape)  # [1200, 2560]
+print(embeddings.shape)  # [1200, 4096]
 
 # Batch with caching
 genes = {
@@ -95,7 +95,7 @@ import torch
 
 # Create classifier
 classifier = ExonClassifier(
-    input_dim=2560,  # Evo2 7B hidden dim
+    input_dim=4096,  # Evo2 7B hidden dim
     architecture="mlp",
     hidden_dim=256,
     num_layers=2
@@ -103,7 +103,7 @@ classifier = ExonClassifier(
 
 # Train
 classifier.fit(
-    train_embeddings=train_emb,  # [N, seq_len, 2560]
+    train_embeddings=train_emb,  # [N, seq_len, 4096]
     train_labels=train_labels,    # [N, seq_len] - 0/1 binary
     val_embeddings=val_emb,
     val_labels=val_labels,

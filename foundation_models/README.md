@@ -119,7 +119,7 @@ sequence = "ATCGATCGATCG..."  # Your DNA sequence
 embeddings = embedder.encode(sequence)  # Shape: [seq_len, hidden_dim]
 
 print(f"Embeddings shape: {embeddings.shape}")
-# Output: Embeddings shape: torch.Size([12, 2560])
+# Output: Embeddings shape: torch.Size([12, 4096])
 ```
 
 ### Train Exon Classifier
@@ -129,7 +129,7 @@ from foundation_models.evo2 import ExonClassifier
 
 # Create classifier
 classifier = ExonClassifier(
-    input_dim=2560,  # Evo2 7B hidden dim
+    input_dim=4096,  # Evo2 7B hidden dim
     hidden_dim=256,
     num_layers=2,
     architecture="mlp"

@@ -326,14 +326,14 @@ embedder = Evo2Embedder(model_size="7b", quantize=True)
 embeddings_list, labels_list = [], []
 
 for window in build_training_dataset(chromosomes=["22"], window_size=4096):
-    emb = embedder.encode(window.sequence)          # [seq_len, 2560]
+    emb = embedder.encode(window.sequence)          # [seq_len, 4096]
     embeddings_list.append(emb)
     labels_list.append(torch.tensor(window.labels, dtype=torch.float32))
 
-train_embeddings = torch.stack(embeddings_list)     # [N, seq_len, 2560]
+train_embeddings = torch.stack(embeddings_list)     # [N, seq_len, 4096]
 train_labels = torch.stack(labels_list)             # [N, seq_len]
 
-classifier = ExonClassifier(input_dim=2560, architecture="mlp")
+classifier = ExonClassifier(input_dim=4096, architecture="mlp")
 classifier.fit(
     train_embeddings=train_embeddings,
     train_labels=train_labels,
@@ -380,7 +380,7 @@ The exon classifier trained here feeds into the meta-layer:
 ```
 Gene sequence (full gene or ±10 kb window)
         ↓ Evo2 encoder (frozen)
-        ↓ Evo2 embeddings [seq_len, 2560]
+        ↓ Evo2 embeddings [seq_len, 4096]
         ↓ ExonClassifier
 Exon probability per nucleotide  [seq_len]
         ↓  (used as additional feature)

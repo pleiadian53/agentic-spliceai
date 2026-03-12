@@ -25,7 +25,7 @@ class Evo2Embedder:
     Example:
         >>> embedder = Evo2Embedder(model_size="7b", quantize=True)
         >>> embeddings = embedder.encode("ATCG" * 1000)
-        >>> print(embeddings.shape)  # [4000, 2560]
+        >>> print(embeddings.shape)  # [4000, 4096]
         
         >>> # Extract and cache for multiple genes
         >>> gene_embeddings = embedder.encode_batch(

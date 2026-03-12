@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def generate_synthetic_embeddings(
     n_genes: int = 3,
     seq_lengths: Optional[List[int]] = None,
-    hidden_dim: int = 2560,
+    hidden_dim: int = 4096,
     seed: int = 42,
 ) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
     """Generate random embeddings and exon labels for testing.
@@ -29,7 +29,7 @@ def generate_synthetic_embeddings(
     Args:
         n_genes: Number of synthetic genes to generate.
         seq_lengths: Per-gene sequence lengths. If None, random 5K-50K bp.
-        hidden_dim: Embedding dimension (2560 for Evo2 7B, 5120 for 40B).
+        hidden_dim: Embedding dimension (4096 for Evo2 7B, 8192 for 40B).
         seed: Random seed for reproducibility.
 
     Returns:
@@ -83,7 +83,7 @@ def save_synthetic_embeddings(
     output_path: str,
     n_genes: int = 3,
     seq_lengths: Optional[List[int]] = None,
-    hidden_dim: int = 2560,
+    hidden_dim: int = 4096,
     seed: int = 42,
 ) -> Tuple[Path, Dict[str, np.ndarray]]:
     """Generate synthetic embeddings and save to HDF5 + labels to NPZ.
