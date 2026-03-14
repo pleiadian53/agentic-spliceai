@@ -376,6 +376,89 @@ def build_exon_labels(
     return labels
 
 
+def build_splice_labels(
+    gene_id: str,
+    gene_start: int,
+    gene_sequence_length: int,
+    splice_sites_df: "pd.DataFrame",
+) -> np.ndarray:
+    """Create per-nucleotide 3-class splice site labels.
+
+    Marks exact splice junction positions:
+      - 0 = no splice site (vast majority)
+      - 1 = acceptor (first nucleotide of exon, 3' splice site)
+      - 2 = donor (last nucleotide of exon, 5' splice site)
+
+    Unlike :func:`build_exon_labels` which fills entire exon spans, this
+    marks only the junction positions themselves (~0.01% of nucleotides).
+
+    Coordinates follow the same convention as ``build_exon_labels``: position
+    0 in the returned array corresponds to ``gene_start`` in genomic coords.
+
+    Parameters
+    ----------
+    gene_id:
+        Ensembl gene ID (used to filter *splice_sites_df*).
+    gene_start:
+        Genomic start coordinate of the gene (0-based, as stored in parquet).
+    gene_sequence_length:
+        Length of the gene sequence string.
+    splice_sites_df:
+        DataFrame loaded from ``splice_sites_enhanced.tsv``.
+        Must have columns: gene_id, position, splice_type.
+
+    Returns
+    -------
+    ``np.ndarray`` of shape ``[gene_sequence_length]``, dtype uint8.
+    Values: 0=no_splice, 1=acceptor, 2=donor.
+
+    Notes
+    -----
+    - Takes the union across all transcripts: if a position is a donor in
+      any transcript, it is marked as donor.
+    - If the same position appears as both donor and acceptor across
+      different transcripts (biologically impossible on the same strand),
+      a warning is logged and the first-encountered label is kept.
+    """
+    labels = np.zeros(gene_sequence_length, dtype=np.uint8)
+
+    gene_sites = splice_sites_df[splice_sites_df["gene_id"] == gene_id]
+    if gene_sites.empty:
+        return labels
+
+    splice_type_map = {"acceptor": 1, "donor": 2}
+    n_conflicts = 0
+
+    for _, row in gene_sites.iterrows():
+        splice_type = row["splice_type"]
+        label_val = splice_type_map.get(splice_type)
+        if label_val is None:
+            continue
+
+        rel_pos = row["position"] - gene_start
+
+        # Clip to gene sequence bounds
+        if rel_pos < 0 or rel_pos >= gene_sequence_length:
+            continue
+
+        if labels[rel_pos] != 0 and labels[rel_pos] != label_val:
+            # Conflict: same position is donor in one transcript, acceptor
+            # in another. Keep the existing label (first-encountered wins).
+            n_conflicts += 1
+            continue
+
+        labels[rel_pos] = label_val
+
+    if n_conflicts > 0:
+        warnings.warn(
+            f"Gene {gene_id}: {n_conflicts} positions had conflicting "
+            f"splice_type labels (kept first-encountered)",
+            stacklevel=2,
+        )
+
+    return labels
+
+
 # ---------------------------------------------------------------------------
 # Window iterator for training data generation
 # ---------------------------------------------------------------------------

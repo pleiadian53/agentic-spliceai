@@ -2,7 +2,12 @@
 Synthetic data utilities for local pipeline testing.
 
 Generates random embeddings and labels that match the real data shapes,
-enabling end-to-end pipeline validation without loading Evo2 (~14 GB).
+enabling end-to-end pipeline validation without loading foundation models.
+
+Provides:
+- ``generate_synthetic_embeddings`` — binary exon/intron labels.
+- ``generate_synthetic_splice_data`` — 3-class splice site labels
+  (0=none, 1=acceptor, 2=donor) with realistic block structure.
 """
 
 import logging
@@ -126,3 +131,88 @@ def save_synthetic_embeddings(
     logger.info("Saved embeddings to %s", output_path)
     logger.info("Saved labels to %s", labels_path)
     return output_path, labels
+
+
+def generate_synthetic_splice_data(
+    n_genes: int = 5,
+    seq_lengths: Optional[List[int]] = None,
+    hidden_dim: int = 512,
+    seed: int = 42,
+) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+    """Generate synthetic embeddings with 3-class splice site labels.
+
+    Creates realistic gene structure with alternating intron/exon blocks.
+    Splice sites (acceptor=1, donor=2) are placed at exon boundaries.
+
+    Args:
+        n_genes: Number of synthetic genes.
+        seq_lengths: Per-gene sequence lengths. If None, random 5K-30K bp.
+        hidden_dim: Embedding dimension.
+        seed: Random seed.
+
+    Returns:
+        Tuple of (embeddings_dict, splice_labels_dict), keyed by gene ID.
+        - embeddings_dict values: ``[seq_len, hidden_dim]`` float32
+        - splice_labels_dict values: ``[seq_len]`` uint8 (0=none, 1=acc, 2=don)
+    """
+    rng = np.random.default_rng(seed)
+
+    if seq_lengths is None:
+        seq_lengths = rng.integers(5000, 30000, size=n_genes).tolist()
+    elif len(seq_lengths) != n_genes:
+        raise ValueError(
+            f"seq_lengths length ({len(seq_lengths)}) != n_genes ({n_genes})"
+        )
+
+    embeddings: Dict[str, np.ndarray] = {}
+    labels: Dict[str, np.ndarray] = {}
+
+    total_splice_sites = 0
+    total_positions = 0
+
+    for i, seq_len in enumerate(seq_lengths):
+        gene_id = f"SYNTH_GENE_{i:04d}"
+
+        # Random embeddings
+        emb = rng.standard_normal((seq_len, hidden_dim)).astype(np.float32) * 0.1
+        embeddings[gene_id] = emb
+
+        # Build alternating intron/exon structure and mark boundaries
+        lbl = np.zeros(seq_len, dtype=np.uint8)
+        pos = 0
+        is_exon = False  # Start with intron (5' UTR)
+
+        while pos < seq_len:
+            if is_exon:
+                block_len = int(rng.integers(100, 500))
+                end = min(pos + block_len, seq_len)
+
+                # Mark acceptor at exon start (if not at gene boundary)
+                if pos > 0 and pos < seq_len:
+                    lbl[pos] = 1  # acceptor
+                    total_splice_sites += 1
+
+                # Mark donor at exon end (if not at gene boundary)
+                actual_end = min(end - 1, seq_len - 1)
+                if actual_end > pos and actual_end < seq_len - 1:
+                    lbl[actual_end] = 2  # donor
+                    total_splice_sites += 1
+
+                pos = end
+            else:
+                block_len = int(rng.integers(500, 5000))
+                pos = min(pos + block_len, seq_len)
+
+            is_exon = not is_exon
+
+        labels[gene_id] = lbl
+        total_positions += seq_len
+
+    splice_fraction = total_splice_sites / total_positions if total_positions else 0
+    logger.info(
+        "Generated %d synthetic genes: %d splice sites / %d positions "
+        "(%.4f%% splice rate, hidden_dim=%d)",
+        n_genes, total_splice_sites, total_positions,
+        splice_fraction * 100, hidden_dim,
+    )
+    return embeddings, labels

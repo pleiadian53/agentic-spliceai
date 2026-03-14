@@ -1,54 +1,59 @@
 #!/usr/bin/env python3
 """
-Sparse Exon Classifier — Reproducing the Evo2 Paper Methodology
+Sparse Exon Classifier — Multi-Model Foundation Model Embeddings
 
-Implements the exon classification approach from Brixi et al. (2025/2026):
+Implements exon/intron classification using frozen embeddings from genomic
+foundation models.  Originally based on the Evo2 paper methodology
+(Brixi et al. 2025/2026, Section 4.3.9), now generalized to support
+multiple embedding models:
+
+  - **Evo2** (7B/40B) — causal DNA LM, dual-strand extraction (Apache 2.0)
+  - **SpliceBERT** (19.4M) — bidirectional BERT, splice-specific (AGPL-3.0)
+  - **HyenaDNA** (1.6M-300M) — causal Hyena operator (Apache 2.0)
+
+Pipeline:
   1. Sample N random positions from within gene bodies
-  2. For each position, extract the final-position embedding from both strands
-     using an 8,192 bp context window per strand → concatenate → 2×hidden_dim
-     feature vector (e.g., 2×4096 = 8,192-dim for 7b; 2×8192 = 16,384-dim for 40b)
-  3. Train a lightweight MLP classifier (weighted BCE)
-  4. Evaluate AUROC on held-out chromosomes
+  2. Extract context sequences (causal: dual-strand; bidirectional: centered)
+  3. Extract embeddings from the foundation model
+  4. Train a lightweight MLP classifier (weighted BCE)
+  5. Evaluate AUROC/AUPRC on held-out chromosomes
 
-This validates that Evo2 embeddings carry exon/intron biological signal
-with minimal storage (~47 MB for 1,500 positions vs ~400 GB for dense extraction).
-
-Key design choices matching the paper:
-  - Target position placed at 3' end of context window (causal model)
-  - Forward strand = upstream context; reverse complement = downstream context
-  - Penultimate layer (blocks.26) used for embeddings
-  - Single hidden layer MLP (1024 units) with weighted BCE
+Extraction strategies:
+  - **Causal** (Evo2, HyenaDNA): last-position from forward + reverse strands
+    → feature dim = 2 × hidden_dim
+  - **Bidirectional** (SpliceBERT): center-position from single window
+    → feature dim = 1 × hidden_dim
 
 Usage:
-    # Full run (paper's setup: 1500 positions)
-    python examples/foundation_models/05_sparse_exon_classifier.py \\
-        --n-positions 1500 \\
-        --output /workspace/output/sparse/
+    # Evo2 (Evo2 paper setup: 1500 positions, needs A40+)
+    python 05_sparse_exon_classifier.py \\
+        --foundation-model evo2 --n-positions 1500 \\
+        -o /workspace/output/sparse-evo2/
 
-    # Quick smoke test
-    python examples/foundation_models/05_sparse_exon_classifier.py \\
-        --n-positions 50 \\
-        --output /workspace/output/sparse-test/
+    # SpliceBERT (runs on any GPU or CPU — 19.4M params)
+    python 05_sparse_exon_classifier.py \\
+        --foundation-model splicebert --n-positions 1500 \\
+        -o /workspace/output/sparse-splicebert/
 
-    # Local smoke test with mock embeddings (no CUDA needed)
-    python examples/foundation_models/05_sparse_exon_classifier.py \\
-        --n-positions 50 --mock \\
-        --output /tmp/sparse-test/
+    # HyenaDNA (medium, runs on any GPU or CPU)
+    python 05_sparse_exon_classifier.py \\
+        --foundation-model hyenadna --model-size medium-160k \\
+        --n-positions 1500 -o /workspace/output/sparse-hyenadna/
 
-    # Custom context window and layer
-    python examples/foundation_models/05_sparse_exon_classifier.py \\
-        --n-positions 1500 --context-size 4096 --layer blocks.24 \\
-        --output /workspace/output/sparse/
+    # Mock mode (no GPU needed — validates pipeline)
+    python 05_sparse_exon_classifier.py \\
+        --foundation-model splicebert --mock --n-positions 50 \\
+        -o /tmp/sparse-test/
 
-    # Via SkyPilot
-    python examples/foundation_models/ops_run_pipeline.py --execute \\
-        --cluster <name> --no-teardown \\
-        -- python examples/foundation_models/05_sparse_exon_classifier.py \\
-             --n-positions 1500 --output /workspace/output/sparse/
+    # Pre-extracted embeddings (skip model loading)
+    python 05_sparse_exon_classifier.py \\
+        --embeddings-file /path/to/sparse_embeddings.npz \\
+        -o /workspace/output/retrain/
 
 References:
     - Brixi et al., Nature (2026), Section 4.3.9
-    - Published model: huggingface.co/schmojo/evo2-exon-classifier
+    - Chen & Zheng 2024, Briefings in Bioinformatics 25(3) (SpliceBERT)
+    - Nguyen et al. 2023, NeurIPS 2023 (HyenaDNA)
 """
 
 import argparse
@@ -285,14 +290,29 @@ def extract_context_sequences(
     positions: list[dict],
     fasta_path: str,
     context_size: int = 8192,
-) -> list[tuple[str, str]]:
-    """Extract forward and reverse context sequences for each position.
+    model_type: str = "causal",
+) -> list[tuple[str, ...]]:
+    """Extract context sequences for each position.
 
-    For each position P (1-based):
-      - Forward:  genome[P - context_size + 1 : P]  (P at 3' end)
-      - Reverse:  revcomp(genome[P : P + context_size - 1])  (P at 3' end)
+    Strategy depends on model architecture:
 
-    Returns list of (seq_forward, seq_reverse) tuples.
+    **Causal** (Evo2, HyenaDNA): dual-strand, target at 3' end.
+      - Forward:  genome[P - context_size + 1 : P]  (upstream context)
+      - Reverse:  revcomp(genome[P : P + context_size - 1])  (downstream)
+      - Returns 2-tuples ``(seq_forward, seq_reverse)``.
+
+    **Bidirectional** (SpliceBERT, DNABERT-2): single centered window.
+      - Centered: genome[P - context_size//2 : P + context_size//2]
+      - Returns 1-tuples ``(seq_centered,)``.
+
+    Args:
+        positions: List of position dicts with ``chrom``, ``genomic_pos``.
+        fasta_path: Path to reference FASTA.
+        context_size: Context window size in nucleotides.
+        model_type: ``"causal"`` or ``"bidirectional"``.
+
+    Returns:
+        List of tuples — 2-tuples for causal, 1-tuples for bidirectional.
     """
     from pyfaidx import Fasta
 
@@ -303,7 +323,7 @@ def extract_context_sequences(
     logger.info("Loading FASTA index...")
     fasta = Fasta(fasta_path)
 
-    sequences = []
+    sequences: list[tuple[str, ...]] = []
     n_padded = 0
 
     for i, pos in enumerate(positions):
@@ -319,46 +339,73 @@ def extract_context_sequences(
             chrom_key = f"chr{chrom}"
         else:
             logger.warning("Chromosome %s not in FASTA, skipping position %d", chrom, gpos)
-            sequences.append(("N" * context_size, "N" * context_size))
+            if model_type == "causal":
+                sequences.append(("N" * context_size, "N" * context_size))
+            else:
+                sequences.append(("N" * context_size,))
             continue
 
         chrom_len = len(fasta[chrom_key])
 
-        # Forward strand: upstream context, target at 3' end
-        # pyfaidx uses 0-based slicing
-        fwd_start = gpos - context_size  # 0-based start (gpos-1 - context_size + 1)
-        fwd_end = gpos  # 0-based exclusive end (= gpos-1 + 1)
+        if model_type == "bidirectional":
+            # Centered window: target position in the middle
+            half = context_size // 2
+            ctr_start = gpos - 1 - half  # 0-based
+            ctr_end = ctr_start + context_size
 
-        if fwd_start < 0:
-            # Pad with N at the start
-            pad_len = -fwd_start
-            seq_fwd = "N" * pad_len + str(fasta[chrom_key][0:fwd_end])
-            n_padded += 1
+            if ctr_start < 0:
+                pad_len = -ctr_start
+                seq = "N" * pad_len + str(fasta[chrom_key][0:ctr_end])
+                n_padded += 1
+            elif ctr_end > chrom_len:
+                seq = str(fasta[chrom_key][ctr_start:chrom_len])
+                pad_len = ctr_end - chrom_len
+                seq += "N" * pad_len
+                n_padded += 1
+            else:
+                seq = str(fasta[chrom_key][ctr_start:ctr_end])
+
+            seq = seq.upper()
+            assert len(seq) == context_size, (
+                f"centered len={len(seq)} != {context_size}"
+            )
+            sequences.append((seq,))
         else:
-            seq_fwd = str(fasta[chrom_key][fwd_start:fwd_end])
+            # Causal: dual-strand extraction (original strategy)
+            # Forward strand: upstream context, target at 3' end
+            fwd_start = gpos - context_size  # 0-based
+            fwd_end = gpos
 
-        # Reverse strand: downstream context, target at 3' end after revcomp
-        rev_start = gpos - 1  # 0-based start (gpos-1)
-        rev_end = gpos - 1 + context_size  # 0-based exclusive end
+            if fwd_start < 0:
+                pad_len = -fwd_start
+                seq_fwd = "N" * pad_len + str(fasta[chrom_key][0:fwd_end])
+                n_padded += 1
+            else:
+                seq_fwd = str(fasta[chrom_key][fwd_start:fwd_end])
 
-        if rev_end > chrom_len:
-            # Pad with N at the end
-            seq_downstream = str(fasta[chrom_key][rev_start:chrom_len])
-            pad_len = rev_end - chrom_len
-            seq_downstream += "N" * pad_len
-            n_padded += 1
-        else:
-            seq_downstream = str(fasta[chrom_key][rev_start:rev_end])
+            # Reverse strand: downstream context, target at 3' end after revcomp
+            rev_start = gpos - 1
+            rev_end = gpos - 1 + context_size
 
-        seq_rev = reverse_complement(seq_downstream)
+            if rev_end > chrom_len:
+                seq_downstream = str(fasta[chrom_key][rev_start:chrom_len])
+                pad_len = rev_end - chrom_len
+                seq_downstream += "N" * pad_len
+                n_padded += 1
+            else:
+                seq_downstream = str(fasta[chrom_key][rev_start:rev_end])
 
-        # Verify lengths
-        seq_fwd = seq_fwd.upper()
-        seq_rev = seq_rev.upper()
-        assert len(seq_fwd) == context_size, f"fwd len={len(seq_fwd)} != {context_size}"
-        assert len(seq_rev) == context_size, f"rev len={len(seq_rev)} != {context_size}"
+            seq_rev = reverse_complement(seq_downstream)
 
-        sequences.append((seq_fwd, seq_rev))
+            seq_fwd = seq_fwd.upper()
+            seq_rev = seq_rev.upper()
+            assert len(seq_fwd) == context_size, (
+                f"fwd len={len(seq_fwd)} != {context_size}"
+            )
+            assert len(seq_rev) == context_size, (
+                f"rev len={len(seq_rev)} != {context_size}"
+            )
+            sequences.append((seq_fwd, seq_rev))
 
         if (i + 1) % 500 == 0:
             logger.info("  Extracted %d/%d sequences", i + 1, len(positions))
@@ -375,55 +422,76 @@ def extract_context_sequences(
 # -----------------------------------------------------------------------
 
 def extract_sparse_embeddings(
-    sequences: list[tuple[str, str]],
-    model_size: str = "7b",
-    layer: str = "blocks.26",
+    sequences: list[tuple[str, ...]],
+    model: "BaseEmbeddingModel",
+    layer: str | None = None,
 ) -> np.ndarray:
-    """Extract final-position embeddings from both strands, concatenated.
+    """Extract point embeddings using any foundation model.
+
+    Strategy depends on model architecture (from ``model.metadata()``):
+
+    **Causal** — dual-strand, last-position:
+      Each sequence tuple is ``(forward, reverse)``.  Takes ``emb[-1, :]``
+      from each strand and concatenates → ``[N, 2 × hidden_dim]``.
+
+    **Bidirectional** — single centered window, center-position:
+      Each sequence tuple is ``(centered,)``.  Takes ``emb[center_idx, :]``
+      → ``[N, hidden_dim]``.
 
     Args:
-        sequences: List of (forward_seq, reverse_seq) pairs.
-        model_size: Evo2 model size ('7b' or '40b').
-        layer: Layer to extract embeddings from.
+        sequences: List of sequence tuples (from ``extract_context_sequences``).
+        model: Foundation embedding model satisfying ``BaseEmbeddingModel``.
+        layer: Optional internal layer (only used if model supports it).
 
     Returns:
-        Array of shape [N, hidden_dim * 2] (e.g., [N, 8192] for 7B).
+        Array of shape ``[N, feature_dim]``.
     """
     import torch
 
-    from foundation_models.evo2.model import Evo2Model
-    from foundation_models.evo2.config import Evo2Config
+    meta = model.metadata()
+    hidden_dim = meta.hidden_dim
+    feature_dim = meta.feature_dim_for_classifier
+    is_causal = meta.model_type == "causal"
 
-    config = Evo2Config(model_size=model_size, embedding_layer=layer)
-    logger.info("Loading Evo2 %s (layer=%s)...", model_size, layer)
-    model = Evo2Model(config)
-    hidden_dim = model.hidden_dim
-
+    n_strands = 2 if is_causal else 1
     logger.info(
-        "Extracting embeddings: %d positions × 2 strands (hidden_dim=%d)",
-        len(sequences), hidden_dim,
+        "Extracting embeddings: %d positions × %d strand(s) "
+        "(model=%s, hidden_dim=%d, feature_dim=%d)",
+        len(sequences), n_strands, meta.name, hidden_dim, feature_dim,
     )
 
-    embeddings = np.zeros((len(sequences), hidden_dim * 2), dtype=np.float32)
+    embeddings = np.zeros((len(sequences), feature_dim), dtype=np.float32)
     t_extract = time.time()
 
-    for i, (seq_fwd, seq_rev) in enumerate(sequences):
+    for i, seq_tuple in enumerate(sequences):
         t_pos = time.time()
 
-        # Forward strand: encode and take last position
         with torch.no_grad():
-            emb_fwd = model.encode(seq_fwd, layer=layer)  # [context_size, hidden_dim]
-            emb_fwd_last = emb_fwd[-1, :].cpu().float().numpy()  # [hidden_dim]
+            if is_causal:
+                # Dual-strand: take last-position embedding from each
+                seq_fwd, seq_rev = seq_tuple
+                emb_fwd = model.encode(seq_fwd, layer=layer)
+                emb_fwd_last = emb_fwd[-1, :].cpu().float().numpy()
 
-            emb_rev = model.encode(seq_rev, layer=layer)
-            emb_rev_last = emb_rev[-1, :].cpu().float().numpy()
+                emb_rev = model.encode(seq_rev, layer=layer)
+                emb_rev_last = emb_rev[-1, :].cpu().float().numpy()
 
-        # Concatenate forward + reverse
-        embeddings[i, :hidden_dim] = emb_fwd_last
-        embeddings[i, hidden_dim:] = emb_rev_last
+                embeddings[i, :hidden_dim] = emb_fwd_last
+                embeddings[i, hidden_dim:] = emb_rev_last
+
+                del emb_fwd, emb_rev
+            else:
+                # Bidirectional: take center-position embedding
+                (seq_centered,) = seq_tuple
+                emb = model.encode(seq_centered, layer=layer)
+                center_idx = emb.shape[0] // 2
+                emb_center = emb[center_idx, :].cpu().float().numpy()
+
+                embeddings[i, :] = emb_center
+
+                del emb
 
         # Free GPU memory
-        del emb_fwd, emb_rev
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
@@ -532,7 +600,7 @@ def train_and_evaluate(
 
     print()
     print("=" * 60)
-    print(f"Training ExonClassifier (paper's sparse approach)")
+    print(f"Training ExonClassifier (Evo2 sparse exon approach)")
     print(f"  Input dim:    {input_dim}")
     print(f"  Hidden dim:   {hidden_dim}")
     print(f"  Positions:    {len(train_indices)} train, {len(val_indices)} val, {len(test_indices)} test")
@@ -602,7 +670,7 @@ def train_and_evaluate(
             else:
                 print(f"  {k:12s}: {v}")
         print()
-        print(f"  Paper reference: AUROC 0.82-0.99 across species")
+        print(f"  Paper reference (Evo2): AUROC 0.82-0.99 across species")
         print()
 
     # Save results
@@ -781,20 +849,38 @@ def save_training_plots(history: dict, output_dir: Path) -> list[Path]:
 # -----------------------------------------------------------------------
 
 def main() -> None:
+    from foundation_models.base import (
+        get_model_metadata,
+        list_available_models,
+        load_embedding_model,
+    )
+
+    available_models = list_available_models()
+
     parser = argparse.ArgumentParser(
-        description="Sparse exon classifier — reproducing Evo2 paper methodology.",
+        description="Sparse exon classifier using foundation model embeddings.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
+    # Foundation model selection
+    parser.add_argument("--foundation-model", type=str, default="evo2",
+                        choices=available_models,
+                        help=f"Foundation model for embeddings "
+                             f"(default: evo2; available: {', '.join(available_models)})")
+    parser.add_argument("--model-size", type=str, default=None,
+                        help="Model-specific variant (e.g. '7b' for Evo2, "
+                             "'medium-160k' for HyenaDNA; default: model-dependent)")
+    parser.add_argument("--layer", type=str, default=None,
+                        help="Internal layer for embeddings (only Evo2; "
+                             "default: blocks.26 for Evo2, ignored for others)")
+
+    # Sampling
     parser.add_argument("--n-positions", type=int, default=5000,
                         help="Number of random positions to sample (default: 5000; "
                              "paper used 1500 but more positions improve metric stability)")
-    parser.add_argument("--context-size", type=int, default=8192,
-                        help="Context window size in bp (default: 8192, paper's value)")
-    parser.add_argument("--layer", type=str, default="blocks.26",
-                        help="Evo2 layer for embeddings (default: blocks.26, paper's best)")
-    parser.add_argument("--model-size", type=str, default="7b", choices=["7b", "40b"],
-                        help="Evo2 model size (default: 7b)")
+    parser.add_argument("--context-size", type=int, default=None,
+                        help="Context window size in bp (default: model-dependent; "
+                             "clamped to model's max_context if too large)")
     parser.add_argument("--output", "-o", type=str, required=True,
                         help="Output directory")
     parser.add_argument("--split-preset", type=str, default="spliceai",
@@ -815,15 +901,15 @@ def main() -> None:
                              "(default: 0.15 = ~15%% exonic; 0.0 = no enrichment, "
                              "natural rate ~2.3%%)")
 
-    # Paper hyperparams (configurable for experimentation)
+    # Classifier hyperparams (configurable for experimentation)
     parser.add_argument("--hidden-dim", type=int, default=1024,
-                        help="Classifier hidden dim (default: 1024, paper's value)")
+                        help="Classifier hidden dim (default: 1024, Evo2 paper value)")
     parser.add_argument("--lr", type=float, default=5e-5,
-                        help="Learning rate (default: 5e-5, paper's value)")
+                        help="Learning rate (default: 5e-5, Evo2 paper value)")
     parser.add_argument("--batch-size", type=int, default=16,
-                        help="Batch size (default: 16, paper's value)")
+                        help="Batch size (default: 16, Evo2 paper value)")
     parser.add_argument("--weight-decay", type=float, default=2e-4,
-                        help="Weight decay (default: 2e-4, paper's value)")
+                        help="Weight decay (default: 2e-4, Evo2 paper value)")
     parser.add_argument("--epochs", type=int, default=100,
                         help="Max epochs (default: 100)")
     parser.add_argument("--patience", type=int, default=20,
@@ -837,10 +923,10 @@ def main() -> None:
     parser.add_argument("--embeddings-file", type=str, default=None,
                         help="Load pre-extracted embeddings from .npz (skip extraction)")
 
-    # Mock mode: random embeddings for local testing (no CUDA needed)
+    # Mock mode: random embeddings for local testing (no GPU needed)
     parser.add_argument("--mock", action="store_true",
-                        help="Use random embeddings instead of Evo2 (for local smoke testing; "
-                             "validates sampling + training pipeline without CUDA)")
+                        help="Use random embeddings (for local smoke testing; "
+                             "validates sampling + training pipeline without GPU)")
 
     args = parser.parse_args()
 
@@ -852,16 +938,63 @@ def main() -> None:
 
     mock_mode = args.mock
 
+    # Build model-specific kwargs for metadata / loading
+    model_kwargs: dict = {}
+    if args.foundation_model == "evo2":
+        model_kwargs["model_size"] = args.model_size or "7b"
+        if args.layer:
+            model_kwargs["embedding_layer"] = args.layer
+    elif args.foundation_model == "hyenadna":
+        model_kwargs["model_size"] = args.model_size or "medium-160k"
+    elif args.foundation_model == "splicebert":
+        if args.model_size:
+            model_kwargs["model_variant"] = args.model_size
+
+    # Get metadata (lightweight — no model loading)
+    meta = get_model_metadata(args.foundation_model, **model_kwargs)
+
+    # Resolve context size: user request → model max → default
+    if args.context_size is not None:
+        context_size = args.context_size
+    elif args.foundation_model == "evo2":
+        context_size = 8192  # Paper's default for Evo2
+    else:
+        context_size = min(meta.max_context, 8192)
+
+    if context_size > meta.max_context:
+        logger.warning(
+            "Requested context_size=%d exceeds %s max_context=%d — clamping",
+            context_size, meta.name, meta.max_context,
+        )
+        context_size = meta.max_context
+
+    # Resolve layer for Evo2
+    layer = args.layer
+    if args.foundation_model == "evo2" and layer is None:
+        layer = "blocks.26"  # Paper's best layer
+    elif not meta.supports_layer_selection and layer is not None:
+        logger.warning(
+            "%s does not support --layer (ignoring '%s')", meta.name, layer,
+        )
+        layer = None
+
+    feature_dim = meta.feature_dim_for_classifier
+
     print()
     print("=" * 70)
-    print("Sparse Exon Classifier (Evo2 Paper Reproduction)")
+    print("Sparse Exon Classifier (Foundation Model Embeddings)")
     print("=" * 70)
+    print(f"  Model:        {'MOCK (random)' if mock_mode else meta.name}")
+    print(f"  Type:         {meta.model_type}")
+    print(f"  Hidden dim:   {meta.hidden_dim}")
+    print(f"  Feature dim:  {feature_dim}"
+          f" ({'2×hidden (dual-strand)' if meta.model_type == 'causal' else '1×hidden (centered)'})")
     print(f"  Positions:    {args.n_positions}")
     print(f"  Exon enrich:  {args.exon_fraction:.0%}" if args.exon_fraction > 0
           else "  Exon enrich:  off (natural rate ~2.3%)")
-    print(f"  Context:      {args.context_size} bp")
-    print(f"  Layer:        {args.layer}")
-    print(f"  Model:        {'MOCK (random embeddings)' if mock_mode else f'Evo2 {args.model_size}'}")
+    print(f"  Context:      {context_size} bp (max: {meta.max_context})")
+    if layer:
+        print(f"  Layer:        {layer}")
     print(f"  Monitor:      {args.monitor_metric.upper()}")
     print(f"  Split:        {args.split_preset}")
     print(f"  Seed:         {args.seed}")
@@ -887,14 +1020,11 @@ def main() -> None:
         )
 
         if mock_mode:
-            # Mock mode: skip FASTA extraction and Evo2, use random embeddings
-            # Hidden dims: 7b=4096, 40b=8192 → feature vector = 2×hidden_dim
-            mock_hidden_dim = 4096 if args.model_size == "7b" else 8192
-            feature_dim = mock_hidden_dim * 2
+            # Mock mode: random embeddings matching selected model's feature dim
             logger.info(
                 "Step 2-3/3: MOCK — generating random embeddings "
-                "(%d × %d, simulating Evo2 %s)",
-                len(positions), feature_dim, args.model_size,
+                "(%d × %d, simulating %s)",
+                len(positions), feature_dim, meta.name,
             )
             rng = np.random.RandomState(args.seed)
             embeddings = rng.randn(len(positions), feature_dim).astype(np.float32)
@@ -926,28 +1056,32 @@ def main() -> None:
                         sys.exit(1)
                 logger.info("Using FASTA: %s", fasta_path)
 
-            # Step 2: Extract context sequences
-            logger.info("Step 2/3: Extracting context sequences...")
+            # Step 2: Extract context sequences (strategy depends on model type)
+            logger.info("Step 2/3: Extracting context sequences (%s strategy)...",
+                        meta.model_type)
             sequences = extract_context_sequences(
                 positions=positions,
                 fasta_path=fasta_path,
-                context_size=args.context_size,
+                context_size=context_size,
+                model_type=meta.model_type,
             )
 
-            # Step 3: Extract embeddings
-            logger.info("Step 3/3: Extracting embeddings...")
+            # Step 3: Load model and extract embeddings
+            logger.info("Step 3/3: Loading %s and extracting embeddings...", meta.name)
+            model = load_embedding_model(args.foundation_model, **model_kwargs)
             embeddings = extract_sparse_embeddings(
                 sequences=sequences,
-                model_size=args.model_size,
-                layer=args.layer,
+                model=model,
+                layer=layer,
             )
 
-        # Save embeddings for reuse
+        # Save embeddings for reuse (include model name for provenance)
         emb_path = output_dir / "sparse_embeddings.npz"
         np.savez_compressed(
             emb_path,
             embeddings=embeddings,
             positions=np.array(positions),
+            foundation_model=np.array(meta.name),
         )
         logger.info("Saved embeddings: %s (%.1f MB)", emb_path,
                      emb_path.stat().st_size / (1024**2))
@@ -975,9 +1109,10 @@ def main() -> None:
     print("=" * 70)
     print("Complete")
     print("=" * 70)
+    print(f"  Model:        {meta.name}")
     print(f"  Output:       {output_dir}")
     print(f"  Embeddings:   {output_dir / 'sparse_embeddings.npz'}")
-    print(f"  Model:        {output_dir / 'model' / 'best_model.pt'}")
+    print(f"  Classifier:   {output_dir / 'model' / 'best_model.pt'}")
     print(f"  Metrics:      {output_dir / 'model' / 'eval_metrics.json'}")
     if "test" in results:
         print(f"  Test AUPRC:   {results['test']['auprc']}")
