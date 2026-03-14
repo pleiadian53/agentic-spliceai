@@ -24,6 +24,10 @@ Usage:
         --modalities base_scores genomic \\
         --output-format tsv
 
+    # Include conservation scores (PhyloP / PhastCons from UCSC bigWig)
+    python 04_genome_scale_workflow.py --chromosomes chr22 \\
+        --modalities base_scores annotation genomic conservation
+
     # Resume an interrupted run (skips chromosomes with existing output)
     python 04_genome_scale_workflow.py --chromosomes chr22 --resume
 
@@ -315,9 +319,21 @@ def main():
     # ---------------------------------------------------------------
     # Step 2: Configure and run workflow
     # ---------------------------------------------------------------
+    # Build modality-specific configs when conservation is requested
+    modality_configs = {}
+    if "conservation" in args.modalities:
+        from agentic_spliceai.splice_engine.features.modalities.conservation import (
+            ConservationConfig,
+        )
+        modality_configs["conservation"] = ConservationConfig(
+            base_model=args.model,
+            window=10,
+        )
+
     pipeline_config = FeaturePipelineConfig(
         base_model=args.model,
         modalities=args.modalities,
+        modality_configs=modality_configs,
         output_format=args.output_format,
         verbosity=1,
     )

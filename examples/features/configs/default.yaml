@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────────────
+# Multimodal Feature Engineering Configuration — Default
+#
+# Used by 06_multimodal_genome_workflow.py. Each section maps 1:1 to
+# an existing dataclass in splice_engine.features.
+#
+# To add a new modality: add its name to pipeline.modalities and
+# optionally add a block under modality_configs with its parameters.
+# The script resolves config classes dynamically from the registry —
+# no code changes needed.
+# ─────────────────────────────────────────────────────────────────────
+
+# ── Pipeline Settings ────────────────────────────────────────────────
+# Maps to: FeaturePipelineConfig (features/pipeline.py)
+pipeline:
+  base_model: openspliceai          # openspliceai (GRCh38/MANE) or spliceai (GRCh37/Ensembl)
+  output_format: parquet            # parquet or tsv
+  verbosity: 1                      # 0=quiet, 1=normal, 2=debug
+
+  # Ordered list of modalities to apply. Each name must match a
+  # registered modality in FeaturePipeline._REGISTRY.
+  # Pipeline auto-sorts by dependency (topological sort).
+  modalities:
+    - base_scores                   # 43 columns: probabilities, gradients, peaks, context
+    - annotation                    # splice_type labels from GTF + transcript info
+    - genomic                       # relative position, gene distances, GC content
+
+# ── Per-Modality Configs ─────────────────────────────────────────────
+# Each key must match a name in pipeline.modalities above.
+# Fields map to the modality's Config dataclass (resolved from registry).
+# Omitted modalities use their default_config().
+# Omitted fields within a modality use the dataclass default.
+modality_configs:
+  base_scores:
+    context_window: 2               # flanking positions for neighbor features
+    include_gradients: true         # donor/acceptor gradient features
+    include_comparative: true       # cross-type comparative features
+
+  annotation:
+    # splice_sites_path: null       # null = auto-resolve from registry
+    include_transcript_info: true   # add transcript_id and transcript_count
+
+  genomic:
+    gc_window: 100                  # window (bp) for GC content calculation
+    include_dinucleotides: false    # CpG density (requires sequence column)
+
+# ── Position Sampling ────────────────────────────────────────────────
+# Maps to: PositionSamplingConfig (features/sampling.py)
+# Reduces full-genome storage from ~271 GB to ~1-5 GB.
+sampling:
+  enabled: true
+  score_threshold: 0.01             # min prob to classify as splice site (always retained)
+  proximity_window: 0               # bp around splice sites to retain (0=disabled)
+                                    # set to 50-200 for CNN meta-layers that need local context
+  background_rate: 0.005            # fraction of remaining positions to keep (0.5%)
+  random_seed: 42
+
+# ── Workflow Settings ────────────────────────────────────────────────
+# Script-level defaults (overridable by CLI flags).
+# Not passed to FeatureWorkflow directly.
+workflow:
+  chromosomes:                      # default when --chromosomes not given
+    - chr22
+  chunk_size: 200                   # genes per chunk for on-demand prediction

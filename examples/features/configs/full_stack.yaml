@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────
+# Multimodal Feature Engineering Configuration — Full Stack
+#
+# Includes conservation scores (PhyloP / PhastCons) on top of the
+# default modalities. Use this when preparing training data for the
+# meta-layer with evolutionary constraint features.
+#
+# Usage:
+#   python 06_multimodal_genome_workflow.py --config configs/full_stack.yaml
+#   python 06_multimodal_genome_workflow.py --config configs/full_stack.yaml \
+#       --chromosomes all --resume
+# ─────────────────────────────────────────────────────────────────────
+
+pipeline:
+  base_model: openspliceai
+  output_format: parquet
+  verbosity: 1
+
+  modalities:
+    - base_scores
+    - annotation
+    - genomic
+    - conservation                  # +9 columns: PhyloP/PhastCons scores + context stats
+
+modality_configs:
+  base_scores:
+    context_window: 2
+    include_gradients: true
+    include_comparative: true
+
+  annotation:
+    include_transcript_info: true
+
+  genomic:
+    gc_window: 100
+    include_dinucleotides: false
+
+  conservation:
+    # base_model is auto-propagated from pipeline.base_model
+    tracks:                         # which conservation tracks to extract
+      - phylop                      # per-base evolutionary rate (range ~[-20, 10])
+      - phastcons                   # conserved element probability ([0, 1])
+    window: 10                      # half-window for context stats (total = 2*window+1)
+    # cache_dir: null               # local bigWig cache (null = use remote UCSC URLs)
+    remote_fallback: true           # fall back to remote URLs when local files not found
+
+sampling:
+  enabled: true
+  score_threshold: 0.01
+  proximity_window: 0
+  background_rate: 0.005
+  random_seed: 42
+
+workflow:
+  chromosomes:
+    - chr22
+  chunk_size: 200
