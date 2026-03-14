@@ -209,12 +209,15 @@ class PredictionWorkflow:
             for chunk_idx, chunk_gene_df in enumerate(chunks):
                 chunk_genes = chunk_gene_df["gene_name"].to_list()
 
+                # Resolve chromosome label for this chunk's log lines
+                chrom_label = self._chunk_chrom_label(chunk_gene_df)
+
                 # 4a. Resume check
                 if cfg.resume and self._artifact_manager.chunk_exists(chunk_idx, "predictions"):
                     if cfg.verbosity >= 1:
-                        print(f"  Chunk {chunk_idx+1}/{total_chunks}: "
+                        print(f"  Chunk {chunk_idx+1}/{total_chunks} [{chrom_label}]: "
                               f"skipped (checkpoint exists, {len(chunk_genes)} genes)")
-                    logger.info("Chunk %d: skipping (checkpoint exists)", chunk_idx)
+                    logger.info("Chunk %d [%s]: skipping (checkpoint exists)", chunk_idx, chrom_label)
 
                     loaded = self._artifact_manager.load_chunk(chunk_idx, "predictions")
                     chunk_frames.append(loaded)
@@ -228,7 +231,7 @@ class PredictionWorkflow:
                 # 4b. Run predictions for this chunk
                 chunk_start = time.time()
                 if cfg.verbosity >= 1:
-                    print(f"  Chunk {chunk_idx+1}/{total_chunks}: "
+                    print(f"  Chunk {chunk_idx+1}/{total_chunks} [{chrom_label}]: "
                           f"predicting {len(chunk_genes)} genes...")
 
                 chunk_predictions_df = self._predict_chunk(chunk_gene_df, models, chunk_idx)
@@ -422,6 +425,18 @@ class PredictionWorkflow:
             verbosity=cfg.verbosity,
         )
         return models if models else None
+
+    @staticmethod
+    def _chunk_chrom_label(chunk_gene_df: pl.DataFrame) -> str:
+        """Return a compact chromosome label for a gene chunk (e.g. ``chr1, chr2``)."""
+        from ...resources import ensure_chrom_column
+
+        try:
+            cdf = ensure_chrom_column(chunk_gene_df)
+            chroms = cdf["chrom"].unique().sort().to_list()
+            return ", ".join(str(c) for c in chroms)
+        except Exception:
+            return "?"
 
     def _build_chunks(self, gene_df: pl.DataFrame) -> List[pl.DataFrame]:
         """Split gene DataFrame into chunks of ``chunk_size``.
