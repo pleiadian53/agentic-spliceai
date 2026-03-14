@@ -11,12 +11,13 @@ from typing import List, Optional, Union
 import torch
 import torch.nn.functional as F
 
+from foundation_models.base import BaseEmbeddingModel, ModelMetadata
 from foundation_models.hyenadna.config import HyenaDNAConfig
 
 logger = logging.getLogger(__name__)
 
 
-class HyenaDNAModel:
+class HyenaDNAModel(BaseEmbeddingModel):
     """Wrapper for HyenaDNA foundation model via HuggingFace transformers.
 
     Supports MPS (Apple Silicon), CPU, and CUDA. Uses character-level
@@ -29,8 +30,15 @@ class HyenaDNAModel:
         >>> print(embeddings.shape)  # [seq_len, hidden_dim]
     """
 
-    def __init__(self, config: Optional[HyenaDNAConfig] = None) -> None:
-        self.config = config or HyenaDNAConfig()
+    def __init__(
+        self,
+        config: Optional[HyenaDNAConfig] = None,
+        **kwargs,
+    ) -> None:
+        if config is not None:
+            self.config = config
+        else:
+            self.config = HyenaDNAConfig(**kwargs)
         self.model = None
         self.tokenizer = None
         self._load_model()
@@ -83,6 +91,7 @@ class HyenaDNAModel:
     def encode(
         self,
         sequences: Union[str, List[str]],
+        layer: Optional[str] = None,
     ) -> torch.Tensor:
         """Encode DNA sequences to per-nucleotide embeddings.
 
@@ -174,8 +183,13 @@ class HyenaDNAModel:
         alt_ll = self.get_likelihood(alt_seq)
         return alt_ll - ref_ll
 
-    def __repr__(self) -> str:
-        return (
-            f"HyenaDNAModel(size={self.config.model_size}, "
-            f"device={self.device})"
+    def metadata(self) -> ModelMetadata:
+        """Return metadata describing this HyenaDNA model instance."""
+        return ModelMetadata(
+            name=f"hyenadna-{self.config.model_size}",
+            model_type="causal",
+            hidden_dim=self.hidden_dim,
+            max_context=self.config.context_length,
+            tokenization="character",
+            supports_layer_selection=False,
         )

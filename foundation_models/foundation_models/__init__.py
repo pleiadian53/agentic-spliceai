@@ -45,27 +45,66 @@ def _register_foundation_models():
 _register_foundation_models()
 
 
-# Expose key APIs
+# Base classes and registry (always available — no heavy deps)
+from foundation_models.base import (  # noqa: F401
+    BaseEmbeddingModel,
+    ModelMetadata,
+    get_model_metadata,
+    list_available_models,
+    load_embedding_model,
+)
+
+__all__ = [
+    # Base
+    "BaseEmbeddingModel",
+    "ModelMetadata",
+    "get_model_metadata",
+    "list_available_models",
+    "load_embedding_model",
+]
+
+# Expose Evo2 APIs (optional — requires CUDA + evo2 package)
 try:
-    from foundation_models.evo2 import (
+    from foundation_models.evo2 import (  # noqa: F401
         Evo2Model,
         Evo2Embedder,
         Evo2Config,
         ExonClassifier,
     )
-    
-    __all__ = [
+
+    __all__ += [
         "Evo2Model",
         "Evo2Embedder",
         "Evo2Config",
         "ExonClassifier",
     ]
-    
-except ImportError as e:
-    # Dependencies not installed yet
-    import warnings
-    warnings.warn(
-        f"Could not import Evo2 components: {e}\n"
-        "Please install dependencies: pip install -e ."
+except ImportError:
+    pass
+
+# Expose SpliceBERT APIs (optional — requires transformers + sentencepiece)
+try:
+    from foundation_models.splicebert import (  # noqa: F401
+        SpliceBERTConfig,
+        SpliceBERTModel,
     )
-    __all__ = []
+
+    __all__ += [
+        "SpliceBERTConfig",
+        "SpliceBERTModel",
+    ]
+except ImportError:
+    pass
+
+# Expose DNABERT-2 APIs (optional — requires transformers + einops)
+try:
+    from foundation_models.dnabert import (  # noqa: F401
+        DNABERT2Config,
+        DNABERT2Model,
+    )
+
+    __all__ += [
+        "DNABERT2Config",
+        "DNABERT2Model",
+    ]
+except ImportError:
+    pass

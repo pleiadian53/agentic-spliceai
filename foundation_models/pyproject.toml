@@ -22,6 +22,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# SpliceBERT support (via MultiMolecule)
+splicebert = [
+    "multimolecule>=0.1.0",
+    "sentencepiece>=0.1.99",
+]
+
 # Quantization support (required for M1 Mac)
 quantization = [
     "bitsandbytes>=0.41.0",
@@ -57,7 +63,7 @@ dev = [
 
 # All optional dependencies
 all = [
-    "agentic-spliceai-foundation-models[quantization,adapters,remote,modal,dev]",
+    "agentic-spliceai-foundation-models[splicebert,quantization,adapters,remote,modal,dev]",
 ]
 
 [project.urls]

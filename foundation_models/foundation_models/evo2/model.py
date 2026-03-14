@@ -15,12 +15,13 @@ from typing import List, Optional, Union
 import torch
 import torch.nn.functional as F
 
+from foundation_models.base import BaseEmbeddingModel, ModelMetadata
 from foundation_models.evo2.config import Evo2Config
 
 logger = logging.getLogger(__name__)
 
 
-class Evo2Model:
+class Evo2Model(BaseEmbeddingModel):
     """Wrapper for Evo2 foundation model via the official ``evo2`` package.
 
     Handles model loading, tokenization, and embedding extraction.
@@ -34,8 +35,15 @@ class Evo2Model:
         >>> print(embeddings.shape)  # [seq_len, hidden_dim]
     """
 
-    def __init__(self, config: Optional[Evo2Config] = None) -> None:
-        self.config = config or Evo2Config()
+    def __init__(
+        self,
+        config: Optional[Evo2Config] = None,
+        **kwargs,
+    ) -> None:
+        if config is not None:
+            self.config = config
+        else:
+            self.config = Evo2Config(**kwargs)
         self._evo2 = None
         self._hidden_dim: Optional[int] = None
         self._load_model()
@@ -305,10 +313,15 @@ class Evo2Model:
         alt_ll = self.get_likelihood(alt_seq)
         return alt_ll - ref_ll
 
-    def __repr__(self) -> str:
-        return (
-            f"Evo2Model(size={self.config.model_size}, "
-            f"checkpoint={self.config.checkpoint_name})"
+    def metadata(self) -> ModelMetadata:
+        """Return metadata describing this Evo2 model instance."""
+        return ModelMetadata(
+            name=f"evo2-{self.config.model_size}",
+            model_type="causal",
+            hidden_dim=self.hidden_dim,
+            max_context=self.config.max_length,
+            tokenization="character",
+            supports_layer_selection=True,
         )
 
 

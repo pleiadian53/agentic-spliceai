@@ -42,7 +42,7 @@ models:
     pip: "evo2"
     description: "Evo2 7b/40b (Arc Institute) — causal DNA language model"
   splicebert:
-    pip: "multimolecule"
+    pip: "sentencepiece"
     description: "SpliceBERT (Sun Yat-sen U) — BERT pre-trained on 2M pre-mRNAs from 72 vertebrates"
   alphagenome:
     pip: "alphagenome"
@@ -54,8 +54,8 @@ models:
     pip: "pangolin-splice"
     description: "Pangolin — tissue-specific splice site strength prediction"
   dnabert:
-    pip: "dnabert2"
-    description: "DNABERT-2 — multi-species genome foundation model, 117M params"
+    pip: "einops"
+    description: "DNABERT-2 — multi-species genome foundation model, 117M params (loads from HF)"
 
 # Default model (must match a key in 'models' above; set to 'none' to skip model deps)
 default_model: evo2
