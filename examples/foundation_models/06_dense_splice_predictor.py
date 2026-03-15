@@ -9,6 +9,7 @@ Supports multiple embedding models:
   - **Evo2** (7B/40B) — causal DNA LM (Apache 2.0)
   - **SpliceBERT** (19.4M) — bidirectional BERT (AGPL-3.0)
   - **HyenaDNA** (1.6M-300M) — causal Hyena operator (Apache 2.0)
+  - **DNABERT-2** (117M) — BPE-tokenized BERT (custom license)
 
 Pipeline:
   1. Generate or load per-gene embeddings (windowed)
@@ -22,14 +23,19 @@ Usage:
         --foundation-model splicebert --mock --n-genes 5 \\
         -o /tmp/dense-test/
 
-    # SpliceBERT on GPU
+    # Real data — specific genes (local M1 Mac)
     python 06_dense_splice_predictor.py \\
-        --foundation-model splicebert --n-genes 20 \\
+        --foundation-model splicebert --genes TP53 GAPDH HBB \\
+        -o /tmp/dense-real/
+
+    # Real data — default gene set on GPU
+    python 06_dense_splice_predictor.py \\
+        --foundation-model splicebert --n-genes 10 \\
         -o /workspace/output/dense-splicebert/
 
     # Evo2 on A40+
     python 06_dense_splice_predictor.py \\
-        --foundation-model evo2 --n-genes 20 \\
+        --foundation-model evo2 --n-genes 10 \\
         -o /workspace/output/dense-evo2/
 """
 
@@ -80,6 +86,166 @@ def get_default_window_config(
     else:
         # Evo2, HyenaDNA: 8192 bp windows
         return 8192, 4096
+
+
+# Default genes for local testing — short-to-medium genes on distinct
+# chromosomes so gene-level splits produce meaningful train/val/test sets.
+DEFAULT_GENES = [
+    "TP53",    # chr17, ~20 kb, 11 exons
+    "GAPDH",   # chr12, ~4.4 kb, 9 exons
+    "ACTB",    # chr7, ~3.5 kb, 6 exons
+    "SOD1",    # chr21, ~11.5 kb, 5 exons
+    "FOS",     # chr14, ~3.4 kb, 4 exons
+    "MYC",     # chr8, ~4.3 kb, 3 exons
+    "KRAS",    # chr12, ~46 kb, 6 exons
+    "HBB",     # chr11, ~1.6 kb, 3 exons
+    "ALDOB",   # chr9, ~14.5 kb, 9 exons
+    "PKD1",    # chr16, ~47 kb, 46 exons
+]
+
+
+def _resolve_chrom_key(fasta: "pyfaidx.Fasta", chrom: str) -> Optional[str]:
+    """Resolve chromosome name against FASTA index (handles chr prefix)."""
+    if chrom in fasta:
+        return chrom
+    bare = chrom.lstrip("chr") if chrom.startswith("chr") else chrom
+    if bare in fasta:
+        return bare
+    prefixed = f"chr{bare}"
+    if prefixed in fasta:
+        return prefixed
+    return None
+
+
+def _default_overlap(max_context: int) -> int:
+    """Sensible overlap for chunked embedding extraction."""
+    return min(128, max_context // 8)
+
+
+def _bpe_to_nucleotide_embeddings(
+    model: "BaseEmbeddingModel",
+    sequence: str,
+) -> torch.Tensor:
+    """Upsample BPE token embeddings to per-nucleotide via replication.
+
+    Each BPE token's embedding is replicated to all nucleotides it covers,
+    using the tokenizer's offset_mapping when available.
+
+    Returns:
+        Tensor of shape ``[len(sequence), hidden_dim]``.
+    """
+    # Get token-level embeddings (special tokens already stripped)
+    token_emb = model.encode(sequence)  # [num_tokens, hidden_dim]
+    hidden_dim = token_emb.shape[-1]
+
+    # Try offset_mapping from tokenizer
+    try:
+        inputs = model.tokenizer(
+            sequence, return_offsets_mapping=True, return_tensors="pt",
+        )
+        offsets = inputs["offset_mapping"][0].tolist()  # [(start, end), ...]
+        # Strip special tokens ([CLS] at 0, [SEP] at end)
+        offsets = offsets[1:-1]
+    except Exception:
+        # Fallback: evenly distribute tokens across nucleotides
+        n_tokens = token_emb.shape[0]
+        seq_len = len(sequence)
+        nuc_emb = torch.zeros(seq_len, hidden_dim, dtype=token_emb.dtype,
+                              device=token_emb.device)
+        for i in range(n_tokens):
+            start = int(i * seq_len / n_tokens)
+            end = int((i + 1) * seq_len / n_tokens)
+            nuc_emb[start:end] = token_emb[i]
+        return nuc_emb
+
+    # Replicate each token embedding to its nucleotide span
+    seq_len = len(sequence)
+    nuc_emb = torch.zeros(seq_len, hidden_dim, dtype=token_emb.dtype,
+                          device=token_emb.device)
+
+    n_mapped = min(len(offsets), token_emb.shape[0])
+    for i in range(n_mapped):
+        start, end = offsets[i]
+        if start < seq_len and end > start:
+            end = min(end, seq_len)
+            nuc_emb[start:end] = token_emb[i]
+
+    return nuc_emb
+
+
+def extract_dense_gene_embeddings(
+    model: "BaseEmbeddingModel",
+    gene_sequence: str,
+    max_context: int,
+    tokenization: str = "character",
+    overlap: Optional[int] = None,
+) -> np.ndarray:
+    """Extract per-nucleotide embeddings for an entire gene.
+
+    Chunks the gene if it exceeds *max_context*, encodes each chunk,
+    and stitches the results back to ``[gene_len, hidden_dim]``.
+
+    For BPE-tokenized models (DNABERT-2), token embeddings are upsampled
+    to nucleotide resolution before stitching.
+
+    Args:
+        model: Loaded foundation model with ``encode()`` method.
+        gene_sequence: Full gene DNA sequence.
+        max_context: Model's maximum input length in nucleotides.
+        tokenization: ``"character"`` or ``"bpe"``.
+        overlap: Overlap between chunks (default: model-dependent).
+
+    Returns:
+        ``np.ndarray`` of shape ``[gene_len, hidden_dim]``, float32.
+    """
+    from foundation_models.utils.chunking import chunk_sequence, stitch_embeddings
+
+    gene_len = len(gene_sequence)
+    hidden_dim = model.metadata().hidden_dim
+    ovlp = overlap if overlap is not None else _default_overlap(max_context)
+
+    if gene_len <= max_context:
+        # Single pass — no chunking needed
+        with torch.no_grad():
+            if tokenization == "bpe":
+                emb = _bpe_to_nucleotide_embeddings(model, gene_sequence)
+            else:
+                emb = model.encode(gene_sequence)
+        if hasattr(emb, "cpu"):
+            emb = emb.detach().cpu().float().numpy()
+        # Pad or trim to exact gene_len (encode may differ by +-1)
+        if emb.shape[0] >= gene_len:
+            return emb[:gene_len]
+        padded = np.zeros((gene_len, hidden_dim), dtype=np.float32)
+        padded[:emb.shape[0]] = emb
+        return padded
+
+    # Chunked extraction
+    chunks = chunk_sequence(gene_sequence, chunk_size=max_context, overlap=ovlp)
+    chunk_embeddings = []
+
+    for chunk in chunks:
+        with torch.no_grad():
+            if tokenization == "bpe":
+                emb = _bpe_to_nucleotide_embeddings(model, chunk.sequence)
+            else:
+                emb = model.encode(chunk.sequence)
+        if hasattr(emb, "cpu"):
+            emb = emb.detach().cpu().float().numpy()
+        # Ensure chunk embedding matches chunk sequence length
+        chunk_len = len(chunk.sequence)
+        if emb.shape[0] < chunk_len:
+            padded = np.zeros((chunk_len, hidden_dim), dtype=np.float32)
+            padded[:emb.shape[0]] = emb
+            emb = padded
+        elif emb.shape[0] > chunk_len:
+            emb = emb[:chunk_len]
+        chunk_embeddings.append(emb)
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return stitch_embeddings(chunks, chunk_embeddings, gene_len, hidden_dim)
 
 
 # -----------------------------------------------------------------------
@@ -139,6 +305,207 @@ def prepare_mock_data(
     )
 
     return embeddings, labels, all_genes
+
+
+def prepare_real_data(
+    genes: List[str],
+    model_name: str,
+    model_kwargs: dict,
+    hidden_dim: int,
+    max_context: int,
+    tokenization: str,
+    window_size: int,
+    step_size: int,
+    build: str = "GRCh38_MANE",
+    data_dir: Optional[Path] = None,
+    max_gene_length: int = 200_000,
+    overlap: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray, List[str]]:
+    """Extract real embeddings and splice labels for a set of genes.
+
+    Pipeline per gene:
+      1. Look up gene coordinates from GTF
+      2. Extract gene sequence from FASTA (pyfaidx)
+      3. Build 3-class splice labels from annotation
+      4. Extract dense per-nucleotide embeddings (chunked if needed)
+      5. Window embeddings + labels for training
+
+    Returns:
+        Same format as :func:`prepare_mock_data`:
+        ``(embeddings, labels, gene_ids)`` where shapes are
+        ``[N_windows, window_size, hidden_dim]``,
+        ``[N_windows, window_size]``, and ``List[str]``.
+    """
+    import pandas as pd
+    import polars as pl
+    from pyfaidx import Fasta
+
+    from foundation_models.base import load_embedding_model
+    from foundation_models.utils.chunking import build_splice_labels
+
+    # --- Resolve data paths ---
+    release = "1.3" if "MANE" in build.upper() else None
+    try:
+        from agentic_spliceai.splice_engine.resources import get_genomic_registry
+        registry = get_genomic_registry(build=build, release=release)
+        gtf_path = str(registry.get_gtf_path(validate=True))
+        fasta_path = str(registry.get_fasta_path(validate=True))
+        if data_dir is None:
+            data_dir = Path(fasta_path).parent
+    except Exception as exc:
+        logger.error("Cannot resolve data paths for build=%s: %s", build, exc)
+        logger.error(
+            "Ensure data is prepared. See: "
+            "python examples/data_preparation/04_generate_ground_truth.py "
+            "--output data/mane/GRCh38/"
+        )
+        sys.exit(1)
+
+    # --- Load gene annotations ---
+    from agentic_spliceai.splice_engine.base_layer.data.preparation import (
+        load_gene_annotations,
+    )
+    gene_data = load_gene_annotations(gtf_path=gtf_path, genes=genes, verbosity=0)
+    if gene_data.height == 0:
+        logger.error("No matching genes found in GTF for: %s", genes)
+        sys.exit(1)
+
+    # Filter out genes exceeding max_gene_length
+    gene_data = gene_data.with_columns(
+        (pl.col("end") - pl.col("start")).alias("gene_length"),
+    )
+    too_long = gene_data.filter(pl.col("gene_length") > max_gene_length)
+    if too_long.height > 0:
+        for row in too_long.iter_rows(named=True):
+            logger.info(
+                "  Skipping %s (%d bp > max %d)",
+                row["gene_name"], row["gene_length"], max_gene_length,
+            )
+    gene_data = gene_data.filter(pl.col("gene_length") <= max_gene_length)
+
+    if gene_data.height == 0:
+        logger.error("All genes exceeded --max-gene-length %d", max_gene_length)
+        sys.exit(1)
+
+    logger.info("Processing %d genes (build=%s)", gene_data.height, build)
+
+    # --- Load splice site annotations ---
+    splice_sites_df = None
+    for fname in ("splice_sites_enhanced.parquet", "splice_sites_enhanced.tsv"):
+        path = data_dir / fname
+        if path.exists():
+            if fname.endswith(".parquet"):
+                splice_sites_df = pd.read_parquet(path)
+            else:
+                splice_sites_df = pd.read_csv(path, sep="\t")
+            logger.info("Loaded splice sites from %s (%d rows)", path, len(splice_sites_df))
+            break
+
+    if splice_sites_df is None:
+        logger.error(
+            "Splice site annotations not found in %s. "
+            "Generate with:\n  python examples/data_preparation/"
+            "04_generate_ground_truth.py --output %s",
+            data_dir, data_dir,
+        )
+        sys.exit(1)
+
+    # --- Open FASTA ---
+    fasta = Fasta(fasta_path)
+    logger.info("Using FASTA: %s", fasta_path)
+
+    # --- Load foundation model ---
+    logger.info("Loading foundation model '%s'...", model_name)
+    model = load_embedding_model(model_name, **model_kwargs)
+    meta = model.metadata()
+    logger.info("Model loaded: %s (hidden_dim=%d)", meta.name, meta.hidden_dim)
+
+    # --- Per-gene extraction ---
+    all_emb: List[np.ndarray] = []
+    all_lbl: List[np.ndarray] = []
+    all_genes: List[str] = []
+    total_splice_sites = 0
+
+    for row in gene_data.iter_rows(named=True):
+        gene_id = row["gene_id"]
+        gene_name = row["gene_name"]
+        chrom = row.get("chrom") or row.get("seqname", "")
+        start = int(row["start"])
+        end = int(row["end"])
+        gene_len = end - start
+
+        # Resolve chromosome in FASTA
+        chrom_key = _resolve_chrom_key(fasta, str(chrom))
+        if chrom_key is None:
+            logger.warning("  %s: chromosome %s not in FASTA, skipping", gene_name, chrom)
+            continue
+
+        # Extract sequence (GTF is 1-based, pyfaidx is 0-based)
+        gene_seq = str(fasta[chrom_key][start:end]).upper()
+        if len(gene_seq) < window_size:
+            logger.info("  %s: %d bp < window_size %d, skipping", gene_name, len(gene_seq), window_size)
+            continue
+
+        # Build splice labels
+        labels = build_splice_labels(
+            gene_id=gene_id,
+            gene_start=start,
+            gene_sequence_length=len(gene_seq),
+            splice_sites_df=splice_sites_df,
+        )
+        n_splice = int((labels > 0).sum())
+        total_splice_sites += n_splice
+
+        # Extract dense embeddings
+        gene_emb = extract_dense_gene_embeddings(
+            model=model,
+            gene_sequence=gene_seq,
+            max_context=max_context,
+            tokenization=tokenization,
+            overlap=overlap,
+        )
+
+        # Window
+        n_windows = 0
+        pos = 0
+        while pos + window_size <= len(gene_seq):
+            all_emb.append(gene_emb[pos:pos + window_size])
+            all_lbl.append(labels[pos:pos + window_size])
+            all_genes.append(gene_name)
+            pos += step_size
+            n_windows += 1
+
+        logger.info(
+            "  %s (%s): %d bp, %d splice sites, %d windows",
+            gene_name, gene_id, gene_len, n_splice, n_windows,
+        )
+
+        # Free per-gene memory
+        del gene_emb, labels, gene_seq
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    fasta.close()
+
+    if not all_emb:
+        logger.error("No windows extracted. Use more/larger genes or smaller --window-size.")
+        sys.exit(1)
+
+    embeddings = np.stack(all_emb, axis=0)
+    labels_arr = np.stack(all_lbl, axis=0)
+
+    n_splice = int((labels_arr > 0).sum())
+    n_total = labels_arr.size
+    logger.info(
+        "Real data: %d windows (size=%d, step=%d) from %d genes",
+        len(embeddings), window_size, step_size, gene_data.height,
+    )
+    logger.info(
+        "  Splice sites: %d / %d positions (%.4f%%)",
+        n_splice, n_total, n_splice / n_total * 100 if n_total else 0,
+    )
+
+    return embeddings, labels_arr, all_genes
 
 
 # -----------------------------------------------------------------------
@@ -387,9 +754,19 @@ def main() -> None:
     parser.add_argument("--focal-gamma", type=float, default=2.0,
                         help="Focal loss gamma (default: 2.0)")
 
-    # Mock mode
+    # Data mode
     parser.add_argument("--mock", action="store_true",
                         help="Use synthetic data (no GPU or FASTA needed)")
+    parser.add_argument("--genes", nargs="+", type=str, default=None,
+                        help="Gene symbols for real-data mode "
+                             "(default: built-in small set)")
+    parser.add_argument("--build", type=str, default="GRCh38_MANE",
+                        help="Genomic build for real data (default: GRCh38_MANE)")
+    parser.add_argument("--data-dir", type=str, default=None,
+                        help="Data directory with splice_sites_enhanced.tsv "
+                             "(default: auto-detect from registry)")
+    parser.add_argument("--max-gene-length", type=int, default=200_000,
+                        help="Skip genes longer than this (default: 200000)")
 
     args = parser.parse_args()
 
@@ -405,6 +782,9 @@ def main() -> None:
     elif args.foundation_model == "hyenadna":
         model_kwargs["model_size"] = args.model_size or "medium-160k"
     elif args.foundation_model == "splicebert":
+        if args.model_size:
+            model_kwargs["model_variant"] = args.model_size
+    elif args.foundation_model == "dnabert":
         if args.model_size:
             model_kwargs["model_variant"] = args.model_size
 
@@ -431,7 +811,13 @@ def main() -> None:
     print(f"  Hidden dim:   {hidden_dim}")
     print(f"  Architecture: {args.architecture}")
     print(f"  Window:       {window_size} bp (step: {step_size})")
-    print(f"  Genes:        {args.n_genes}")
+    if args.mock:
+        print(f"  Data:         MOCK (synthetic, {args.n_genes} genes)")
+    elif args.genes:
+        print(f"  Data:         Real ({', '.join(args.genes)})")
+    else:
+        n = min(args.n_genes, len(DEFAULT_GENES))
+        print(f"  Data:         Real (default {n} genes)")
     print(f"  Focal gamma:  {args.focal_gamma}")
     print(f"  Seed:         {args.seed}")
     print("=" * 70)
@@ -448,11 +834,25 @@ def main() -> None:
             seed=args.seed,
         )
     else:
-        logger.error(
-            "Real data mode not yet implemented in Phase 1. Use --mock "
-            "for pipeline validation."
+        gene_list = args.genes if args.genes else DEFAULT_GENES[:args.n_genes]
+        logger.info(
+            "Step 1/2: Extracting real embeddings for %d genes: %s",
+            len(gene_list), ", ".join(gene_list),
         )
-        sys.exit(1)
+        embeddings, labels, gene_ids = prepare_real_data(
+            genes=gene_list,
+            model_name=args.foundation_model,
+            model_kwargs=model_kwargs,
+            hidden_dim=hidden_dim,
+            max_context=meta.max_context,
+            tokenization=meta.tokenization,
+            window_size=window_size,
+            step_size=step_size,
+            build=args.build,
+            data_dir=Path(args.data_dir) if args.data_dir else None,
+            max_gene_length=args.max_gene_length,
+            overlap=None,
+        )
 
     # Step 2: Split and train
     logger.info("Splitting by gene...")

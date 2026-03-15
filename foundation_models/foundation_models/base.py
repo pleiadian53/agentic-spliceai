@@ -214,8 +214,10 @@ _SPLICEBERT_VARIANTS = {
 def _splicebert_metadata(**kwargs) -> ModelMetadata:
     variant = kwargs.get("model_variant", "splicebert")
     max_ctx, hidden = _SPLICEBERT_VARIANTS.get(variant, (1024, 512))
+    # Avoid stutter: "splicebert-splicebert" → just "splicebert"
+    name = variant if variant != "splicebert" else "splicebert"
     return ModelMetadata(
-        name=f"splicebert-{variant}",
+        name=name,
         model_type="bidirectional",
         hidden_dim=hidden,
         max_context=max_ctx,

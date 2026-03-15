@@ -293,7 +293,9 @@ class SpliceBERTModel(BaseEmbeddingModel):
     def metadata(self) -> ModelMetadata:
         """Return metadata describing this SpliceBERT model instance."""
         return ModelMetadata(
-            name=f"splicebert-{self.config.model_variant}",
+            name=(self.config.model_variant
+                  if self.config.model_variant != "splicebert"
+                  else "splicebert"),
             model_type="bidirectional",
             hidden_dim=self.hidden_dim,
             max_context=self.config.context_length,
