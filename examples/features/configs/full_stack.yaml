@@ -4,7 +4,7 @@
 # All available modalities: base scores, annotations, genomic context,
 # conservation (PhyloP/PhastCons), epigenetic marks (H3K36me3/H3K4me3),
 # and junction reads (RNA-seq splice evidence).
-# Use this when preparing training data for the meta-layer (M2 model).
+# Use this when preparing training data for the meta-layer.
 #
 # Usage:
 #   python 06_multimodal_genome_workflow.py --config configs/full_stack.yaml
@@ -24,7 +24,7 @@ pipeline:
     - genomic                       # +4 columns: position, distances, GC content
     - conservation                  # +9 columns: PhyloP/PhastCons scores + context stats
     - epigenetic                    # +12 columns: histone marks across tissues (Strategy B)
-    - junction                      # +12 columns: RNA-seq junction evidence (reads, PSI, breadth)
+    # - junction                    # +12 columns: RNA-seq junction evidence (requires junctions.tsv)
 
 modality_configs:
   base_scores:

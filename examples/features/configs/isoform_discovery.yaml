@@ -34,7 +34,7 @@ pipeline:
     - genomic                       # +4 columns: position, distances, GC content
     - conservation                  # +9 columns: PhyloP/PhastCons (alt sites under selection?)
     - epigenetic                    # +12 columns: histone marks (tissue-specific splicing)
-    - junction                      # +12 columns: RNA-seq junction evidence (critical for isoforms)
+    # - junction                    # +12 columns: RNA-seq junction evidence (requires junctions.tsv)
 
 modality_configs:
   base_scores:
