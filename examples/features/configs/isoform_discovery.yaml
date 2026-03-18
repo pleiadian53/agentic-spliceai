@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────────────
+# Multimodal Feature Engineering Configuration — Isoform Discovery
+#
+# Tuned for detecting alternative splice sites and novel isoforms.
+# Uses a lower score threshold (0.005) and proximity window (50bp)
+# to capture weak signals near canonical sites — competing donors/
+# acceptors that the meta-layer might promote above threshold.
+#
+# Storage estimate (per chromosome, chr22 baseline):
+#   - Tier 1 (prob > 0.005):  ~12K positions (canonical + strong alt)
+#   - Tier 2 (±50bp window):  ~1M positions  (local splice context)
+#   - Tier 3 (0.5% bg):       ~81K positions (class prior)
+#   - Total: ~1.1M/chrom → ~5.9% retention → ~14 GB full genome
+#
+# Compare: default.yaml keeps ~97K/chrom (0.6%) → ~1.5 GB genome
+#          full_stack.yaml same sampling as default but more modalities
+#
+# Usage:
+#   python 06_multimodal_genome_workflow.py \
+#       --config configs/isoform_discovery.yaml --chromosomes chr22
+#   python 06_multimodal_genome_workflow.py \
+#       --config configs/isoform_discovery.yaml --chromosomes all --resume
+# ─────────────────────────────────────────────────────────────────────
+
+pipeline:
+  base_model: openspliceai
+  output_format: parquet
+  verbosity: 1
+
+  modalities:
+    - base_scores                   # +43 columns: probabilities, gradients, peaks, context
+    - annotation                    # +3 columns: splice_type, transcript info
+    - sequence                      # +3 columns: DNA window (needed for motif analysis)
+    - genomic                       # +4 columns: position, distances, GC content
+    - conservation                  # +9 columns: PhyloP/PhastCons (alt sites under selection?)
+    - epigenetic                    # +12 columns: histone marks (tissue-specific splicing)
+    - junction                      # +12 columns: RNA-seq junction evidence (critical for isoforms)
+
+modality_configs:
+  base_scores:
+    context_window: 2
+    include_gradients: true
+    include_comparative: true
+
+  annotation:
+    include_transcript_info: true
+
+  sequence:
+    window_size: 500               # ±500bp = 1001nt window (matches meta-spliceai)
+
+  genomic:
+    gc_window: 100
+    include_dinucleotides: false
+
+  conservation:
+    tracks:
+      - phylop
+      - phastcons
+    window: 10
+    remote_fallback: true
+
+  epigenetic:
+    marks:
+      - h3k36me3
+      - h3k4me3
+    cell_lines:
+      - K562
+      - GM12878
+      - H1
+      - HepG2
+      - keratinocyte
+    window: 200
+    exon_intron_window: 500
+    aggregation: summarized
+    breadth_threshold: 1.5
+    remote_fallback: true
+
+  junction:
+    min_support: 3
+    aggregation: summarized
+    breadth_threshold: 3
+    include_psi: true
+
+# ── Position Sampling — Isoform-Aware ──────────────────────────────
+# Lower threshold + proximity window captures:
+#   1. Weak alternative splice sites (0.005 < prob < 0.01)
+#   2. Local context around all splice sites (competing donors/acceptors)
+#   3. Representative background for class balance
+#
+# On chr22: 43% of weak signals (0.001-0.01) are within 200bp of
+# a strong site; 20% within 50bp. The 50bp window is the sweet spot:
+# captures competing splice sites without 10x storage penalty of 200bp.
+sampling:
+  enabled: true
+  early: true                       # sample BEFORE feature engineering
+  score_threshold: 0.005            # lower than default (0.01) — catch weak alt sites
+  proximity_window: 50              # ±50bp around splice sites — competing donors/acceptors
+  background_rate: 0.005            # 0.5% background
+  random_seed: 42
+
+workflow:
+  chromosomes:
+    - chr22
+  chunk_size: 200

@@ -40,6 +40,10 @@ class PositionSamplingConfig:
     ----------
     enabled : bool
         Whether to apply position sampling. If False, all positions are kept.
+    early : bool
+        If True, sampling is applied BEFORE feature engineering (faster —
+        modalities only process sampled positions). If False, sampling
+        happens after all modality features are computed. Default True.
     score_threshold : float
         Minimum donor_prob or acceptor_prob to classify as a splice site.
         Positions above this are always retained. Default 0.01.
@@ -62,6 +66,7 @@ class PositionSamplingConfig:
     """
 
     enabled: bool = True
+    early: bool = True
     score_threshold: float = 0.01
     proximity_window: int = 0
     background_rate: float = 0.005

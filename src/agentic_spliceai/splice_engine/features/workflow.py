@@ -205,14 +205,31 @@ class FeatureWorkflow:
                     "Processing %s: %d positions...", chrom, chrom_df.height
                 )
 
+                # Early sampling: reduce positions BEFORE expensive modalities
+                early = (
+                    self.sampling_config is not None
+                    and getattr(self.sampling_config, "early", False)
+                )
+                if early:
+                    n_before = chrom_df.height
+                    chrom_df = sample_positions(chrom_df, self.sampling_config)
+                    logger.info(
+                        "Early sampling %s: %d → %d positions (%.1f%%) "
+                        "before feature engineering",
+                        chrom,
+                        n_before,
+                        chrom_df.height,
+                        100 * chrom_df.height / n_before if n_before > 0 else 0,
+                    )
+
                 # Apply pipeline
                 enriched = self._pipeline.transform(chrom_df)
 
                 # Free input before writing (only enriched is needed)
                 del chrom_df
 
-                # Apply position sampling (if configured)
-                if self.sampling_config is not None:
+                # Late sampling (only if early sampling was not applied)
+                if self.sampling_config is not None and not early:
                     n_before = enriched.height
                     enriched = sample_positions(enriched, self.sampling_config)
                     logger.info(

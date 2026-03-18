@@ -95,13 +95,15 @@ class SequenceModality(Modality):
         window_ends: list[int] = []
 
         for chrom, pos in zip(chroms, positions):
-            chrom_len = self._get_chrom_length(fasta, chrom)
+            pos = int(pos)  # ensure integer (may be float64 from TSV)
+            fasta_chrom = self._resolve_fasta_chrom(fasta, chrom)
+            chrom_len = len(fasta[fasta_chrom])
 
             # Clip to chromosome boundaries
             start = max(0, pos - w)
             end = min(chrom_len, pos + w)
 
-            seq = str(fasta[chrom][start:end]).upper()
+            seq = str(fasta[fasta_chrom][start:end]).upper()
 
             # Pad if clipped at boundaries
             left_pad = (pos - w) - start  # 0 if no clip
@@ -136,18 +138,24 @@ class SequenceModality(Modality):
         self._fasta = pyfaidx.Fasta(str(path))
         return self._fasta
 
-    def _get_chrom_length(self, fasta, chrom: str) -> int:
-        """Get chromosome length, trying with and without 'chr' prefix."""
+    def _resolve_fasta_chrom(self, fasta, chrom: str) -> str:
+        """Resolve chromosome name to match FASTA naming convention.
+
+        Tries the given name, then with/without 'chr' prefix.
+        """
         if chrom in fasta:
-            return len(fasta[chrom])
-        # Try alternative naming
+            return chrom
         alt = chrom.replace("chr", "") if chrom.startswith("chr") else f"chr{chrom}"
         if alt in fasta:
-            return len(fasta[alt])
+            return alt
         raise KeyError(
             f"Chromosome '{chrom}' not found in FASTA. "
             f"Available: {list(fasta.keys())[:5]}..."
         )
+
+    def _get_chrom_length(self, fasta, chrom: str) -> int:
+        """Get chromosome length, trying with and without 'chr' prefix."""
+        return len(fasta[self._resolve_fasta_chrom(fasta, chrom)])
 
     def _resolve_fasta_path(self) -> Path:
         """Resolve the path to the reference FASTA."""

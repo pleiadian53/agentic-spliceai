@@ -164,12 +164,15 @@ class FeaturePipeline:
                 output_map[col] = m.meta.name
 
         # Build adjacency: modality name → set of modality names it depends on
+        # Include both required and optional inputs — if a modality CAN use
+        # another's output, it should run after it.
         deps: Dict[str, Set[str]] = {}
         name_to_mod: Dict[str, Modality] = {}
         for m in modalities:
             name_to_mod[m.meta.name] = m
             deps[m.meta.name] = set()
-            for req in m.meta.required_inputs:
+            all_inputs = m.meta.required_inputs | m.meta.optional_inputs
+            for req in all_inputs:
                 if req in output_map and output_map[req] != m.meta.name:
                     deps[m.meta.name].add(output_map[req])
 
