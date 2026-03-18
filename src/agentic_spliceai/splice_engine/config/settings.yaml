@@ -78,6 +78,65 @@ external_tracks:
         url: "https://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons46way/vertebrate.phastCons46way.bw"
         filename: "vertebrate.phastCons46way.bw"
 
+  # Epigenetic marks — ENCODE ChIP-seq fold-change-over-control (GRCh38 only)
+  # Keyed by: build → cell_line → mark → {url, accession, filename}
+  # Full registry with 8 cell types is in epigenetic.py; settings.yaml
+  # documents the minimal panel (5 cell types) for reference.
+  epigenetic:
+    GRCh38:
+      marks: ["h3k36me3", "h3k4me3"]
+      cell_lines:
+        - name: "K562"
+          tissue: "blood/CML (ENCODE Tier 1)"
+          h3k36me3: {accession: "ENCFF163NTH", experiment: "ENCSR000AKR"}
+          h3k4me3: {accession: "ENCFF814IYI", experiment: "ENCSR000AKU"}
+        - name: "GM12878"
+          tissue: "lymphoblastoid (ENCODE Tier 1)"
+          h3k36me3: {accession: "ENCFF312MUY", experiment: "ENCSR000AKE"}
+          h3k4me3: {accession: "ENCFF776DPQ", experiment: "ENCSR000AKA"}
+        - name: "H1"
+          tissue: "embryonic stem cells (ENCODE Tier 1)"
+          h3k36me3: {accession: "ENCFF141YAA", experiment: "ENCSR476KTK"}
+          h3k4me3: {accession: "ENCFF602IAY", experiment: "ENCSR443YAS"}
+        - name: "HepG2"
+          tissue: "liver/hepatocarcinoma"
+          h3k36me3: {accession: "ENCFF414GNH", experiment: "ENCSR000AMB"}
+          h3k4me3: {accession: "ENCFF284FVP", experiment: "ENCSR000AMP"}
+        - name: "keratinocyte"
+          tissue: "skin (primary cells)"
+          h3k36me3: {accession: "ENCFF049JNX", experiment: "ENCSR000ALM"}
+          h3k4me3: {accession: "ENCFF632PUY", experiment: "ENCSR970FPM"}
+    # GRCh37: No ENCODE signal tracks available for hg19.
+
+  # RNA-seq splice junction evidence
+  # Loaded by the junction modality from pre-processed TSV files.
+  # Unlike conservation/epigenetic (remote bigWig), junction data is local.
+  junction:
+    description: "RNA-seq splice junction read evidence"
+    filename: "junctions.tsv"
+    formats:
+      star_sj:
+        description: "STAR SJ.out.tab (9-column headerless TSV)"
+        columns: "chrom, intron_start, intron_end, strand, intron_motif, annotated, unique_reads, multi_reads, max_overhang"
+        notes: "Single-sample; intron_start/end are 1-based intronic coordinates"
+      aggregated:
+        description: "Pre-processed multi-tissue junction table (TSV with header)"
+        columns: "chrom, donor_pos, acceptor_pos, strand, unique_reads, annotated, gene_id, tissue, sample_id"
+        notes: "Multi-tissue; enables tissue_breadth and variance features"
+    data_sources:
+      - name: "GTEx v8"
+        description: "Junction counts from 17K samples across 54 tissues"
+        access: "https://gtexportal.org/home/downloads"
+        notes: "sQTL summary statistics provide variant-junction associations"
+      - name: "recount3"
+        description: "Uniformly-processed junction counts across 750K+ samples"
+        access: "https://rna.recount.bio/"
+        notes: "Covers GTEx, TCGA, SRA; use as pre-aggregated source"
+      - name: "ENCODE"
+        description: "Junction counts from ENCODE RNA-seq experiments"
+        access: "https://www.encodeproject.org/"
+        notes: "Perturbation experiments available for induced splicing"
+
 builds:
   GRCh38:
     annotation_source: ensembl

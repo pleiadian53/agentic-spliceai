@@ -36,8 +36,22 @@ def _register_conservation() -> None:
     FeaturePipeline.register("conservation", ConservationModality, ConservationConfig)
 
 
+def _register_epigenetic() -> None:
+    from .epigenetic import EpigeneticConfig, EpigeneticModality
+
+    FeaturePipeline.register("epigenetic", EpigeneticModality, EpigeneticConfig)
+
+
+def _register_junction() -> None:
+    from .junction import JunctionConfig, JunctionModality
+
+    FeaturePipeline.register("junction", JunctionModality, JunctionConfig)
+
+
 # Register modalities that may have heavier dependencies lazily
 _register_annotation()
 _register_sequence()
 _register_genomic()
 _register_conservation()
+_register_epigenetic()
+_register_junction()

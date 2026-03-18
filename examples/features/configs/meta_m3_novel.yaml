@@ -1,0 +1,93 @@
+# ─────────────────────────────────────────────────────────────────────
+# Multimodal Feature Engineering Configuration — M3 Novel Site Prediction
+#
+# Junction modality is EXCLUDED from the feature pipeline because junction
+# evidence is used as the prediction TARGET in the M3 meta-layer model.
+#
+# M3 model goal: predict which unannotated positions have junction support
+# using only sequence-derived and epigenomic features. This enables novel
+# splice site prediction on genomes without RNA-seq data.
+#
+# Feature-target split:
+#   Features (X): base_scores, annotation, sequence, genomic,
+#                 conservation, epigenetic
+#   Target (y):   junction_has_support (binary) or junction_psi (continuous)
+#                 — derived from separate junction data at training time
+#
+# Compare:
+#   full_stack.yaml         — M2 model: junction as FEATURE (all modalities)
+#   meta_m3_novel.yaml      — M3 model: junction as TARGET (excluded here)
+#   isoform_discovery.yaml  — lower thresholds for weak alternative sites
+#
+# Usage:
+#   python 06_multimodal_genome_workflow.py \
+#       --config configs/meta_m3_novel.yaml --chromosomes all --resume
+# ─────────────────────────────────────────────────────────────────────
+
+pipeline:
+  base_model: openspliceai
+  output_format: parquet
+  verbosity: 1
+
+  modalities:
+    - base_scores                   # +43 columns: probabilities, gradients, peaks, context
+    - annotation                    # +3 columns: splice_type, transcript info
+    - sequence                      # +3 columns: DNA window, start, end (enables gc_content)
+    - genomic                       # +4 columns: position, distances, GC content
+    - conservation                  # +9 columns: PhyloP/PhastCons scores + context stats
+    - epigenetic                    # +12 columns: histone marks across tissues (Strategy B)
+    # junction: EXCLUDED — used as prediction target in M3 meta-layer model.
+    #   Junction evidence (junction_has_support, junction_psi, etc.) is loaded
+    #   separately at training time as the label/target column(s).
+
+modality_configs:
+  base_scores:
+    context_window: 2
+    include_gradients: true
+    include_comparative: true
+
+  annotation:
+    include_transcript_info: true
+
+  sequence:
+    window_size: 500               # ±500bp = 1001nt window (matches meta-spliceai)
+
+  genomic:
+    gc_window: 100
+    include_dinucleotides: false
+
+  conservation:
+    tracks:
+      - phylop
+      - phastcons
+    window: 10
+    remote_fallback: true
+
+  epigenetic:
+    marks:
+      - h3k36me3
+      - h3k4me3
+    cell_lines:
+      - K562
+      - GM12878
+      - H1
+      - HepG2
+      - keratinocyte
+    window: 200
+    exon_intron_window: 500
+    aggregation: summarized
+    breadth_threshold: 1.5
+    remote_fallback: true
+
+sampling:
+  enabled: true
+  early: true                       # sample BEFORE feature engineering (~100x faster)
+  score_threshold: 0.01
+  proximity_window: 0
+  background_rate: 0.005
+  random_seed: 42
+
+workflow:
+  chromosomes:
+    - chr22
+  chunk_size: 200

@@ -1,9 +1,10 @@
 # ─────────────────────────────────────────────────────────────────────
 # Multimodal Feature Engineering Configuration — Full Stack
 #
-# Includes conservation scores (PhyloP / PhastCons) on top of the
-# default modalities. Use this when preparing training data for the
-# meta-layer with evolutionary constraint features.
+# All available modalities: base scores, annotations, genomic context,
+# conservation (PhyloP/PhastCons), epigenetic marks (H3K36me3/H3K4me3),
+# and junction reads (RNA-seq splice evidence).
+# Use this when preparing training data for the meta-layer (M2 model).
 #
 # Usage:
 #   python 06_multimodal_genome_workflow.py --config configs/full_stack.yaml
@@ -17,10 +18,13 @@ pipeline:
   verbosity: 1
 
   modalities:
-    - base_scores
-    - annotation
-    - genomic
+    - base_scores                   # +43 columns: probabilities, gradients, peaks, context
+    - annotation                    # +3 columns: splice_type, transcript info
+    - sequence                      # +3 columns: DNA window, start, end (enables gc_content)
+    - genomic                       # +4 columns: position, distances, GC content
     - conservation                  # +9 columns: PhyloP/PhastCons scores + context stats
+    - epigenetic                    # +12 columns: histone marks across tissues (Strategy B)
+    - junction                      # +12 columns: RNA-seq junction evidence (reads, PSI, breadth)
 
 modality_configs:
   base_scores:
@@ -31,21 +35,46 @@ modality_configs:
   annotation:
     include_transcript_info: true
 
+  sequence:
+    window_size: 500               # ±500bp = 1001nt window (matches meta-spliceai)
+
   genomic:
     gc_window: 100
     include_dinucleotides: false
 
   conservation:
-    # base_model is auto-propagated from pipeline.base_model
-    tracks:                         # which conservation tracks to extract
+    tracks:
       - phylop                      # per-base evolutionary rate (range ~[-20, 10])
       - phastcons                   # conserved element probability ([0, 1])
     window: 10                      # half-window for context stats (total = 2*window+1)
-    # cache_dir: null               # local bigWig cache (null = use remote UCSC URLs)
-    remote_fallback: true           # fall back to remote URLs when local files not found
+    remote_fallback: true
+
+  epigenetic:
+    marks:
+      - h3k36me3                    # exon body mark (SETD2-deposited during transcription)
+      - h3k4me3                     # active promoter mark
+    cell_lines:                     # minimal 5-tissue panel (ENCODE Tier 1 + liver + skin)
+      - K562                        # blood/CML
+      - GM12878                     # lymphoblastoid
+      - H1                          # embryonic stem cells
+      - HepG2                       # liver
+      - keratinocyte                # skin (primary cells)
+    window: 200                     # half-window (bp) — broader than conservation (~nucleosome)
+    exon_intron_window: 500         # half-window for exon/intron boundary ratio
+    aggregation: summarized         # cross-tissue stats (Strategy B): max, mean, breadth, var
+    breadth_threshold: 1.5          # fold-change cutoff for tissue_breadth count
+    remote_fallback: true
+
+  junction:
+    min_support: 3                  # minimum unique reads to count a junction
+    aggregation: summarized         # cross-tissue stats: breadth, variance, PSI
+    breadth_threshold: 3            # reads per tissue to count toward breadth
+    include_psi: true               # simplified PSI (dominance among competitors)
+    # junction_data_path: null      # auto-resolved from registry (junctions.tsv)
 
 sampling:
   enabled: true
+  early: true                       # sample BEFORE feature engineering (~100x faster)
   score_threshold: 0.01
   proximity_window: 0
   background_rate: 0.005

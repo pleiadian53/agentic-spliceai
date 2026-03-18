@@ -113,6 +113,22 @@ class FeatureSchema:
         'score_difference_ratio',
         'signal_strength_ratio'
     ])
+
+    # Junction evidence features (RNA-seq splice junction reads)
+    JUNCTION_COLS: List[str] = field(default_factory=lambda: [
+        'junction_log1p',
+        'junction_has_support',
+        'junction_n_partners',
+        'junction_max_reads',
+        'junction_entropy',
+        'junction_is_annotated',
+        'junction_tissue_breadth',
+        'junction_tissue_max',
+        'junction_tissue_mean',
+        'junction_tissue_variance',
+        'junction_psi',
+        'junction_psi_variance',
+    ])
     
     # Label columns (ground truth)
     LABEL_COLS: List[str] = field(default_factory=lambda: [
@@ -154,7 +170,8 @@ class FeatureSchema:
             self.CONTEXT_PATTERN_COLS +
             self.DONOR_PATTERN_COLS +
             self.ACCEPTOR_PATTERN_COLS +
-            self.COMPARATIVE_COLS
+            self.COMPARATIVE_COLS +
+            self.JUNCTION_COLS
         )
     
     def get_minimal_feature_cols(self) -> List[str]:
