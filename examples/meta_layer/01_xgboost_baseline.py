@@ -45,6 +45,9 @@ import time
 from pathlib import Path
 from typing import Optional
 
+# Import xgboost BEFORE agentic_spliceai to avoid libomp conflict
+# with PyTorch on macOS. See dev/errors/dyld-library-path-torch-import.md
+import xgboost as xgb  # noqa: E402 (must precede torch-importing packages)
 import numpy as np
 import polars as pl
 
@@ -192,8 +195,6 @@ def train_xgboost(
     early_stopping_rounds: int = 20,
 ) -> "xgboost.XGBClassifier":
     """Train XGBoost classifier with early stopping on test set."""
-    import xgboost as xgb
-
     # Compute class weights (inverse frequency)
     classes, counts = np.unique(y_train, return_counts=True)
     total = len(y_train)

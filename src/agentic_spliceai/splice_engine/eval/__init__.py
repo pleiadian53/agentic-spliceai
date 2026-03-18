@@ -16,6 +16,17 @@ from .splitting import (
     gene_chromosomes_from_dataframe,
     gene_chromosomes_from_gtf,
 )
+from .calibration import (
+    compute_ece,
+    compute_mce,
+    compute_brier_decomposition,
+    reliability_curve,
+    compare_calibration,
+    print_calibration_comparison,
+    BrierDecomposition,
+    ReliabilityCurve,
+    CalibrationComparison,
+)
 
 __all__ = [
     'compute_site_metrics',
@@ -29,4 +40,13 @@ __all__ = [
     'build_gene_split',
     'gene_chromosomes_from_dataframe',
     'gene_chromosomes_from_gtf',
+    'compute_ece',
+    'compute_mce',
+    'compute_brier_decomposition',
+    'reliability_curve',
+    'compare_calibration',
+    'print_calibration_comparison',
+    'BrierDecomposition',
+    'ReliabilityCurve',
+    'CalibrationComparison',
 ]
