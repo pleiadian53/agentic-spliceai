@@ -374,6 +374,12 @@ class JunctionModality(Modality):
         # Convert STAR intron coords to exon boundary coords:
         # start (1st intronic base) → donor_pos (last exonic base) = start - 1
         # end (last intronic base) → acceptor_pos (1st exonic base) = end + 1
+        #
+        # Note: STAR reports genomic order (start < end) regardless of strand.
+        # For - strand genes, donor_pos is actually the acceptor boundary and
+        # vice versa. This is fine because _build_junction_index melts both
+        # into a single (chrom, position) index — boundary_type is internal
+        # only and does not affect output features.
         if "start" in df.columns and "end" in df.columns:
             df = df.with_columns(
                 (pl.col("start") - 1).alias("donor_pos"),
