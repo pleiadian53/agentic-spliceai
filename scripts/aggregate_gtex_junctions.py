@@ -12,6 +12,11 @@ Input files (expected in --raw-dir):
 Output:
   - junctions_gtex_v8.parquet  — per-junction, per-tissue summary
 
+Coordinate convention: start/end use STAR's intron boundaries (1-based).
+  - start = first intronic base = donor exon boundary + 1
+  - end   = last intronic base  = acceptor exon boundary - 1
+The JunctionModality converts these to exon boundary positions when loading.
+
 Usage:
     python scripts/aggregate_gtex_junctions.py \\
         --raw-dir data/mane/GRCh38/junction_data/raw \\

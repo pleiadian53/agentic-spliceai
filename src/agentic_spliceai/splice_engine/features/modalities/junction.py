@@ -168,7 +168,12 @@ class JunctionModality(Modality):
             return self._fill_defaults(df)
 
         # Left join: keep all prediction rows
+        # Ensure position dtypes match (may be f64 from TSV, i64 from index)
         output_cols = list(self._compute_output_columns())
+        if df["position"].dtype != junction_index["position"].dtype:
+            junction_index = junction_index.with_columns(
+                pl.col("position").cast(df["position"].dtype)
+            )
         df = df.join(junction_index, on=["chrom", "position"], how="left")
 
         # Fill nulls: 0.0 for count-based, NaN stays for PSI
@@ -237,7 +242,13 @@ class JunctionModality(Modality):
         return self._junction_index
 
     def _load_junctions(self) -> Optional[pl.DataFrame]:
-        """Load junction data, auto-detecting format."""
+        """Load junction data, auto-detecting format.
+
+        Supports three formats:
+        - **Parquet** (`.parquet`): Pre-aggregated GTEx/recount3 data
+        - **STAR SJ.out.tab**: Headerless 9-column TSV from STAR aligner
+        - **Aggregated TSV**: Multi-tissue junction table with header
+        """
         path = self._resolve_junction_path()
         if path is None or not path.exists():
             logger.warning("No junction data available. Features will be zero-filled.")
@@ -245,12 +256,15 @@ class JunctionModality(Modality):
 
         logger.info("Loading junction data from %s", path)
 
-        # Auto-detect format: STAR SJ.out.tab has no header (9 columns)
-        # Try reading first line to check
+        # Parquet files: always aggregated format
+        if path.suffix == ".parquet":
+            self._data_format = "aggregated"
+            return self._load_aggregated_parquet(path)
+
+        # TSV: auto-detect STAR vs aggregated by checking header
         with open(path) as f:
             first_line = f.readline().strip()
 
-        # STAR SJ.out.tab: no header, all fields numeric except chrom
         fields = first_line.split("\t")
         has_header = not fields[1].isdigit() if len(fields) > 1 else False
 
@@ -338,6 +352,64 @@ class JunctionModality(Modality):
         has_tissue = "tissue" in df.columns
         logger.info(
             "Loaded %d junction records (aggregated format, multi_tissue=%s)",
+            df.height,
+            has_tissue,
+        )
+        return df
+
+    def _load_aggregated_parquet(self, path: Path) -> pl.DataFrame:
+        """Load pre-aggregated junction data from parquet.
+
+        Handles GTEx aggregation output format (from
+        scripts/aggregate_gtex_junctions.py) which uses columns:
+        chrom, start, end, gene_id, tissue, total_reads, n_samples.
+
+        Coordinate convention: GTEx/STAR junction coordinates use intron
+        boundaries (start = first intronic base, end = last intronic base).
+        We convert to exon boundaries (donor = last exonic base = start - 1,
+        acceptor = first exonic base = end + 1) to match splice site annotations.
+        """
+        df = pl.read_parquet(path)
+
+        # Convert STAR intron coords to exon boundary coords:
+        # start (1st intronic base) → donor_pos (last exonic base) = start - 1
+        # end (last intronic base) → acceptor_pos (1st exonic base) = end + 1
+        if "start" in df.columns and "end" in df.columns:
+            df = df.with_columns(
+                (pl.col("start") - 1).alias("donor_pos"),
+                (pl.col("end") + 1).alias("acceptor_pos"),
+            ).drop("start", "end")
+
+        # Normalize other column names
+        rename_map = {
+            "total_reads": "unique_reads",
+        }
+        for old, new in rename_map.items():
+            if old in df.columns and new not in df.columns:
+                df = df.rename({old: new})
+
+        # Validate required columns
+        required = {"chrom", "donor_pos", "acceptor_pos"}
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(
+                f"Parquet junction file missing columns: {missing}. "
+                f"Available: {df.columns}"
+            )
+
+        # Default unique_reads to 1 if not present
+        if "unique_reads" not in df.columns:
+            df = df.with_columns(pl.lit(1).alias("unique_reads"))
+
+        # Filter by minimum support
+        df = df.filter(pl.col("unique_reads") >= self._cfg.min_support)
+
+        # Normalize chrom prefix
+        df = self._normalize_chrom(df)
+
+        has_tissue = "tissue" in df.columns
+        logger.info(
+            "Loaded %d junction records from parquet (multi_tissue=%s)",
             df.height,
             has_tissue,
         )
@@ -689,6 +761,10 @@ class JunctionModality(Modality):
         Resolution order:
         1. Explicit config path (junction_data_path)
         2. Registry auto-resolution (junctions.tsv in build dir)
+        3. GTEx by-tissue parquet in junction_data/ subdirectory
+
+        The GTEx by-tissue parquet is preferred for multi-tissue analysis
+        as it enables tissue_breadth, tissue_variance, and PSI features.
         """
         if self._cfg.junction_data_path is not None:
             return Path(self._cfg.junction_data_path)
@@ -699,7 +775,25 @@ class JunctionModality(Modality):
 
             resources = get_model_resources(self._cfg.base_model)
             registry = resources.get_registry()
+
+            # Try registry first (junctions.tsv)
             path = registry.resolve("junctions")
-            return path
+            if path is not None and Path(path).exists():
+                return Path(path)
+
+            # Fallback: GTEx by-tissue parquet in junction_data/ subdir
+            build_dir = Path(registry.stash)
+            gtex_by_tissue = build_dir / "junction_data" / "junctions_gtex_v8_by_tissue.parquet"
+            if gtex_by_tissue.exists():
+                logger.info("Using GTEx by-tissue junction data: %s", gtex_by_tissue)
+                return gtex_by_tissue
+
+            # Also check for summary-only file
+            gtex_summary = build_dir / "junction_data" / "junctions_gtex_v8.parquet"
+            if gtex_summary.exists():
+                logger.info("Using GTEx junction summary: %s", gtex_summary)
+                return gtex_summary
+
+            return None
         except Exception:
             return None
