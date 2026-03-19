@@ -182,7 +182,7 @@ graph TB
 ### 2. Adaptive Meta-Learning (Foundation-Adaptor Framework)
 **Multimodal deep learning**: Refine predictions using context-aware meta-models
 - **Foundation**: Base model predictions (canonical knowledge)
-- **Adaptor**: Multimodal fusion (DNA sequence + base scores + context)
+- **Adaptor**: 7-modality feature fusion (base scores, conservation, epigenetic marks, RNA-seq junction evidence, DNA sequence, genomic context, gene annotations) — see [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md)
 - **Context embedding**: Patient variants, disease state, tissue type
 - **Self-improvement**: Learn from validation feedback continuously
 
@@ -414,10 +414,12 @@ graph TB
 | Layer | Purpose | Output | Status |
 |-------|---------|--------|--------|
 | **Base Layer** | Canonical splice prediction (MANE) | Baseline scores for ~10% of sites | ✅ Complete (Phases 1–3) |
-| **Feature Engineering** | Multimodal evidence fusion | 4-modality enriched features | ✅ Core Done (Phase 4) |
-| **Foundation Models** | Evo2-based exon classification | Per-nucleotide embeddings + classifiers | 🔬 Experimental (Phase 5) |
-| **Meta Layer** | Context-aware adaptive prediction | Novel sites (90% beyond MANE) | 🔄 Research (Phase 6) |
+| **Feature Engineering** | Multimodal evidence fusion | 7-modality, 86-column enriched features | ✅ Complete (Phase 5A) |
+| **Foundation Models** | Evo2/SpliceBERT splice classification | Per-nucleotide embeddings + classifiers | 🔬 Experimental |
+| **Meta Layer** | Context-aware adaptive prediction | Novel sites (90% beyond MANE) | 🔄 Active (Phase 5B) |
 | **Agentic Layer** | Multi-source validation + reports | Validated isoforms + drug targets | 📋 Planned (Phases 7–9) |
+
+**Feature engineering details**: The multimodal pipeline fuses 7 data modalities into 86 feature columns per genomic position via a YAML-driven workflow. See [`docs/multimodal_feature_engineering/feature_catalog.md`](docs/multimodal_feature_engineering/feature_catalog.md) for the complete feature reference and [`examples/features/`](examples/features/) for usage examples.
 
 ### Key Innovation: Delta Score Analysis
 

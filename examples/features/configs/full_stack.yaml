@@ -24,7 +24,7 @@ pipeline:
     - genomic                       # +4 columns: position, distances, GC content
     - conservation                  # +9 columns: PhyloP/PhastCons scores + context stats
     - epigenetic                    # +12 columns: histone marks across tissues (Strategy B)
-    # - junction                    # +12 columns: RNA-seq junction evidence (requires junctions.tsv)
+    - junction                      # +12 columns: RNA-seq junction evidence (GTEx v8, 353K junctions)
 
 modality_configs:
   base_scores:
