@@ -5,6 +5,8 @@ Provides:
 - ``FocalLoss`` — focal loss for multi-class classification with extreme
   class imbalance (splice sites are ~0.01% of nucleotides).
 - ``compute_class_weights`` — inverse-frequency class weights from labels.
+- ``compute_class_weights_from_counts`` — same, from pre-computed counts.
+- ``ECELoss`` — Expected Calibration Error for post-hoc calibration evaluation.
 """
 
 from typing import Optional
@@ -109,3 +111,75 @@ def compute_class_weights(
     weights = total / (num_classes * counts)
     weights = np.minimum(weights, max_weight)
     return torch.tensor(weights, dtype=torch.float32)
+
+
+def compute_class_weights_from_counts(
+    counts: np.ndarray,
+    num_classes: int = 3,
+    max_weight: float = 1000.0,
+) -> torch.Tensor:
+    """Compute inverse-frequency class weights from pre-computed class counts.
+
+    Same formula as :func:`compute_class_weights` but accepts counts directly,
+    avoiding the need to load all labels into memory.
+
+    Args:
+        counts: Array of shape ``[num_classes]`` with per-class sample counts.
+        num_classes: Number of classes.
+        max_weight: Cap on maximum weight to prevent instability.
+
+    Returns:
+        Tensor of shape ``[num_classes]`` with weights.
+    """
+    counts = np.maximum(np.asarray(counts, dtype=np.float64), 1)
+    total = counts.sum()
+    weights = total / (num_classes * counts)
+    weights = np.minimum(weights, max_weight)
+    return torch.tensor(weights, dtype=torch.float32)
+
+
+class ECELoss(nn.Module):
+    """Expected Calibration Error.
+
+    Bins predictions by confidence and measures the gap between average
+    confidence and accuracy in each bin.  A perfectly calibrated model
+    has ECE = 0.
+
+    Ported from OpenSpliceAI ``calibrate/temperature_scaling.py``.
+
+    Reference: Naeini et al. (2015), "Obtaining Well Calibrated Probabilities
+    Using Bayesian Binning into Quantiles".
+
+    Args:
+        n_bins: Number of equal-width confidence bins (default: 15).
+    """
+
+    def __init__(self, n_bins: int = 15) -> None:
+        super().__init__()
+        bin_boundaries = torch.linspace(0, 1, n_bins + 1)
+        self.register_buffer("bin_lowers", bin_boundaries[:-1])
+        self.register_buffer("bin_uppers", bin_boundaries[1:])
+
+    def forward(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """Compute ECE from logits and integer labels.
+
+        Args:
+            logits: ``[N, num_classes]`` raw logits (pre-softmax).
+            labels: ``[N]`` integer class labels.
+
+        Returns:
+            Scalar ECE in [0, 1].
+        """
+        softmaxes = F.softmax(logits, dim=1)
+        confidences, predictions = torch.max(softmaxes, dim=1)
+        accuracies = predictions.eq(labels)
+
+        ece = torch.zeros(1, device=logits.device)
+        for bin_lower, bin_upper in zip(self.bin_lowers, self.bin_uppers):
+            in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
+            prop_in_bin = in_bin.float().mean()
+            if prop_in_bin.item() > 0:
+                accuracy_in_bin = accuracies[in_bin].float().mean()
+                avg_confidence_in_bin = confidences[in_bin].mean()
+                ece += torch.abs(avg_confidence_in_bin - accuracy_in_bin) * prop_in_bin
+        return ece.squeeze()

@@ -437,10 +437,8 @@ def extract_and_cache_embeddings(
 
             # Save to HDF5
             with h5py.File(h5_path, "w") as f:
-                f.create_dataset("embeddings", data=emb_arr, compression="gzip",
-                                 compression_opts=4)
-                f.create_dataset("labels", data=lbl_arr, compression="gzip",
-                                 compression_opts=4)
+                f.create_dataset("embeddings", data=emb_arr)
+                f.create_dataset("labels", data=lbl_arr)
                 f.attrs["gene_id"] = gene_id
                 f.attrs["gene_name"] = gene_name
                 f.attrs["chrom"] = chrom_chr
@@ -581,49 +579,11 @@ def extract_mock_embeddings(
 # HDF5 Window Dataset
 # ---------------------------------------------------------------------------
 
-class HDF5WindowDataset(torch.utils.data.Dataset):
-    """Lazy-loading dataset that reads windowed embeddings from HDF5 cache."""
-
-    def __init__(self, manifest: List[GeneEntry], gene_set: Set[str]):
-        self.index: List[Tuple[str, int]] = []
-        for entry in manifest:
-            if entry.gene_id in gene_set:
-                for i in range(entry.n_windows):
-                    self.index.append((entry.hdf5_path, i))
-
-    def __len__(self) -> int:
-        return len(self.index)
-
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        path, window_idx = self.index[idx]
-        with h5py.File(path, "r") as f:
-            emb = f["embeddings"][window_idx]
-            lbl = f["labels"][window_idx]
-        return (
-            torch.tensor(emb, dtype=torch.float32),
-            torch.tensor(lbl, dtype=torch.long),
-        )
-
-
-def load_split_tensors(
-    manifest: List[GeneEntry],
-    gene_set: Set[str],
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Load all windows for a gene set into memory as numpy arrays.
-
-    Returns (embeddings, labels) with shapes
-    ``[N_windows, window_size, hidden_dim]`` and ``[N_windows, window_size]``.
-    """
-    all_emb, all_lbl = [], []
-    for entry in manifest:
-        if entry.gene_id not in gene_set:
-            continue
-        with h5py.File(entry.hdf5_path, "r") as f:
-            all_emb.append(f["embeddings"][:])
-            all_lbl.append(f["labels"][:])
-    if not all_emb:
-        return np.empty((0,)), np.empty((0,))
-    return np.concatenate(all_emb, axis=0), np.concatenate(all_lbl, axis=0)
+from foundation_models.data import (
+    HDF5WindowDataset,
+    ShardedWindowDataset,
+    repack_into_shards,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -639,72 +599,116 @@ def train_classifier(
     architecture: str = "dilated_cnn",
     hidden_dim: int = 128,
     lr: float = 1e-3,
-    batch_size: int = 16,
+    batch_size: int = 64,
     weight_decay: float = 0.01,
     epochs: int = 100,
     patience: int = 20,
     focal_gamma: float = 2.0,
+    use_shards: bool = False,
+    seed: int = 42,
 ) -> Any:
-    """Train SpliceClassifier on cached embeddings."""
+    """Train SpliceClassifier on cached embeddings via streaming DataLoaders.
+
+    Never loads the full dataset into RAM — streams batches from HDF5 cache.
+    When ``use_shards=True``, packs per-gene HDF5 files into large contiguous
+    shard files first for 10-50x faster I/O.
+    """
+    from torch.utils.data import DataLoader
+
+    from foundation_models.classifiers.losses import compute_class_weights_from_counts
     from foundation_models.classifiers.splice_classifier import SpliceClassifier
 
     device = get_device()
     model_dir = output_dir / "model"
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load train/val into tensors
-    logger.info("Loading training windows...")
-    train_emb, train_lbl = load_split_tensors(manifest, train_genes)
-    logger.info("Loading validation windows...")
-    val_emb, val_lbl = load_split_tensors(manifest, val_genes)
+    # Build datasets — use shards if requested, otherwise per-gene HDF5
+    train_dataset: torch.utils.data.Dataset
+    val_dataset: Optional[torch.utils.data.Dataset] = None
 
-    n_train_splice = int((train_lbl > 0).sum())
-    n_val_splice = int((val_lbl > 0).sum())
-    logger.info(
-        "  Train: %d windows, %d splice sites", len(train_emb), n_train_splice,
+    shard_dir = output_dir / "shards"
+    if use_shards:
+        # Check for existing shards first
+        existing_train = sorted(shard_dir.glob("train_shard_*.h5"))
+        existing_val = sorted(shard_dir.glob("val_shard_*.h5"))
+
+        if existing_train:
+            logger.info("Using existing shards from %s", shard_dir)
+        else:
+            logger.info("Packing training shards...")
+            repack_into_shards(
+                manifest, train_genes, output_dir, "train", seed=seed,
+            )
+            if val_genes:
+                logger.info("Packing validation shards...")
+                repack_into_shards(
+                    manifest, val_genes, output_dir, "val", seed=seed,
+                )
+            existing_train = sorted(shard_dir.glob("train_shard_*.h5"))
+            existing_val = sorted(shard_dir.glob("val_shard_*.h5"))
+
+        logger.info("Building training dataset (sharded)...")
+        train_dataset = ShardedWindowDataset(existing_train)
+        if existing_val:
+            logger.info("Building validation dataset (sharded)...")
+            val_dataset = ShardedWindowDataset(existing_val)
+    else:
+        logger.info("Building training dataset...")
+        train_dataset = HDF5WindowDataset(manifest, train_genes)
+        if val_genes:
+            logger.info("Building validation dataset...")
+            val_dataset = HDF5WindowDataset(manifest, val_genes)
+
+    # DataLoaders — num_workers=0 because HDF5 file handles are not
+    # fork-safe; the LRU cache already makes single-worker I/O fast.
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True,
+        num_workers=0, pin_memory=torch.cuda.is_available(),
     )
-    logger.info(
-        "  Val: %d windows, %d splice sites", len(val_emb), n_val_splice,
-    )
+    val_loader: Optional[DataLoader] = None
+    if val_dataset is not None:
+        val_loader = DataLoader(
+            val_dataset, batch_size=batch_size, shuffle=False,
+            num_workers=0, pin_memory=torch.cuda.is_available(),
+        )
 
-    train_emb_t = torch.tensor(train_emb, dtype=torch.float32)
-    train_lbl_t = torch.tensor(train_lbl, dtype=torch.long)
-    val_emb_t = torch.tensor(val_emb, dtype=torch.float32) if len(val_emb) > 0 else None
-    val_lbl_t = torch.tensor(val_lbl, dtype=torch.long) if len(val_lbl) > 0 else None
+    # Class weights from label scan (no full array in memory)
+    class_weights = compute_class_weights_from_counts(train_dataset.class_counts)
 
-    # Free numpy arrays
-    del train_emb, train_lbl, val_emb, val_lbl
+    n_train_splice = int(train_dataset.class_counts[1] + train_dataset.class_counts[2])
+    n_val_splice = 0
+    if val_dataset is not None:
+        n_val_splice = int(val_dataset.class_counts[1] + val_dataset.class_counts[2])
 
     classifier = SpliceClassifier(
         input_dim=input_dim,
         hidden_dim=hidden_dim,
         architecture=architecture,
     )
-
     n_params = sum(p.numel() for p in classifier.parameters())
 
     print()
     print("=" * 60)
-    print("Training SpliceClassifier (genome-scale)")
+    print("Training SpliceClassifier (genome-scale, streaming)")
     print("=" * 60)
     print(f"  Architecture: {architecture}")
     print(f"  Input dim:    {input_dim}")
     print(f"  Hidden dim:   {hidden_dim}")
     print(f"  Parameters:   {n_params:,}")
-    print(f"  Train:        {len(train_emb_t)} windows ({n_train_splice} splice sites)")
-    if val_emb_t is not None:
-        print(f"  Val:          {len(val_emb_t)} windows ({n_val_splice} splice sites)")
+    print(f"  Train:        {len(train_dataset)} windows ({n_train_splice} splice sites)")
+    if val_dataset is not None:
+        print(f"  Val:          {len(val_dataset)} windows ({n_val_splice} splice sites)")
     print(f"  Device:       {device}")
     print(f"  Focal gamma:  {focal_gamma}")
     print(f"  Hyperparams:  lr={lr}, batch={batch_size}, wd={weight_decay}")
     print("=" * 60)
     print()
 
-    history = classifier.fit(
-        train_emb_t, train_lbl_t,
-        val_emb_t, val_lbl_t,
+    history = classifier.fit_streaming(
+        train_loader,
+        val_loader,
+        class_weights=class_weights,
         epochs=epochs,
-        batch_size=batch_size,
         lr=lr,
         weight_decay=weight_decay,
         device=device,
@@ -715,11 +719,17 @@ def train_classifier(
 
     # Save training history
     history_path = model_dir / "training_history.json"
-    serializable = {k: v for k, v in history.items() if isinstance(v, (list, int, float, str, bool))}
+    serializable = {
+        k: v for k, v in history.items()
+        if isinstance(v, (list, int, float, str, bool))
+    }
     with open(history_path, "w") as f:
         json.dump(serializable, f, indent=2)
 
-    return classifier
+    # Clean up training file handles (keep val alive for calibration)
+    train_dataset.close()
+
+    return classifier, val_dataset, val_loader
 
 
 # ---------------------------------------------------------------------------
@@ -894,7 +904,7 @@ def main() -> None:
 
     # Training
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--weight-decay", type=float, default=0.01)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--patience", type=int, default=20)
@@ -905,6 +915,8 @@ def main() -> None:
                         help="Synthetic data for pipeline validation")
     parser.add_argument("--resume", action="store_true",
                         help="Skip genes with existing HDF5 cache")
+    parser.add_argument("--shard", action="store_true",
+                        help="Pack per-gene HDF5 into shard files for fast I/O")
 
     args = parser.parse_args()
 
@@ -1025,7 +1037,7 @@ def main() -> None:
         "  Windows: %d train, %d val, %d test", n_train_win, n_val_win, n_test_win,
     )
 
-    classifier = train_classifier(
+    classifier, val_dataset, val_loader = train_classifier(
         manifest=manifest,
         train_genes=split.train_genes,
         val_genes=split.val_genes,
@@ -1039,7 +1051,36 @@ def main() -> None:
         epochs=args.epochs,
         patience=args.patience,
         focal_gamma=args.focal_gamma,
+        use_shards=args.shard,
+        seed=args.seed,
     )
+
+    # ===================================================================
+    # Phase 2.5: Calibrate probabilities (temperature scaling)
+    # ===================================================================
+    cal_metrics: Optional[Dict] = None
+    if val_loader is not None:
+        logger.info("Phase 2.5: Calibrating probabilities (temperature scaling)...")
+        device = get_device()
+        cal_metrics = classifier.calibrate(val_loader, device=device)
+
+        # Save temperature vector
+        temp_path = output_dir / "model" / "temperature.pt"
+        torch.save(classifier.temperature.data.cpu(), temp_path)
+        logger.info("  Temperature saved: %s", temp_path)
+
+        # Re-save checkpoint with temperature included
+        model_dir = output_dir / "model"
+        classifier._save_checkpoint(
+            str(model_dir), epoch=-1,
+            metrics={"calibration": cal_metrics},
+        )
+    else:
+        logger.warning("No validation data — skipping calibration")
+
+    # Clean up val dataset file handles
+    if val_dataset is not None:
+        val_dataset.close()
 
     # ===================================================================
     # Phase 3: Evaluate
@@ -1063,6 +1104,11 @@ def main() -> None:
     print(f"  Output:       {output_dir}")
     print(f"  Cache:        {output_dir / 'cache'}")
     print(f"  Checkpoint:   {output_dir / 'model' / 'best_model.pt'}")
+    if cal_metrics:
+        print(f"  ECE (before): {cal_metrics['ece_before']:.4f}")
+        print(f"  ECE (after):  {cal_metrics['ece_after']:.4f}")
+        temps = cal_metrics["temperature"]
+        print(f"  Temperature:  [{temps[0]:.3f}, {temps[1]:.3f}, {temps[2]:.3f}]")
     if results:
         print(f"  Mean AUROC:   {results.get('mean_auroc', float('nan')):.4f}")
         print(f"  Mean AUPRC:   {results.get('mean_auprc', float('nan')):.4f}")
