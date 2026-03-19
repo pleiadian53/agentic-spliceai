@@ -138,14 +138,13 @@ def _ensure_predictions(
         agg_file = production_dir / "predictions.tsv"
 
         if agg_file.exists() and new_predictions is not None and new_predictions.height > 0:
-            existing = pl.read_csv(agg_file, separator="\t")
-            existing = ensure_chrom_column(existing)
+            # Append without reading the full file into memory.
             new_predictions = ensure_chrom_column(new_predictions)
-            merged = pl.concat([existing, new_predictions])
-            merged.write_csv(agg_file, separator="\t")
-            print(f"   Merged: {existing.height:,} + {new_predictions.height:,} "
-                  f"= {merged.height:,}")
+            with open(agg_file, "a") as f:
+                new_predictions.write_csv(f, separator="\t", include_header=False)
+            print(f"   Appended: {new_predictions.height:,} positions to {agg_file}")
         elif new_predictions is not None and new_predictions.height > 0:
+            new_predictions = ensure_chrom_column(new_predictions)
             new_predictions.write_csv(agg_file, separator="\t")
             print(f"   Saved: {n_new:,} positions to {agg_file}")
 
@@ -200,8 +199,13 @@ def _ensure_all_chromosomes(
 
     if missing:
         print(f"\n  Missing chromosomes: {', '.join(missing)}")
-        print(f"  Generating on-demand...")
-        _ensure_predictions(model, missing, chunk_size)
+        print(f"  Generating on-demand (one chromosome at a time)...")
+        # Predict per-chromosome to bound memory and persist progress.
+        # Each chromosome's predictions are merged into predictions.tsv
+        # before starting the next, so OOM mid-run only loses one chrom.
+        for chrom in missing:
+            print(f"\n  --- Predicting {chrom} ---")
+            _ensure_predictions(model, [chrom], chunk_size)
 
     return input_dir
 
