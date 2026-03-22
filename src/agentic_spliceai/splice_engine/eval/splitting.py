@@ -16,6 +16,7 @@ Key design principles:
 Preset splits:
   - ``spliceai`` — SpliceAI's published split (Jaganathan et al., 2019)
   - ``even_odd`` — Even chromosomes train, odd test (simple)
+  - ``balanced`` — Auto-assign by gene count: largest chroms to train (≥80% of genes)
   - ``custom`` — User-defined chromosome assignments
 
 Usage::
@@ -207,6 +208,69 @@ def _normalize_chrom(chrom: str) -> str:
     return chrom
 
 
+def _build_balanced_split(
+    gene_chromosomes: Dict[str, str],
+    train_fraction: float = 0.8,
+) -> ChromosomeSplitConfig:
+    """Assign chromosomes to train/test by gene count, largest first to train.
+
+    Given a subset of chromosomes, sorts them by gene count (descending) and
+    greedily assigns chromosomes to the training set until the training set
+    contains at least ``train_fraction`` of all genes.  The remaining
+    chromosomes become the test set.  This prevents the common pitfall where
+    a preset like SpliceAI accidentally puts larger chromosomes in test when
+    only a small subset is used.
+
+    With a 2-chromosome subset (e.g., chr3 + chr22), the larger chromosome
+    always becomes train.  With more chromosomes the greedy assignment targets
+    the requested fraction.
+    """
+    # Count genes per chromosome (normalised to chr-prefix form)
+    counts: Dict[str, int] = {}
+    for chrom in gene_chromosomes.values():
+        c = _normalize_chrom(chrom)
+        counts[c] = counts.get(c, 0) + 1
+
+    # Sort largest → smallest
+    sorted_chroms = sorted(counts, key=lambda c: counts[c], reverse=True)
+    total = sum(counts.values())
+    target = int(total * train_fraction)
+
+    train_chroms: Set[str] = set()
+    test_chroms: Set[str] = set()
+    accumulated = 0
+    for c in sorted_chroms:
+        if accumulated < target:
+            train_chroms.add(c)
+            accumulated += counts[c]
+        else:
+            test_chroms.add(c)
+
+    # Edge case: all chromosomes ended up in train (e.g., only 1 chrom provided).
+    # Move the smallest train chrom to test so there is always something to evaluate.
+    if not test_chroms and len(train_chroms) > 1:
+        smallest = min(train_chroms, key=lambda c: counts[c])
+        train_chroms.remove(smallest)
+        test_chroms.add(smallest)
+
+    train_summary = ", ".join(
+        f"{c}({counts.get(c, 0)})" for c in sorted(train_chroms)
+    )
+    test_summary = ", ".join(
+        f"{c}({counts.get(c, 0)})" for c in sorted(test_chroms)
+    )
+    description = (
+        f"Balanced split (≥{train_fraction:.0%} genes in train): "
+        f"train=[{train_summary}], test=[{test_summary}]"
+    )
+    logger.info("Balanced split: %s", description)
+    return ChromosomeSplitConfig(
+        train_chromosomes=train_chroms,
+        test_chromosomes=test_chroms,
+        description=description,
+    )
+
+
 def build_gene_split(
     gene_chromosomes: Dict[str, str],
     preset: str = "spliceai",
@@ -257,11 +321,13 @@ def build_gene_split(
             test_chromosomes=custom_test_chroms,
             description="Custom chromosome split",
         )
+    elif preset == "balanced":
+        chrom_config = _build_balanced_split(gene_chromosomes, train_fraction=0.8)
     elif preset in SPLIT_PRESETS:
         chrom_config = SPLIT_PRESETS[preset]
     else:
         raise ValueError(
-            f"Unknown preset: {preset!r}. Available: {', '.join(SPLIT_PRESETS)} or 'custom'"
+            f"Unknown preset: {preset!r}. Available: {', '.join(SPLIT_PRESETS)}, 'balanced', or 'custom'"
         )
 
     logger.info("Using split: %s", chrom_config.description)
