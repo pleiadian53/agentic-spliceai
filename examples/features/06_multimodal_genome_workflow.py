@@ -36,6 +36,9 @@ Usage:
         --config configs/full_stack.yaml --chromosomes all --resume \\
         > /workspace/output/features.log 2>&1 &
 
+    # Memory-safe local run (exits gracefully before OOM, re-run with --resume)
+    python 06_multimodal_genome_workflow.py --chromosomes all --resume --memory-limit 5
+
 Example:
     python 06_multimodal_genome_workflow.py --dry-run
 """
@@ -98,7 +101,8 @@ def _ensure_predictions(
     """Ensure base-layer predictions exist, generating on-demand if needed.
 
     New chromosome predictions are generated in a temporary directory, then
-    merged into the registry-managed production path.
+    saved as per-chromosome parquet files in the production path. Parquet is
+    5-10x smaller than TSV and enables selective per-chromosome reads.
 
     Returns the production precomputed directory path.
     """
@@ -133,20 +137,17 @@ def _ensure_predictions(
         n_new = new_predictions.height if new_predictions is not None else 0
         print(f"   Generated: {n_new:,} positions in {result.runtime_seconds:.0f}s")
 
-        # Merge into production directory
+        # Save as per-chromosome parquet files (5-10x smaller than TSV)
         production_dir.mkdir(parents=True, exist_ok=True)
-        agg_file = production_dir / "predictions.tsv"
-
-        if agg_file.exists() and new_predictions is not None and new_predictions.height > 0:
-            # Append without reading the full file into memory.
+        if new_predictions is not None and new_predictions.height > 0:
             new_predictions = ensure_chrom_column(new_predictions)
-            with open(agg_file, "a") as f:
-                new_predictions.write_csv(f, separator="\t", include_header=False)
-            print(f"   Appended: {new_predictions.height:,} positions to {agg_file}")
-        elif new_predictions is not None and new_predictions.height > 0:
-            new_predictions = ensure_chrom_column(new_predictions)
-            new_predictions.write_csv(agg_file, separator="\t")
-            print(f"   Saved: {n_new:,} positions to {agg_file}")
+            for chrom in new_predictions["chrom"].unique().sort().to_list():
+                chrom_df = new_predictions.filter(pl.col("chrom") == chrom)
+                parquet_path = production_dir / f"predictions_{chrom}.parquet"
+                chrom_df.write_parquet(parquet_path)
+                size_mb = parquet_path.stat().st_size / (1024 * 1024)
+                print(f"   Saved: {chrom_df.height:,} positions -> "
+                      f"{parquet_path.name} ({size_mb:.1f} MB)")
 
     print(f"   Production path: {production_dir}")
     return production_dir
@@ -170,39 +171,65 @@ def _ensure_all_chromosomes(
     chromosomes: list[str],
     chunk_size: int,
 ) -> Path:
-    """Check for missing chromosomes in predictions and generate if needed."""
+    """Check for missing chromosomes in predictions and generate if needed.
+
+    Detection priority:
+    1. Per-chromosome parquet files (predictions_{chrom}.parquet) — preferred
+    2. Legacy aggregated TSV (predictions.tsv) — backward compatible
+    3. Generate from scratch if nothing found
+    """
     import polars as pl
+    import re
 
     if not input_dir.exists():
         print(f"\n  No precomputed predictions at: {input_dir}")
         print(f"  Generating on-demand...")
-        return _ensure_predictions(model, chromosomes, chunk_size)
+        for chrom in chromosomes:
+            print(f"\n  --- Predicting {chrom} ---")
+            _ensure_predictions(model, [chrom], chunk_size)
+        return input_dir
 
-    agg_file = input_dir / "predictions.tsv"
-    if not agg_file.exists():
-        print(f"\n  No predictions.tsv in: {input_dir}")
-        print(f"  Generating on-demand...")
-        return _ensure_predictions(model, chromosomes, chunk_size)
-
-    # Check which chromosomes are available
     resources = get_model_resources(model)
-    lazy = pl.scan_csv(agg_file, separator="\t")
-    cols = lazy.collect_schema().names()
-    if "chrom" not in cols and "seqname" in cols:
-        lazy = lazy.rename({"seqname": "chrom"})
 
-    available = (
-        lazy.select("chrom").unique().collect()["chrom"].to_list()
-    )
-    available_norm = set(normalize_chromosomes_for_build(available, resources.build))
+    # 1. Check per-chromosome parquet files
+    available_chroms: set[str] = set()
+    for f in input_dir.glob("predictions_*.parquet"):
+        # Extract chrom from filename: predictions_chr22.parquet -> chr22
+        match = re.match(r"predictions_(.+)\.parquet$", f.name)
+        if match:
+            available_chroms.add(match.group(1))
+
+    # 2. Fall back to legacy TSV if no parquets found
+    if not available_chroms:
+        agg_file = input_dir / "predictions.tsv"
+        if agg_file.exists():
+            lazy = pl.scan_csv(agg_file, separator="\t")
+            cols = lazy.collect_schema().names()
+            if "chrom" not in cols and "seqname" in cols:
+                lazy = lazy.rename({"seqname": "chrom"})
+            available_chroms = set(
+                lazy.select("chrom").unique().collect()["chrom"].to_list()
+            )
+
+    if not available_chroms:
+        print(f"\n  No predictions found in: {input_dir}")
+        print(f"  Generating on-demand...")
+        for chrom in chromosomes:
+            print(f"\n  --- Predicting {chrom} ---")
+            _ensure_predictions(model, [chrom], chunk_size)
+        return input_dir
+
+    # Normalize and find missing
+    available_norm = set(normalize_chromosomes_for_build(
+        list(available_chroms), resources.build,
+    ))
     missing = [c for c in chromosomes if c not in available_norm]
 
     if missing:
         print(f"\n  Missing chromosomes: {', '.join(missing)}")
+        print(f"  Available: {len(available_norm)} chromosomes "
+              f"({'parquet' if input_dir.glob('predictions_*.parquet') else 'TSV'})")
         print(f"  Generating on-demand (one chromosome at a time)...")
-        # Predict per-chromosome to bound memory and persist progress.
-        # Each chromosome's predictions are merged into predictions.tsv
-        # before starting the next, so OOM mid-run only loses one chrom.
         for chrom in missing:
             print(f"\n  --- Predicting {chrom} ---")
             _ensure_predictions(model, [chrom], chunk_size)
@@ -286,6 +313,11 @@ def main() -> int:
     parser.add_argument(
         "--dry-run", action="store_true",
         help="Validate config and show what would run, without executing",
+    )
+    parser.add_argument(
+        "--memory-limit", type=float, default=None, metavar="GB",
+        help="Memory limit in GB. Monitor RSS and exit gracefully before OOM. "
+             "Default: no limit. Recommended: 4-6 for 16GB laptop, 30+ for pods.",
     )
 
     args = parser.parse_args()
@@ -373,6 +405,7 @@ def main() -> int:
         output_dir=output_dir,
         resume=args.resume,
         sampling_config=sampling_config,
+        memory_limit_gb=args.memory_limit,
     )
 
     print(f"  Output: {workflow.output_dir}")

@@ -33,6 +33,8 @@ from .filesystem import (
     format_file_size,
 )
 
+from .memory_monitor import MemoryMonitor, MemoryLimitExceeded, MemorySnapshot
+
 from .display import (
     print_emphasized,
     print_with_indent,
@@ -44,6 +46,10 @@ from .display import (
 )
 
 __all__ = [
+    # Memory monitoring
+    'MemoryMonitor',
+    'MemoryLimitExceeded',
+    'MemorySnapshot',
     # DataFrame utilities
     'is_dataframe_empty',
     'smart_read_csv',

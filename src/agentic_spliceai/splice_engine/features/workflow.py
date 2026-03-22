@@ -17,6 +17,7 @@ import polars as pl
 
 from .pipeline import FeaturePipeline, FeaturePipelineConfig
 from .sampling import PositionSamplingConfig, sample_positions
+from ..utils.memory_monitor import MemoryLimitExceeded, MemoryMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,11 @@ class FeatureWorkflow:
         (all positions retained). Enable to reduce storage from ~271 GB
         to ~1-5 GB for full genome by keeping only splice-relevant
         positions and a configurable background sample.
+    memory_limit_gb : float, optional
+        Memory limit in GB. If set, a background MemoryMonitor thread
+        logs RSS periodically and the workflow checks between chromosomes.
+        When exceeded, the current chromosome is saved and the workflow
+        exits gracefully. Default: None (no monitoring).
 
     Examples
     --------
@@ -107,11 +113,13 @@ class FeatureWorkflow:
         output_dir: Optional[Path | str] = None,
         resume: bool = False,
         sampling_config: Optional[PositionSamplingConfig] = None,
+        memory_limit_gb: Optional[float] = None,
     ) -> None:
         self.pipeline_config = pipeline_config
         self.input_dir = Path(input_dir)
         self.resume = resume
         self.sampling_config = sampling_config
+        self.memory_limit_gb = memory_limit_gb
 
         if output_dir is not None:
             self.output_dir = Path(output_dir)
@@ -156,6 +164,15 @@ class FeatureWorkflow:
             pipeline_schema=self._pipeline.get_output_schema(),
         )
 
+        # Start memory monitor if configured
+        monitor: Optional[MemoryMonitor] = None
+        if self.memory_limit_gb is not None:
+            monitor = MemoryMonitor(
+                limit_gb=self.memory_limit_gb,
+                abort_on_exceed=True,
+            )
+            monitor.start()
+
         try:
             # Build lazy scanner (no data loaded yet)
             lazy = self._build_lazy_scanner()
@@ -189,6 +206,33 @@ class FeatureWorkflow:
             fmt = self.pipeline_config.output_format
 
             for chrom in target_chroms:
+                # Memory check between chromosomes (safe checkpoint boundary)
+                if monitor is not None:
+                    try:
+                        snap = monitor.check()
+                        logger.info(
+                            "Memory check before %s: RSS=%.2f GB",
+                            chrom,
+                            snap.rss_gb,
+                        )
+                    except MemoryLimitExceeded:
+                        logger.warning(
+                            "Memory limit exceeded before %s — saving progress "
+                            "and exiting gracefully. Completed: %s",
+                            chrom,
+                            result.chromosomes_processed,
+                        )
+                        result.total_positions = total_positions
+                        result.success = True  # partial success
+                        result.error = (
+                            f"Memory limit ({self.memory_limit_gb} GB) exceeded "
+                            f"before {chrom}. Processed {len(result.chromosomes_processed)} "
+                            f"chromosomes. Re-run with --resume to continue."
+                        )
+                        result.runtime_seconds = time.time() - t0
+                        self._save_summary(result)
+                        return result
+
                 output_path = self._get_chrom_output_path(chrom, fmt)
 
                 # Resume support
@@ -263,10 +307,23 @@ class FeatureWorkflow:
             result.runtime_seconds = time.time() - t0
             self._save_summary(result)
 
+        except MemoryLimitExceeded as e:
+            logger.warning("Memory limit exceeded during processing: %s", e)
+            result.error = str(e) + " Re-run with --resume to continue."
+            result.runtime_seconds = time.time() - t0
+            # Still save summary for partial progress
+            if result.chromosomes_processed:
+                result.success = True
+                self._save_summary(result)
+
         except Exception as e:
             logger.error("Feature workflow failed: %s", e, exc_info=True)
             result.error = str(e)
             result.runtime_seconds = time.time() - t0
+
+        finally:
+            if monitor is not None:
+                monitor.stop()
 
         return result
 
@@ -286,10 +343,13 @@ class FeatureWorkflow:
         2. Aggregated ``predictions.tsv``
         3. Chunk TSV files (``predictions_chunk_*.tsv``)
         """
-        from agentic_spliceai.splice_engine.resources import ensure_chrom_column
-
         # 1. Per-chromosome parquet (best case — zero unnecessary I/O)
-        chrom_parquets = sorted(self.input_dir.glob("predictions_chr*.parquet"))
+        # Match both chr-prefixed (GRCh38: predictions_chr22.parquet) and
+        # bare names (GRCh37: predictions_22.parquet). Exclude chunk files.
+        chrom_parquets = sorted([
+            f for f in self.input_dir.glob("predictions_*.parquet")
+            if not f.name.startswith("predictions_chunk")
+        ])
         if chrom_parquets:
             logger.info(
                 "Using %d per-chromosome parquet files", len(chrom_parquets)
