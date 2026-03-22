@@ -1,28 +1,33 @@
 """
-Genome-Scale Splice Site Predictor (Foundation Model Embeddings)
+Genome-Scale Splice Site Predictor — Direct-to-Shard Pipeline
 
-Production-grade per-nucleotide splice site prediction using frozen foundation
-model embeddings with SpliceAI-standard chromosome-split evaluation.
+Variant of 07_genome_scale_splice_predictor.py that writes embeddings directly
+to shard files during extraction, never creating per-gene HDF5 cache.  This
+eliminates the disk space problem where gzip-compressed float32 embeddings
+still consume ~1.4x the raw size (gzip compresses poorly on dense floats).
+
+Disk usage: only the uncompressed training shards exist on disk.  Each
+chromosome's embeddings are extracted gene-by-gene, accumulated in a memory
+buffer, and flushed to shard files when the buffer fills (~4 GB).  The buffer
+is then freed before processing the next batch of genes.
 
 Three-phase pipeline:
-  Phase 1: Extract per-gene embeddings → cache to HDF5 (resumable)
-  Phase 2: Train SpliceClassifier on windowed embeddings (focal loss)
-  Phase 3: Evaluate on held-out chromosomes with SpliceAI metrics
-
-Supports all registered foundation models: Evo2, SpliceBERT, HyenaDNA, DNABERT-2.
+  Phase 1: Extract embeddings → direct to shard files (no per-gene cache)
+  Phase 2: Train SpliceClassifier from shards (streaming DataLoader)
+  Phase 3: Evaluate on held-out chromosomes (live model inference)
 
 Usage:
     # Mock mode (pipeline validation, no GPU needed)
-    python 07_genome_scale_splice_predictor.py \\
-        --mock --n-genes 10 -o /tmp/07-mock/
+    python 07a_direct_shard_splice_predictor.py \\
+        --mock --n-genes 10 -o /tmp/07a-mock/
 
-    # Single chromosome (quick local test)
-    python 07_genome_scale_splice_predictor.py \\
-        --foundation-model splicebert --chromosomes 22 \\
-        -o /tmp/07-chr22/
+    # Multi-chromosome with train/test split
+    python 07a_direct_shard_splice_predictor.py \\
+        --foundation-model splicebert --chromosomes 1,2,3,22 \\
+        -o /workspace/output/splice_classifier/splicebert-multi-chrom/
 
     # Full genome on GPU pod
-    python 07_genome_scale_splice_predictor.py \\
+    python 07a_direct_shard_splice_predictor.py \\
         --foundation-model splicebert --chromosomes all \\
         -o /workspace/output/genome-splicebert/
 """
@@ -227,11 +232,40 @@ def extract_dense_gene_embeddings(
 
 
 # ---------------------------------------------------------------------------
-# Phase 1: Extract & cache embeddings to HDF5
+# Phase 1: Extract embeddings → direct to shard files (no per-gene cache)
 # ---------------------------------------------------------------------------
 
-def extract_and_cache_embeddings(
+_DEFAULT_SHARD_MEMORY_BUDGET = 4 * 1024**3  # 4 GB
+
+
+def _flush_shard(
+    emb_buf: np.ndarray,
+    lbl_buf: np.ndarray,
+    n_filled: int,
+    shard_dir: Path,
+    split_name: str,
+    shard_num: int,
+    t0: float,
+) -> Path:
+    """Write a filled buffer to an uncompressed shard file."""
+    shard_path = shard_dir / f"{split_name}_shard_{shard_num:03d}.h5"
+    with h5py.File(shard_path, "w") as f:
+        f.create_dataset("embeddings", data=emb_buf[:n_filled])
+        f.create_dataset("labels", data=lbl_buf[:n_filled])
+    elapsed = time.time() - t0
+    logger.info(
+        "  Flushed %s_%03d: %d windows (%.1f s)",
+        split_name, shard_num, n_filled, elapsed,
+    )
+    return shard_path
+
+
+def extract_to_shards(
     chromosomes: List[str],
+    gene_split: Dict[str, str],
+    train_genes: Set[str],
+    val_genes: Set[str],
+    test_genes: Set[str],
     model_name: str,
     model_kwargs: dict,
     max_context: int,
@@ -242,11 +276,19 @@ def extract_and_cache_embeddings(
     output_dir: Path,
     build: str = "GRCh38_MANE",
     max_gene_length: int = 200_000,
-    resume: bool = False,
+    shard_memory_budget: int = _DEFAULT_SHARD_MEMORY_BUDGET,
 ) -> List[GeneEntry]:
-    """Extract per-gene embeddings, window, and cache to HDF5.
+    """Extract embeddings and write directly to shard files.
 
-    Returns manifest of cached genes.
+    Never writes per-gene HDF5 cache.  Windows are accumulated in a memory
+    buffer (~4 GB) and flushed to shard files when full.  Peak disk usage
+    is only the uncompressed shard files themselves.
+
+    Train and val windows go to separate shard series (``train_shard_*.h5``,
+    ``val_shard_*.h5``).  Test gene embeddings are NOT stored — Phase 3
+    evaluation runs the model live.
+
+    Returns manifest of all processed genes (for split bookkeeping).
     """
     import pandas as pd
     import polars as pl
@@ -265,11 +307,6 @@ def extract_and_cache_embeddings(
         data_dir = Path(fasta_path).parent
     except Exception as exc:
         logger.error("Cannot resolve data paths for build=%s: %s", build, exc)
-        logger.error(
-            "Ensure data is prepared. See: "
-            "python examples/data_preparation/04_generate_ground_truth.py "
-            "--output data/mane/GRCh38/"
-        )
         sys.exit(1)
 
     from agentic_spliceai.splice_engine.base_layer.data.preparation import (
@@ -289,11 +326,7 @@ def extract_and_cache_embeddings(
             break
 
     if splice_sites_df is None:
-        logger.error(
-            "Splice site annotations not found in %s. Generate with:\n"
-            "  python examples/data_preparation/04_generate_ground_truth.py "
-            "--output %s", data_dir, data_dir,
-        )
+        logger.error("Splice site annotations not found in %s", data_dir)
         sys.exit(1)
 
     # --- Load foundation model once ---
@@ -306,28 +339,47 @@ def extract_and_cache_embeddings(
     fasta = Fasta(fasta_path)
     logger.info("Using FASTA: %s", fasta_path)
 
+    # --- Prepare shard buffers ---
+    shard_dir = output_dir / "shards"
+    shard_dir.mkdir(parents=True, exist_ok=True)
+
+    bytes_per_window = window_size * hidden_dim * 4  # float32
+    buf_capacity = max(100, shard_memory_budget // bytes_per_window)
+    buf_mem_gb = buf_capacity * bytes_per_window / 1e9
+    logger.info(
+        "Shard buffer: %d windows (%.1f GB), window=%d, hidden=%d",
+        buf_capacity, buf_mem_gb, window_size, hidden_dim,
+    )
+
+    # Separate buffers for train and val
+    train_emb_buf = np.empty((buf_capacity, window_size, hidden_dim), dtype=np.float32)
+    train_lbl_buf = np.empty((buf_capacity, window_size), dtype=np.int8)
+    train_filled = 0
+    train_shard_num = 0
+
+    val_emb_buf = np.empty((buf_capacity, window_size, hidden_dim), dtype=np.float32)
+    val_lbl_buf = np.empty((buf_capacity, window_size), dtype=np.int8)
+    val_filled = 0
+    val_shard_num = 0
+
+    t0 = time.time()
+
     # --- Process each chromosome ---
-    cache_dir = output_dir / "cache"
     manifest: List[GeneEntry] = []
     total_genes = 0
     total_windows = 0
     total_splice = 0
     total_skipped = 0
-    total_cached = 0
 
-    for chrom_i, chrom in enumerate(chromosomes, 1):
+    for chrom in chromosomes:
         chrom_t0 = time.time()
         chrom_bare = _normalize_chrom(chrom)
         chrom_chr = f"chr{chrom_bare}" if not chrom.startswith("chr") else chrom
-        chrom_dir = cache_dir / chrom_chr
-        chrom_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load genes for this chromosome
         gene_data = load_gene_annotations(
             gtf_path=gtf_path, chromosomes=[chrom_chr], verbosity=0,
         )
         if gene_data.height == 0:
-            # Try without chr prefix
             gene_data = load_gene_annotations(
                 gtf_path=gtf_path, chromosomes=[chrom_bare], verbosity=0,
             )
@@ -335,7 +387,6 @@ def extract_and_cache_embeddings(
             logger.warning("  %s: no genes found, skipping", chrom_chr)
             continue
 
-        # Filter by gene length
         gene_data = gene_data.with_columns(
             (pl.col("end") - pl.col("start")).alias("gene_length"),
         ).filter(pl.col("gene_length") <= max_gene_length)
@@ -343,8 +394,8 @@ def extract_and_cache_embeddings(
         chrom_genes = 0
         chrom_windows = 0
         chrom_splice = 0
-
         n_chrom_genes = gene_data.height
+
         for gene_idx, row in enumerate(gene_data.iter_rows(named=True), 1):
             gene_id = row["gene_id"]
             gene_name = row["gene_name"]
@@ -354,32 +405,17 @@ def extract_and_cache_embeddings(
             strand = str(row.get("strand", "+"))
             gene_len = end - start
 
-            h5_path = chrom_dir / f"{gene_id}.h5"
-
-            # Resume: skip if already cached
-            if resume and h5_path.exists():
-                try:
-                    with h5py.File(h5_path, "r") as f:
-                        n_win = f["embeddings"].shape[0]
-                        n_spl = int(f.attrs.get("n_splice_sites", 0))
-                    manifest.append(GeneEntry(
-                        gene_id=gene_id, gene_name=gene_name, chrom=chrom_chr,
-                        start=start, end=end, strand=strand,
-                        n_windows=n_win, n_splice_sites=n_spl,
-                        hdf5_path=str(h5_path),
-                    ))
-                    chrom_genes += 1
-                    chrom_windows += n_win
-                    chrom_splice += n_spl
-                    total_cached += 1
-                    if gene_idx % 50 == 1:
-                        logger.info(
-                            "  %s [%d/%d] %s: cached (%d windows)",
-                            chrom_chr, gene_idx, n_chrom_genes, gene_name, n_win,
-                        )
-                    continue
-                except Exception:
-                    pass  # Corrupted cache — re-extract
+            # Determine split assignment
+            if gene_id in test_genes:
+                split_label = "test"
+            elif gene_id in val_genes:
+                split_label = "val"
+            elif gene_id in train_genes:
+                split_label = "train"
+            else:
+                # Gene not in any split (shouldn't happen but skip gracefully)
+                total_skipped += 1
+                continue
 
             # Resolve chromosome in FASTA
             chrom_key = _resolve_chrom_key(fasta, g_chrom)
@@ -387,7 +423,6 @@ def extract_and_cache_embeddings(
                 total_skipped += 1
                 continue
 
-            # Extract sequence
             gene_seq = str(fasta[chrom_key][start:end]).upper()
             if len(gene_seq) < window_size:
                 total_skipped += 1
@@ -402,6 +437,19 @@ def extract_and_cache_embeddings(
             )
             n_splice = int((labels > 0).sum())
 
+            # Skip embedding extraction for test genes (Phase 3 runs model live)
+            if split_label == "test":
+                manifest.append(GeneEntry(
+                    gene_id=gene_id, gene_name=gene_name, chrom=chrom_chr,
+                    start=start, end=end, strand=strand,
+                    n_windows=0, n_splice_sites=n_splice,
+                    hdf5_path="",  # No cache — Phase 3 runs live
+                ))
+                chrom_genes += 1
+                chrom_splice += n_splice
+                del labels, gene_seq
+                continue
+
             # Extract dense embeddings
             gene_emb = extract_dense_gene_embeddings(
                 model=model,
@@ -411,65 +459,59 @@ def extract_and_cache_embeddings(
                 overlap=None,
             )
 
-            # Window
-            win_embs = []
-            win_lbls = []
+            # Window and write to buffer
+            n_gene_windows = 0
             pos = 0
             while pos + window_size <= len(gene_seq):
-                win_embs.append(gene_emb[pos:pos + window_size])
-                win_lbls.append(labels[pos:pos + window_size])
+                win_emb = gene_emb[pos:pos + window_size]
+                win_lbl = labels[pos:pos + window_size]
+
+                if split_label == "train":
+                    train_emb_buf[train_filled] = win_emb
+                    train_lbl_buf[train_filled] = win_lbl
+                    train_filled += 1
+                    if train_filled >= buf_capacity:
+                        _flush_shard(
+                            train_emb_buf, train_lbl_buf, train_filled,
+                            shard_dir, "train", train_shard_num, t0,
+                        )
+                        train_shard_num += 1
+                        train_filled = 0
+                else:  # val
+                    val_emb_buf[val_filled] = win_emb
+                    val_lbl_buf[val_filled] = win_lbl
+                    val_filled += 1
+                    if val_filled >= buf_capacity:
+                        _flush_shard(
+                            val_emb_buf, val_lbl_buf, val_filled,
+                            shard_dir, "val", val_shard_num, t0,
+                        )
+                        val_shard_num += 1
+                        val_filled = 0
+
+                n_gene_windows += 1
                 pos += step_size
-
-            if not win_embs:
-                total_skipped += 1
-                del gene_emb, labels, gene_seq
-                continue
-
-            emb_arr = np.stack(win_embs, axis=0)  # [n_win, W, H]
-            lbl_arr = np.stack(win_lbls, axis=0)  # [n_win, W]
 
             if gene_idx % 10 == 1 or gene_idx == n_chrom_genes:
                 logger.info(
-                    "  %s [%d/%d] %s: %d windows, %d splice sites (%d bp)",
+                    "  %s [%d/%d] %s: %d windows, %d splice sites (%d bp) [%s]",
                     chrom_chr, gene_idx, n_chrom_genes, gene_name,
-                    len(win_embs), n_splice, gene_len,
+                    n_gene_windows, n_splice, gene_len, split_label,
                 )
-
-            # Save to HDF5 — gzip compression keeps per-gene cache small
-            # (~10x compression).  Shards are written uncompressed for fast
-            # sequential training reads.
-            with h5py.File(h5_path, "w") as f:
-                f.create_dataset(
-                    "embeddings", data=emb_arr,
-                    compression="gzip", compression_opts=4,
-                )
-                f.create_dataset(
-                    "labels", data=lbl_arr,
-                    compression="gzip", compression_opts=4,
-                )
-                f.attrs["gene_id"] = gene_id
-                f.attrs["gene_name"] = gene_name
-                f.attrs["chrom"] = chrom_chr
-                f.attrs["start"] = start
-                f.attrs["end"] = end
-                f.attrs["strand"] = strand
-                f.attrs["n_splice_sites"] = n_splice
-                f.attrs["hidden_dim"] = hidden_dim
-                f.attrs["window_size"] = window_size
 
             manifest.append(GeneEntry(
                 gene_id=gene_id, gene_name=gene_name, chrom=chrom_chr,
                 start=start, end=end, strand=strand,
-                n_windows=len(win_embs), n_splice_sites=n_splice,
-                hdf5_path=str(h5_path),
+                n_windows=n_gene_windows, n_splice_sites=n_splice,
+                hdf5_path="",  # No per-gene cache
             ))
 
             chrom_genes += 1
-            chrom_windows += len(win_embs)
+            chrom_windows += n_gene_windows
             chrom_splice += n_splice
 
             # Free memory
-            del gene_emb, labels, gene_seq, emb_arr, lbl_arr, win_embs, win_lbls
+            del gene_emb, labels, gene_seq
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
@@ -479,18 +521,37 @@ def extract_and_cache_embeddings(
 
         chrom_elapsed = time.time() - chrom_t0
         logger.info(
-            "  %s: %d genes, %d windows, %d splice sites (%.1f min)%s",
+            "  %s: %d genes, %d windows, %d splice sites (%.1f min)",
             chrom_chr, chrom_genes, chrom_windows, chrom_splice,
             chrom_elapsed / 60,
-            f" ({total_cached} from cache)" if total_cached else "",
         )
+
+        # Save manifest incrementally after each chromosome so --resume can
+        # recover after a mid-run crash (e.g., disk-full during a later chrom).
+        manifest_path = output_dir / "manifest.json"
+        with open(manifest_path, "w") as _mf:
+            json.dump([asdict(e) for e in manifest], _mf, indent=2)
 
     fasta.close()
 
+    # Flush remaining buffers
+    if train_filled > 0:
+        _flush_shard(
+            train_emb_buf, train_lbl_buf, train_filled,
+            shard_dir, "train", train_shard_num, t0,
+        )
+    if val_filled > 0:
+        _flush_shard(
+            val_emb_buf, val_lbl_buf, val_filled,
+            shard_dir, "val", val_shard_num, t0,
+        )
+
+    # Free buffers
+    del train_emb_buf, train_lbl_buf, val_emb_buf, val_lbl_buf
+
     logger.info(
-        "Extraction complete: %d genes, %d windows, %d splice sites "
-        "(%d skipped, %d from cache)",
-        total_genes, total_windows, total_splice, total_skipped, total_cached,
+        "Extraction complete: %d genes, %d windows, %d splice sites (%d skipped)",
+        total_genes, total_windows, total_splice, total_skipped,
     )
 
     # Save manifest
@@ -669,17 +730,29 @@ def train_classifier(
             logger.info("Building validation dataset...")
             val_dataset = HDF5WindowDataset(manifest, val_genes)
 
-    # DataLoaders — num_workers=0 because HDF5 file handles are not
-    # fork-safe; the LRU cache already makes single-worker I/O fast.
+    # DataLoaders — ShardedWindowDataset is fork-safe (lazy per-PID handles),
+    # so num_workers=2 allows prefetching to overlap with GPU compute.
+    # HDF5WindowDataset uses an LRU handle cache that is NOT fork-safe, so
+    # num_workers=0 is kept for that path.
+    cuda_available = torch.cuda.is_available()
+    _nw = 2 if (use_shards and cuda_available) else 0
+    # Use "spawn" context (not default "fork") to avoid Polars/h5py deadlocks
+    # when forking workers after Polars thread pools have been initialized in
+    # Phase 1.  spawn is slightly slower to start but safe on Linux.
+    _mp_ctx = "spawn" if _nw > 0 else None
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True,
-        num_workers=0, pin_memory=torch.cuda.is_available(),
+        num_workers=_nw, pin_memory=cuda_available,
+        persistent_workers=(_nw > 0),
+        multiprocessing_context=_mp_ctx,
     )
     val_loader: Optional[DataLoader] = None
     if val_dataset is not None:
         val_loader = DataLoader(
             val_dataset, batch_size=batch_size, shuffle=False,
-            num_workers=0, pin_memory=torch.cuda.is_available(),
+            num_workers=_nw, pin_memory=cuda_available,
+            persistent_workers=(_nw > 0),
+            multiprocessing_context=_mp_ctx,
         )
 
     # Class weights from label scan (no full array in memory)
@@ -751,8 +824,22 @@ def evaluate_on_test_set(
     manifest: List[GeneEntry],
     test_genes: Set[str],
     output_dir: Path,
+    model_name: str = "",
+    model_kwargs: Optional[Dict] = None,
+    build: str = "GRCh38_MANE",
+    window_size: int = 512,
+    step_size: int = 256,
+    max_context: int = 512,
+    tokenization: str = "nucleotide",
 ) -> Dict:
     """Evaluate trained classifier on test chromosomes.
+
+    For real-data runs (07a), test genes have ``hdf5_path=""`` because Phase 1
+    never writes per-gene cache.  This function runs the foundation model **live**
+    on each test gene (load FASTA → encode → classify window-by-window).
+
+    For mock runs, test genes have valid ``hdf5_path`` from ``extract_mock_embeddings``,
+    so they are read from the cached HDF5 files (no model reload needed).
 
     Computes per-class AUROC/AUPRC and site-level precision/recall/F1.
     """
@@ -765,29 +852,152 @@ def evaluate_on_test_set(
     eval_dir = output_dir / "eval"
     eval_dir.mkdir(parents=True, exist_ok=True)
 
+    # Determine if any test genes require live inference (hdf5_path == "")
+    test_entries = [e for e in manifest if e.gene_id in test_genes]
+    needs_live_inference = any(not e.hdf5_path for e in test_entries)
+
+    # Lazy-load live inference resources only when needed
+    _model = None
+    _fasta = None
+    _splice_sites_df = None
+    _fasta_path = None
+
+    if needs_live_inference and model_name:
+        import pandas as pd
+        from pyfaidx import Fasta
+        from foundation_models.base import load_embedding_model
+        from foundation_models.utils.chunking import build_splice_labels
+
+        release = "1.3" if "MANE" in build.upper() else None
+        try:
+            from agentic_spliceai.splice_engine.resources import get_genomic_registry
+            registry = get_genomic_registry(build=build, release=release)
+            _fasta_path = str(registry.get_fasta_path(validate=True))
+            data_dir = Path(_fasta_path).parent
+        except Exception as exc:
+            logger.error("Phase 3: Cannot resolve data paths for build=%s: %s", build, exc)
+            return {}
+
+        for fname in ("splice_sites_enhanced.parquet", "splice_sites_enhanced.tsv"):
+            path = data_dir / fname
+            if path.exists():
+                if fname.endswith(".parquet"):
+                    _splice_sites_df = pd.read_parquet(path)
+                else:
+                    _splice_sites_df = pd.read_csv(path, sep="\t")
+                logger.info("Phase 3: Loaded splice sites (%d rows)", len(_splice_sites_df))
+                break
+
+        if _splice_sites_df is None:
+            logger.error("Phase 3: Splice site annotations not found — skipping evaluation")
+            return {}
+
+        logger.info("Phase 3: Loading foundation model '%s' for live inference...", model_name)
+        _model = load_embedding_model(model_name, **(model_kwargs or {}))
+        _fasta = Fasta(_fasta_path)
+        logger.info("Phase 3: Model loaded, FASTA opened (%s)", _fasta_path)
+
+    elif needs_live_inference and not model_name:
+        logger.error(
+            "Phase 3: Test genes have no cached embeddings but model_name is empty. "
+            "Cannot run live inference — skipping evaluation."
+        )
+        return {}
+
     # Collect per-gene predictions
     all_true = []
     all_donor_score = []
     all_acceptor_score = []
     n_test_genes = 0
 
-    for entry in manifest:
-        if entry.gene_id not in test_genes:
-            continue
-        n_test_genes += 1
+    for entry in test_entries:
+        if entry.hdf5_path:
+            # Mock mode or any future case where test gene has a cached HDF5 file
+            with h5py.File(entry.hdf5_path, "r") as f:
+                emb = f["embeddings"][:]  # [n_win, W, H]
+                lbl = f["labels"][:]      # [n_win, W]
 
-        with h5py.File(entry.hdf5_path, "r") as f:
-            emb = f["embeddings"][:]  # [n_win, W, H]
-            lbl = f["labels"][:]      # [n_win, W]
+            emb_t = torch.tensor(emb, dtype=torch.float32).to(device)
+            preds = classifier.predict(emb_t)
 
-        emb_t = torch.tensor(emb, dtype=torch.float32).to(device)
-        preds = classifier.predict(emb_t)
+            all_true.append(lbl.flatten())
+            all_donor_score.append(preds["donor_prob"].flatten())
+            all_acceptor_score.append(preds["acceptor_prob"].flatten())
+            n_test_genes += 1
 
-        all_true.append(lbl.flatten())
-        all_donor_score.append(preds["donor_prob"].flatten())
-        all_acceptor_score.append(preds["acceptor_prob"].flatten())
+            del emb, lbl, emb_t
 
-        del emb, lbl, emb_t
+        else:
+            # Live inference path: load from FASTA, extract embeddings, classify
+            from foundation_models.utils.chunking import build_splice_labels
+
+            chrom_key = _resolve_chrom_key(_fasta, entry.chrom)
+            if chrom_key is None:
+                logger.warning(
+                    "  Phase 3: %s (%s) not in FASTA — skipping",
+                    entry.gene_id, entry.chrom,
+                )
+                continue
+
+            gene_seq = str(_fasta[chrom_key][entry.start:entry.end]).upper()
+            gene_len = len(gene_seq)
+            if gene_len < window_size:
+                continue
+
+            labels = build_splice_labels(
+                gene_id=entry.gene_id,
+                gene_start=entry.start,
+                gene_sequence_length=gene_len,
+                splice_sites_df=_splice_sites_df,
+            )
+
+            # Extract full-gene embeddings then classify window by window
+            gene_emb = extract_dense_gene_embeddings(
+                model=_model,
+                gene_sequence=gene_seq,
+                max_context=max_context,
+                tokenization=tokenization,
+                overlap=None,
+            )
+
+            gene_true = []
+            gene_donor = []
+            gene_acceptor = []
+
+            pos = 0
+            while pos + window_size <= gene_len:
+                win_emb = gene_emb[pos:pos + window_size]
+                win_lbl = labels[pos:pos + window_size]
+
+                emb_t = torch.tensor(
+                    win_emb[np.newaxis], dtype=torch.float32
+                ).to(device)
+                preds = classifier.predict(emb_t)
+
+                gene_true.append(win_lbl)
+                gene_donor.append(preds["donor_prob"].flatten())
+                gene_acceptor.append(preds["acceptor_prob"].flatten())
+
+                pos += step_size
+
+            if not gene_true:
+                del gene_emb, gene_seq, labels
+                continue
+
+            all_true.append(np.concatenate(gene_true))
+            all_donor_score.append(np.concatenate(gene_donor))
+            all_acceptor_score.append(np.concatenate(gene_acceptor))
+            n_test_genes += 1
+
+            if n_test_genes % 10 == 0:
+                logger.info("  Phase 3: Evaluated %d test genes...", n_test_genes)
+
+            del gene_emb, gene_seq, labels
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    if _fasta is not None:
+        _fasta.close()
 
     if not all_true:
         logger.warning("No test genes found — skipping evaluation")
@@ -894,8 +1104,25 @@ def main() -> None:
     parser.add_argument("--chromosomes", nargs="+", type=str, default=None,
                         help="Chromosomes to process (e.g., 22, or 'all')")
     parser.add_argument("--split", type=str, default="spliceai",
-                        choices=["spliceai", "even_odd"],
-                        help="Chromosome split preset (default: spliceai)")
+                        choices=["spliceai", "even_odd", "balanced", "custom"],
+                        help=(
+                            "Chromosome split preset (default: spliceai). "
+                            "'balanced' auto-assigns by gene count so the larger "
+                            "chromosomes always go to train — recommended for subset runs. "
+                            "'custom' requires --train-chromosomes and --test-chromosomes."
+                        ))
+    parser.add_argument("--train-chromosomes", nargs="+", type=str, default=None,
+                        metavar="CHROM",
+                        help=(
+                            "Explicit train chromosomes, e.g. --train-chromosomes 3 22. "
+                            "Implies --split custom."
+                        ))
+    parser.add_argument("--test-chromosomes", nargs="+", type=str, default=None,
+                        metavar="CHROM",
+                        help=(
+                            "Explicit test chromosomes, e.g. --test-chromosomes 1 5. "
+                            "Implies --split custom."
+                        ))
     parser.add_argument("--build", type=str, default="GRCh38_MANE",
                         help="Genomic build (default: GRCh38_MANE)")
     parser.add_argument("--max-gene-length", type=int, default=200_000,
@@ -924,13 +1151,7 @@ def main() -> None:
     parser.add_argument("--mock", action="store_true",
                         help="Synthetic data for pipeline validation")
     parser.add_argument("--resume", action="store_true",
-                        help="Skip genes with existing HDF5 cache")
-    parser.add_argument("--shard", action="store_true",
-                        help="Pack per-gene HDF5 into shard files for fast I/O")
-    parser.add_argument("--stream-chroms", action="store_true",
-                        help="Process one chromosome at a time: extract → shard → "
-                             "delete cache.  Enables multi-chrom runs on pods with "
-                             "limited disk.  Implies --shard.")
+                        help="Skip Phase 1 if shard files already exist")
 
     args = parser.parse_args()
 
@@ -970,6 +1191,43 @@ def main() -> None:
             expanded.extend(item.split(","))
         args.chromosomes = [c.strip() for c in expanded if c.strip()]
 
+    # Resolve --train-chromosomes / --test-chromosomes (implies --split custom)
+    def _expand_chrom_list(raw: List[str]) -> Set[str]:
+        result = []
+        for item in raw:
+            result.extend(item.split(","))
+        # Normalise to chr-prefix
+        out = set()
+        for c in result:
+            c = c.strip()
+            if c:
+                out.add(c if c.startswith("chr") else f"chr{c}")
+        return out
+
+    custom_train_chroms: Optional[Set[str]] = None
+    custom_test_chroms: Optional[Set[str]] = None
+    if args.train_chromosomes is not None or args.test_chromosomes is not None:
+        if args.train_chromosomes is None or args.test_chromosomes is None:
+            logger.error(
+                "--train-chromosomes and --test-chromosomes must both be specified together"
+            )
+            sys.exit(1)
+        custom_train_chroms = _expand_chrom_list(args.train_chromosomes)
+        custom_test_chroms = _expand_chrom_list(args.test_chromosomes)
+        overlap = custom_train_chroms & custom_test_chroms
+        if overlap:
+            logger.error(
+                "Chromosomes appear in both --train-chromosomes and --test-chromosomes: %s",
+                ", ".join(sorted(overlap)),
+            )
+            sys.exit(1)
+        args.split = "custom"
+        logger.info(
+            "Custom split: train=%s, test=%s",
+            ", ".join(sorted(custom_train_chroms)),
+            ", ".join(sorted(custom_test_chroms)),
+        )
+
     if args.mock:
         chromosomes = []  # Not used in mock
     elif args.chromosomes is None or len(args.chromosomes) == 0:
@@ -983,7 +1241,7 @@ def main() -> None:
     # --- Header ---
     print()
     print("=" * 70)
-    print("Genome-Scale Splice Site Predictor (Foundation Model Embeddings)")
+    print("Genome-Scale Splice Site Predictor — Direct-to-Shard Pipeline")
     print("=" * 70)
     print(f"  Model:        {'MOCK' if args.mock else meta.name}")
     print(f"  Type:         {meta.model_type}")
@@ -994,17 +1252,69 @@ def main() -> None:
         print(f"  Data:         Synthetic ({args.n_genes} genes)")
     else:
         print(f"  Chromosomes:  {', '.join(chromosomes)}")
-    print(f"  Split:        {args.split}")
+    if custom_train_chroms is not None:
+        _split_str = (
+            f"custom  (train={', '.join(sorted(custom_train_chroms))}"
+            f"  test={', '.join(sorted(custom_test_chroms or {}))})"
+        )
+    else:
+        _split_str = args.split
+    print(f"  Split:        {_split_str}")
     print(f"  Focal gamma:  {args.focal_gamma}")
     print(f"  Resume:       {args.resume}")
-    if args.stream_chroms:
-        print(f"  Stream mode:  True (extract→shard→delete per chrom)")
     print("=" * 70)
     print()
 
     # ===================================================================
-    # Phase 1: Extract & cache
+    # Pre-compute chromosome split (needed before extraction)
     # ===================================================================
+    from agentic_spliceai.splice_engine.eval.splitting import build_gene_split
+
+    if args.mock:
+        # Mock split handled in Phase 1 below
+        split = None
+    else:
+        # Discover genes across all chromosomes (metadata only)
+        logger.info("Discovering genes across %d chromosomes...", len(chromosomes))
+        from agentic_spliceai.splice_engine.base_layer.data.preparation import (
+            load_gene_annotations,
+        )
+        from agentic_spliceai.splice_engine.resources import get_genomic_registry
+
+        _build = args.build
+        _release = "1.3" if "MANE" in _build.upper() else None
+        _registry = get_genomic_registry(build=_build, release=_release)
+        _gtf_path = str(_registry.get_gtf_path(validate=True))
+
+        all_gene_chroms: Dict[str, str] = {}
+        for chrom in chromosomes:
+            chrom_chr = f"chr{chrom}" if not chrom.startswith("chr") else chrom
+            chrom_bare = _normalize_chrom(chrom)
+            genes_df = load_gene_annotations(_gtf_path, chromosomes=[chrom_chr], verbosity=0)
+            if genes_df.height == 0:
+                genes_df = load_gene_annotations(_gtf_path, chromosomes=[chrom_bare], verbosity=0)
+            for row in genes_df.iter_rows(named=True):
+                chrom_val = str(row.get("chrom") or row.get("seqname", ""))
+                if not chrom_val.startswith("chr"):
+                    chrom_val = f"chr{chrom_val}"
+                all_gene_chroms[row["gene_id"]] = chrom_val
+
+        split = build_gene_split(
+            all_gene_chroms, preset=args.split, val_fraction=0.1, seed=args.seed,
+            custom_train_chroms=custom_train_chroms,
+            custom_test_chroms=custom_test_chroms,
+        )
+        logger.info(
+            "  Split: %d train, %d val, %d test genes",
+            len(split.train_genes), len(split.val_genes), len(split.test_genes),
+        )
+
+    # ===================================================================
+    # Phase 1: Extract → direct to shard files
+    # ===================================================================
+    shard_dir = output_dir / "shards"
+    existing_shards = sorted(shard_dir.glob("train*shard_*.h5")) if shard_dir.exists() else []
+
     if args.mock:
         logger.info("Phase 1/3: Generating synthetic cached data...")
         manifest = extract_mock_embeddings(
@@ -1015,123 +1325,40 @@ def main() -> None:
             output_dir=output_dir,
             seed=args.seed,
         )
-    elif args.stream_chroms:
-        # Stream mode: extract → split → shard → delete cache, one chrom at a time.
-        # Peak disk = 1 chrom's gzip cache (~6 GB) + accumulated shards.
-        import shutil
-
-        from agentic_spliceai.splice_engine.eval.splitting import build_gene_split
-
-        from foundation_models.data import repack_into_shards
-
-        logger.info("Phase 1/3: Streaming extract → shard (one chrom at a time)...")
-
-        # We need to know the split assignment BEFORE extraction so we can
-        # shard train/val separately per chromosome.  First pass: discover
-        # genes across all chromosomes (metadata only, no embeddings).
-        logger.info("  Discovering genes across %d chromosomes...", len(chromosomes))
-        from agentic_spliceai.splice_engine.base_layer.data.preparation import (
-            load_gene_annotations,
-        )
-        from agentic_spliceai.splice_engine.resources import get_genomic_registry
-        build = args.build
-        release = "1.3" if "MANE" in build.upper() else None
-        registry = get_genomic_registry(build=build, release=release)
-        gtf_path = str(registry.get_gtf_path(validate=True))
-
-        all_gene_chroms: Dict[str, str] = {}
-        for chrom in chromosomes:
-            genes_df = load_gene_annotations(gtf_path, chromosomes=[chrom])
-            for row in genes_df.iter_rows(named=True):
-                chrom_val = str(row.get("chrom") or row.get("seqname", ""))
-                if not chrom_val.startswith("chr"):
-                    chrom_val = f"chr{chrom_val}"
-                all_gene_chroms[row["gene_id"]] = chrom_val
-
+        # Build split from mock manifest
+        gene_chromosomes = {e.gene_id: e.chrom for e in manifest}
         split = build_gene_split(
-            all_gene_chroms, preset=args.split, val_fraction=0.1, seed=args.seed,
+            gene_chromosomes, preset=args.split, val_fraction=0.1, seed=args.seed,
+            custom_train_chroms=custom_train_chroms,
+            custom_test_chroms=custom_test_chroms,
         )
-        logger.info(
-            "  Pre-split: %d train, %d val, %d test genes",
-            len(split.train_genes), len(split.val_genes), len(split.test_genes),
-        )
-
-        manifest: List[GeneEntry] = []
-        for chrom in chromosomes:
-            logger.info("  --- Chromosome %s ---", chrom)
-
-            # Extract this chromosome's genes to per-gene gzip cache
-            chrom_manifest = extract_and_cache_embeddings(
-                chromosomes=[chrom],
-                model_name=args.foundation_model,
-                model_kwargs=model_kwargs,
-                max_context=meta.max_context,
-                tokenization=meta.tokenization,
-                hidden_dim=hidden_dim,
-                window_size=window_size,
-                step_size=step_size,
-                output_dir=output_dir,
-                build=args.build,
-                max_gene_length=args.max_gene_length,
-                resume=args.resume,
-            )
-            manifest.extend(chrom_manifest)
-
-            if not chrom_manifest:
-                continue
-
-            # Shard this chrom's train/val windows into the shared shard dir
-            chrom_train = {e.gene_id for e in chrom_manifest} & split.train_genes
-            chrom_val = {e.gene_id for e in chrom_manifest} & split.val_genes
-            chrom_test = {e.gene_id for e in chrom_manifest} & split.test_genes
-
-            if chrom_train:
-                repack_into_shards(
-                    chrom_manifest, chrom_train, output_dir,
-                    f"train_{chrom}", seed=args.seed,
-                )
-            if chrom_val:
-                repack_into_shards(
-                    chrom_manifest, chrom_val, output_dir,
-                    f"val_{chrom}", seed=args.seed,
-                )
-            if chrom_test:
-                # Test genes: keep per-gene cache (needed for Phase 3 gene-level eval)
-                pass
-
-            # Delete this chrom's per-gene cache (except test genes)
-            cache_chrom_dir = output_dir / "cache" / (
-                chrom if chrom.startswith("chr") else f"chr{chrom}"
-            )
-            if cache_chrom_dir.exists():
-                # Keep test gene files, delete the rest
-                if chrom_test:
-                    for entry in chrom_manifest:
-                        if entry.gene_id not in chrom_test:
-                            h5_file = Path(entry.hdf5_path)
-                            if h5_file.exists():
-                                h5_file.unlink()
-                    logger.info(
-                        "  Deleted train/val cache for %s (kept %d test genes)",
-                        chrom, len(chrom_test),
-                    )
-                else:
-                    shutil.rmtree(cache_chrom_dir, ignore_errors=True)
-                    logger.info("  Deleted cache for %s", chrom)
-
-        # Save combined manifest
+    elif args.resume and existing_shards:
+        logger.info("Phase 1/3: Using existing shards from %s (%d files)", shard_dir, len(existing_shards))
+        # Load manifest from prior run
         manifest_path = output_dir / "manifest.json"
-        with open(manifest_path, "w") as f:
-            json.dump([asdict(e) for e in manifest], f, indent=2)
-
-        logger.info(
-            "Streaming extraction complete: %d genes, %d windows",
-            len(manifest), sum(e.n_windows for e in manifest),
-        )
+        if manifest_path.exists():
+            with open(manifest_path) as f:
+                manifest = [GeneEntry(**e) for e in json.load(f)]
+            logger.info("  Loaded manifest: %d genes", len(manifest))
+        else:
+            # Manifest missing (e.g. disk-full crash before final save).
+            # Reconstruct a shard-only manifest: no per-gene entries, but
+            # ShardedWindowDataset only needs the shard files, not the manifest.
+            # Phase 3 will rediscover test genes from the GTF split.
+            logger.warning(
+                "manifest.json not found — reconstructing from shard files. "
+                "Phase 2 will train on existing shards. "
+                "Re-run without --resume to also extract any missing chromosomes."
+            )
+            manifest = []  # empty — Phase 2 uses shard files directly
     else:
-        logger.info("Phase 1/3: Extracting and caching embeddings...")
-        manifest = extract_and_cache_embeddings(
+        logger.info("Phase 1/3: Extracting embeddings → direct to shards...")
+        manifest = extract_to_shards(
             chromosomes=chromosomes,
+            gene_split=all_gene_chroms,
+            train_genes=split.train_genes,
+            val_genes=split.val_genes,
+            test_genes=split.test_genes,
             model_name=args.foundation_model,
             model_kwargs=model_kwargs,
             max_context=meta.max_context,
@@ -1142,32 +1369,21 @@ def main() -> None:
             output_dir=output_dir,
             build=args.build,
             max_gene_length=args.max_gene_length,
-            resume=args.resume,
         )
 
-    if not manifest:
-        logger.error("No genes processed — nothing to train on.")
+    # When manifest is empty (crash-recovery resume), check that shards exist
+    # instead. train_classifier scans the shard directory directly.
+    shard_dir = output_dir / "shards"
+    existing_train_shards = sorted(shard_dir.glob("train*shard_*.h5")) if shard_dir.exists() else []
+    if not manifest and not existing_train_shards:
+        logger.error("No genes processed and no shards found — nothing to train on.")
         sys.exit(1)
 
     # ===================================================================
-    # Phase 2: Chromosome-based split + train
+    # Phase 2: Train from shards
     # ===================================================================
-    if args.stream_chroms:
-        # Split already computed above; shard files already created per-chrom.
-        # train_classifier will find them via glob pattern.
-        logger.info("Phase 2/3: Training from per-chrom shards...")
-    else:
-        logger.info("Phase 2/3: Splitting genes and training...")
+    logger.info("Phase 2/3: Training from shards...")
 
-    if not args.stream_chroms:
-        from agentic_spliceai.splice_engine.eval.splitting import build_gene_split
-
-        gene_chromosomes = {e.gene_id: e.chrom for e in manifest}
-        split = build_gene_split(
-            gene_chromosomes, preset=args.split, val_fraction=0.1, seed=args.seed,
-        )
-
-    # At this point, `split` is defined in both paths (stream or not).
     logger.info(
         "  Split: %d train, %d val, %d test genes",
         len(split.train_genes), len(split.val_genes), len(split.test_genes),
@@ -1175,13 +1391,17 @@ def main() -> None:
 
     n_train_win = sum(e.n_windows for e in manifest if e.gene_id in split.train_genes)
     n_val_win = sum(e.n_windows for e in manifest if e.gene_id in split.val_genes)
-    n_test_win = sum(e.n_windows for e in manifest if e.gene_id in split.test_genes)
-    logger.info(
-        "  Windows: %d train, %d val, %d test", n_train_win, n_val_win, n_test_win,
-    )
-
-    # In stream-chroms mode, shards were already created per-chrom — force shard usage
-    effective_shard = args.shard or args.stream_chroms
+    n_test_genes = sum(1 for e in manifest if e.gene_id in split.test_genes)
+    if manifest:
+        logger.info(
+            "  Windows: %d train, %d val | Test genes: %d (live inference)",
+            n_train_win, n_val_win, n_test_genes,
+        )
+    else:
+        logger.info(
+            "  Windows: from %d shard files (manifest missing) | Test genes: %d (live inference)",
+            len(existing_train_shards), len(split.test_genes),
+        )
 
     classifier, val_dataset, val_loader = train_classifier(
         manifest=manifest,
@@ -1197,7 +1417,7 @@ def main() -> None:
         epochs=args.epochs,
         patience=args.patience,
         focal_gamma=args.focal_gamma,
-        use_shards=effective_shard,
+        use_shards=True,  # Always use shards in 07a
         seed=args.seed,
     )
 
@@ -1238,6 +1458,13 @@ def main() -> None:
         manifest=manifest,
         test_genes=split.test_genes,
         output_dir=output_dir,
+        model_name=args.foundation_model if not args.mock else "",
+        model_kwargs=model_kwargs,
+        build=args.build,
+        window_size=window_size,
+        step_size=step_size,
+        max_context=meta.max_context,
+        tokenization=meta.tokenization,
     )
 
     elapsed = time.time() - t0

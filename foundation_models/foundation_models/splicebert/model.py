@@ -214,31 +214,20 @@ class SpliceBERTModel(BaseEmbeddingModel):
         """Get model device."""
         return next(self.model.parameters()).device
 
-    def encode(
+    def _tokenize_and_forward(
         self,
-        sequences: Union[str, List[str]],
-        layer: Optional[str] = None,
+        sequences: List[str],
+        single_input: bool,
     ) -> torch.Tensor:
-        """Encode DNA sequences to per-nucleotide embeddings.
+        """Shared tokenize → forward → strip special tokens.
 
-        SpliceBERT uses single-nucleotide tokenization (N=5, A=6, C=7, G=8,
-        T/U=9) so each output position maps 1:1 to an input nucleotide.
-        Special tokens ([CLS], [SEP]) are stripped from the output.
-
-        Args:
-            sequences: DNA sequence(s) to encode.
-            layer: Ignored — SpliceBERT does not support layer selection.
+        Called by both :meth:`encode` (inference, no gradients) and
+        :meth:`forward_trainable` (fine-tuning, with gradients).
 
         Returns:
             Tensor of shape ``[seq_len, hidden_dim]`` for a single sequence,
             or ``[batch, seq_len, hidden_dim]`` for multiple sequences.
         """
-        if isinstance(sequences, str):
-            sequences = [sequences]
-            single_input = True
-        else:
-            single_input = False
-
         # SpliceBERT was trained on pre-mRNA (RNA convention): vocab has U, not T.
         # Convert T→U before tokenization so thymine doesn't map to <unk>.
         # Also space-separate nucleotides — BertTokenizer splits on whitespace
@@ -252,8 +241,7 @@ class SpliceBERTModel(BaseEmbeddingModel):
             max_length=self.config.max_length,
         ).to(self.device)
 
-        with torch.no_grad():
-            outputs = self.model(**inputs)
+        outputs = self.model(**inputs)
 
         # outputs.last_hidden_state: [batch, seq_len_with_special, hidden_dim]
         # Strip [CLS] (position 0) and [SEP] (last non-pad position)
@@ -289,6 +277,52 @@ class SpliceBERTModel(BaseEmbeddingModel):
             padded[i, :r.size(0)] = r
 
         return padded
+
+    def encode(
+        self,
+        sequences: Union[str, List[str]],
+        layer: Optional[str] = None,
+    ) -> torch.Tensor:
+        """Encode DNA sequences to per-nucleotide embeddings (no gradients).
+
+        SpliceBERT uses single-nucleotide tokenization (N=5, A=6, C=7, G=8,
+        T/U=9) so each output position maps 1:1 to an input nucleotide.
+        Special tokens ([CLS], [SEP]) are stripped from the output.
+
+        Args:
+            sequences: DNA sequence(s) to encode.
+            layer: Ignored — SpliceBERT does not support layer selection.
+
+        Returns:
+            Tensor of shape ``[seq_len, hidden_dim]`` for a single sequence,
+            or ``[batch, seq_len, hidden_dim]`` for multiple sequences.
+        """
+        single_input = isinstance(sequences, str)
+        if single_input:
+            sequences = [sequences]
+        with torch.no_grad():
+            return self._tokenize_and_forward(sequences, single_input)
+
+    def forward_trainable(
+        self,
+        sequences: Union[str, List[str]],
+    ) -> torch.Tensor:
+        """Encode DNA sequences with gradient tracking for fine-tuning.
+
+        Same as :meth:`encode` but without ``torch.no_grad()``, allowing
+        gradients to flow back through the BertModel encoder layers.
+
+        Args:
+            sequences: DNA sequence(s) to encode.
+
+        Returns:
+            Tensor of shape ``[seq_len, hidden_dim]`` for a single sequence,
+            or ``[batch, seq_len, hidden_dim]`` for multiple sequences.
+        """
+        single_input = isinstance(sequences, str)
+        if single_input:
+            sequences = [sequences]
+        return self._tokenize_and_forward(sequences, single_input)
 
     def metadata(self) -> ModelMetadata:
         """Return metadata describing this SpliceBERT model instance."""

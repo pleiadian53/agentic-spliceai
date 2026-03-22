@@ -24,10 +24,11 @@ Typical usage::
 """
 
 import logging
+import os
 import time
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, List, Protocol, Set, Tuple, runtime_checkable
+from typing import Any, Dict, List, Protocol, Set, Tuple, runtime_checkable
 
 import h5py
 import numpy as np
@@ -133,8 +134,12 @@ class ShardedWindowDataset(torch.utils.data.Dataset):
     """Fast dataset backed by pre-packed, uncompressed shard files.
 
     Each shard contains a contiguous ``embeddings [N, W, H]`` and
-    ``labels [N, W]`` dataset.  All shards are opened at init and kept
-    open (typically < 20 files).
+    ``labels [N, W]`` dataset.
+
+    File handles are opened **lazily per worker process** (keyed by PID) so
+    that the dataset is safe to use with ``num_workers > 0`` in a DataLoader.
+    Each forked worker gets its own set of handles — no handle is shared
+    across processes.
 
     Also scans labels at init to compute per-class counts for class weights.
 
@@ -143,32 +148,46 @@ class ShardedWindowDataset(torch.utils.data.Dataset):
     """
 
     def __init__(self, shard_paths: List[Path]):
-        self.shards: List[Any] = []
+        self._shard_paths: List[str] = [str(p) for p in shard_paths]
         self.index: List[Tuple[int, int]] = []  # (shard_idx, win_idx)
         self._class_counts = np.zeros(3, dtype=np.int64)
+        # Per-process handle cache: pid -> [h5py.File, ...]
+        self._handles: Dict[int, List[Any]] = {}
 
-        for shard_idx, path in enumerate(shard_paths):
-            f = h5py.File(path, "r")
-            self.shards.append(f)
-            n_win = f["embeddings"].shape[0]
-            for i in range(n_win):
-                self.index.append((shard_idx, i))
-            # Scan labels for class counts
-            lbl = f["labels"][:]
-            for c in range(3):
-                self._class_counts[c] += int((lbl == c).sum())
+        # Scan labels at init (open/close immediately — no handles retained)
+        for shard_idx, path in enumerate(self._shard_paths):
+            with h5py.File(path, "r") as f:
+                n_win = f["embeddings"].shape[0]
+                for i in range(n_win):
+                    self.index.append((shard_idx, i))
+                lbl = f["labels"][:]
+                for c in range(3):
+                    self._class_counts[c] += int((lbl == c).sum())
 
         logger.info(
             "  ShardedWindowDataset: %d shards, %d windows",
-            len(self.shards), len(self.index),
+            len(self._shard_paths), len(self.index),
         )
+
+    def _get_handles(self) -> List[Any]:
+        """Return this process's list of open shard file handles.
+
+        Opens handles on first call in each worker process (fork-safe: each
+        worker has a different PID and gets its own handles).
+        """
+        pid = os.getpid()
+        if pid not in self._handles:
+            self._handles[pid] = [
+                h5py.File(p, "r") for p in self._shard_paths
+            ]
+        return self._handles[pid]
 
     def __len__(self) -> int:
         return len(self.index)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         shard_idx, win_idx = self.index[idx]
-        f = self.shards[shard_idx]
+        f = self._get_handles()[shard_idx]
         emb = f["embeddings"][win_idx]
         lbl = f["labels"][win_idx]
         return (
@@ -177,10 +196,11 @@ class ShardedWindowDataset(torch.utils.data.Dataset):
         )
 
     def close(self) -> None:
-        """Close all shard file handles."""
-        for f in self.shards:
-            f.close()
-        self.shards.clear()
+        """Close all shard file handles across all worker processes."""
+        for handles in self._handles.values():
+            for f in handles:
+                f.close()
+        self._handles.clear()
 
     @property
     def class_counts(self) -> np.ndarray:

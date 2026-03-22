@@ -102,7 +102,7 @@ GPU_SPECS = {
 _DEFAULT_DOCKER_IMAGE = "docker:nvcr.io/nvidia/pytorch:25.02-py3"
 _DEFAULT_VOLUME_NAME = "AI lab extension"
 _DEFAULT_VOLUME_MOUNT = "/runpod-volume"
-_DEFAULT_OUTPUT_REMOTE = "/workspace/output"
+_DEFAULT_OUTPUT_REMOTE = "/runpod-volume/output"
 
 
 @dataclass

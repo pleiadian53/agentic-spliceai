@@ -76,6 +76,9 @@ class BaseEmbeddingModel(ABC):
     - ``hidden_dim`` property — embedding dimension.
     - ``device`` property — current torch device.
 
+    Optional overrides:
+    - ``forward_trainable()`` — gradient-enabled forward pass for fine-tuning.
+
     Concrete methods provided:
     - ``feature_dim_for_classifier`` — classifier input dim (model-type aware).
     - ``__repr__`` — human-readable string.
@@ -100,6 +103,33 @@ class BaseEmbeddingModel(ABC):
             ``[batch, seq_len, hidden_dim]`` for multiple sequences.
         """
         ...
+
+    def forward_trainable(
+        self,
+        sequences: Union[str, List[str]],
+    ) -> torch.Tensor:
+        """Gradient-enabled forward pass for fine-tuning.
+
+        Same interface as :meth:`encode` but without ``torch.no_grad()``,
+        allowing gradients to flow back through the model's parameters.
+
+        Override this in subclasses that support fine-tuning. The default
+        raises ``NotImplementedError``.
+
+        Args:
+            sequences: One or more DNA sequences (uppercase ACGTN).
+
+        Returns:
+            ``[seq_len, hidden_dim]`` for a single sequence, or
+            ``[batch, seq_len, hidden_dim]`` for multiple sequences.
+
+        Raises:
+            NotImplementedError: If the model does not support fine-tuning.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support fine-tuning. "
+            "Override forward_trainable() to enable gradient flow."
+        )
 
     @abstractmethod
     def metadata(self) -> ModelMetadata:
