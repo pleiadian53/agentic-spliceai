@@ -39,6 +39,11 @@ Usage:
     # Memory-safe local run (exits gracefully before OOM, re-run with --resume)
     python 06_multimodal_genome_workflow.py --chromosomes all --resume --memory-limit 5
 
+    # Augment existing artifacts with a new modality (e.g., rbp_eclip)
+    # Config must include the new modality; existing parquets are updated in-place.
+    python 06_multimodal_genome_workflow.py --config configs/full_stack.yaml \\
+        --chromosomes all --augment
+
 Example:
     python 06_multimodal_genome_workflow.py --dry-run
 """
@@ -51,7 +56,9 @@ import tempfile
 from pathlib import Path
 
 from agentic_spliceai.splice_engine.base_layer.data import normalize_chromosomes_for_build
-from agentic_spliceai.splice_engine.features import FeaturePipeline, FeatureWorkflow
+from agentic_spliceai.splice_engine.features import (
+    FeaturePipeline, FeatureWorkflow, detect_existing_modalities,
+)
 from agentic_spliceai.splice_engine.resources import ensure_chrom_column, get_model_resources
 
 # Local config loader (sibling file)
@@ -319,11 +326,21 @@ def main() -> int:
         help="Memory limit in GB. Monitor RSS and exit gracefully before OOM. "
              "Default: no limit. Recommended: 4-6 for 16GB laptop, 30+ for pods.",
     )
+    parser.add_argument(
+        "--augment", action="store_true",
+        help="Augment existing analysis_sequences with new modalities only. "
+             "Loads existing parquets, detects present modalities, runs only "
+             "missing ones, column-joins, and saves. Requires prior run output.",
+    )
 
     args = parser.parse_args()
 
     if args.resume and args.force:
         parser.error("--resume and --force are mutually exclusive")
+    if args.augment and args.force:
+        parser.error("--augment and --force are mutually exclusive")
+    if args.augment and args.resume:
+        parser.error("--augment and --resume are mutually exclusive")
 
     logging.basicConfig(
         level=logging.INFO,
@@ -367,6 +384,7 @@ def main() -> int:
               f"bg_rate={sampling_config.background_rate}")
     print(f"  Resume:       {args.resume}")
     print(f"  Force:        {args.force}")
+    print(f"  Augment:      {args.augment}")
     print(f"  Registered:   {FeaturePipeline.available_modalities()}")
 
     # Show per-modality column counts
@@ -384,33 +402,72 @@ def main() -> int:
         return 0
 
     # ── Step 2: Resolve or generate predictions ───────────────────────
-    input_dir = _resolve_input_dir(model, args.input_dir)
-    input_dir = _ensure_all_chromosomes(input_dir, model, chromosomes, chunk_size)
-    print(f"\n  Input: {input_dir}")
+    # Skip prediction resolution for --augment (reads existing output, not predictions)
+    if not args.augment:
+        input_dir = _resolve_input_dir(model, args.input_dir)
+        input_dir = _ensure_all_chromosomes(input_dir, model, chromosomes, chunk_size)
+        print(f"\n  Input: {input_dir}")
+    else:
+        input_dir = None  # Not used in augment mode
 
     # ── Step 3: Handle --force ────────────────────────────────────────
     # We need the output_dir to clean it. FeatureWorkflow defaults it if None,
     # so we compute the default here to handle --force before workflow.run().
     output_dir = args.output_dir
     if output_dir is None:
-        output_dir = input_dir.parent / "analysis_sequences"
+        if input_dir is not None:
+            output_dir = input_dir.parent / "analysis_sequences"
+        else:
+            # Augment mode: resolve default output_dir from registry
+            resources = get_model_resources(model)
+            registry = resources.get_registry()
+            output_dir = registry.get_base_model_eval_dir(model) / "analysis_sequences"
 
     if args.force and output_dir.exists():
         _handle_force(output_dir, chromosomes, pipeline_config.output_format)
 
-    # ── Step 4: Run workflow ──────────────────────────────────────────
-    workflow = FeatureWorkflow(
-        pipeline_config=pipeline_config,
-        input_dir=input_dir,
-        output_dir=output_dir,
-        resume=args.resume,
-        sampling_config=sampling_config,
-        memory_limit_gb=args.memory_limit,
-    )
+    # ── Step 4: Run or augment ────────────────────────────────────────
+    if args.augment:
+        # Augment existing artifacts with new modalities
+        existing_mods = detect_existing_modalities(output_dir)
+        requested_mods = set(pipeline_config.modalities)
+        new_mods = [m for m in pipeline_config.modalities if m not in existing_mods]
 
-    print(f"  Output: {workflow.output_dir}")
-    print(f"\n  Running feature workflow...")
-    result = workflow.run(chromosomes=chromosomes)
+        print(f"\n  Augmentation mode:")
+        print(f"    Existing modalities: {sorted(existing_mods)}")
+        print(f"    Requested modalities: {pipeline_config.modalities}")
+        print(f"    New modalities: {new_mods if new_mods else '(none)'}")
+
+        if not new_mods:
+            print(f"\n  Nothing to augment — all {len(requested_mods)} "
+                  f"modalities already present.")
+            return 0
+
+        # FeatureWorkflow still needs input_dir for constructor, but augment()
+        # reads from output_dir. Use output_dir as input_dir placeholder.
+        workflow = FeatureWorkflow(
+            pipeline_config=pipeline_config,
+            input_dir=output_dir,
+            output_dir=output_dir,
+            sampling_config=sampling_config,
+        )
+
+        print(f"  Output: {workflow.output_dir}")
+        print(f"\n  Augmenting with: {new_mods}")
+        result = workflow.augment(chromosomes=chromosomes, new_modalities=new_mods)
+    else:
+        workflow = FeatureWorkflow(
+            pipeline_config=pipeline_config,
+            input_dir=input_dir,
+            output_dir=output_dir,
+            resume=args.resume,
+            sampling_config=sampling_config,
+            memory_limit_gb=args.memory_limit,
+        )
+
+        print(f"  Output: {workflow.output_dir}")
+        print(f"\n  Running feature workflow...")
+        result = workflow.run(chromosomes=chromosomes)
 
     # ── Step 5: Report results ────────────────────────────────────────
     print("\n" + "=" * 70)

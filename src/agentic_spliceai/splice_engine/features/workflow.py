@@ -328,6 +328,144 @@ class FeatureWorkflow:
         return result
 
     # ------------------------------------------------------------------
+    # Augmentation — add new modalities to existing artifacts
+    # ------------------------------------------------------------------
+
+    def augment(
+        self,
+        chromosomes: List[str],
+        new_modalities: List[str],
+    ) -> FeatureWorkflowResult:
+        """Add new modality columns to existing analysis_sequences parquets.
+
+        Loads each chromosome's parquet, applies only the specified new
+        modalities, and overwrites the parquet with the augmented columns.
+        No predictions are needed — the existing parquet provides all
+        required inputs (chrom, position, prior modality outputs).
+
+        Parameters
+        ----------
+        chromosomes : list of str
+            Chromosomes to augment.
+        new_modalities : list of str
+            Modality names to add (must be in FeaturePipeline registry).
+
+        Returns
+        -------
+        FeatureWorkflowResult
+            Augmentation results.
+        """
+        t0 = time.time()
+
+        # Build sub-pipeline with only the new modalities
+        augment_config = FeaturePipelineConfig(
+            base_model=self.pipeline_config.base_model,
+            modalities=new_modalities,
+            modality_configs={
+                k: v for k, v in self.pipeline_config.modality_configs.items()
+                if k in new_modalities
+            },
+            output_format=self.pipeline_config.output_format,
+        )
+
+        # Import modalities registry (triggers auto-registration)
+        from . import modalities as _  # noqa: F401
+
+        sub_pipeline = FeaturePipeline(augment_config)
+        sub_schema = sub_pipeline.get_output_schema()
+        new_cols_flat = {
+            col for cols in sub_schema.values() for col in cols
+        }
+
+        result = FeatureWorkflowResult(
+            success=False,
+            output_dir=self.output_dir,
+            pipeline_schema=sub_schema,
+        )
+
+        logger.info(
+            "Augmenting with %d new modalities: %s",
+            len(new_modalities), new_modalities,
+        )
+
+        total_positions = 0
+        fmt = self.pipeline_config.output_format
+
+        for chrom in chromosomes:
+            output_path = self._get_chrom_output_path(chrom, fmt)
+
+            if not output_path.exists():
+                logger.warning(
+                    "No existing artifact for %s at %s — skipping.",
+                    chrom, output_path,
+                )
+                result.chromosomes_skipped.append(chrom)
+                continue
+
+            # Load existing parquet
+            existing_df = pl.read_parquet(output_path)
+            existing_cols = set(existing_df.columns)
+            n_positions = existing_df.height
+
+            # Idempotency: check if new columns already exist
+            already_present = new_cols_flat & existing_cols
+            if already_present == new_cols_flat:
+                logger.info(
+                    "Skipping %s — all %d new columns already present",
+                    chrom, len(new_cols_flat),
+                )
+                result.chromosomes_skipped.append(chrom)
+                total_positions += n_positions
+                del existing_df
+                continue
+
+            if already_present:
+                logger.info(
+                    "Partial overlap on %s: %d/%d new columns already exist. "
+                    "Dropping existing to re-augment.",
+                    chrom, len(already_present), len(new_cols_flat),
+                )
+                existing_df = existing_df.drop(list(already_present))
+
+            # Validate required inputs
+            for mod in sub_pipeline._modalities:
+                missing = mod.meta.required_inputs - set(existing_df.columns)
+                if missing:
+                    raise ValueError(
+                        f"Modality '{mod.meta.name}' requires columns "
+                        f"{sorted(missing)} not found in {output_path.name}. "
+                        f"Run full pipeline first."
+                    )
+
+            # Apply new modalities
+            logger.info(
+                "Augmenting %s: %d positions, adding %d columns...",
+                chrom, n_positions, len(new_cols_flat - already_present),
+            )
+            augmented = sub_pipeline.transform(existing_df)
+            del existing_df
+
+            # Atomic write (overwrite original)
+            self._atomic_write(augmented, output_path, fmt)
+            logger.info(
+                "Saved augmented %s: %d positions, %d columns -> %s",
+                chrom, augmented.height, augmented.width, output_path,
+            )
+
+            result.chromosomes_processed.append(chrom)
+            total_positions += augmented.height
+            del augmented
+
+        result.total_positions = total_positions
+        result.success = True
+        result.runtime_seconds = time.time() - t0
+
+        # Update summary with augmentation info
+        self._update_summary_after_augment(result, new_modalities)
+
+        return result
+
+    # ------------------------------------------------------------------
     # I/O helpers
     # ------------------------------------------------------------------
 
@@ -429,3 +567,128 @@ class FeatureWorkflow:
         with open(path, "w") as f:
             json.dump(summary, f, indent=2, default=str)
         logger.info("Saved feature summary → %s", path)
+
+    def _update_summary_after_augment(
+        self,
+        result: FeatureWorkflowResult,
+        new_modalities: List[str],
+    ) -> None:
+        """Update feature_summary.json after augmentation.
+
+        Merges new modalities into the existing summary rather than
+        overwriting. Adds an 'augmentations' history log.
+        """
+        summary_path = self.output_dir / "feature_summary.json"
+
+        # Load existing summary or start fresh
+        if summary_path.exists():
+            with open(summary_path) as f:
+                summary = json.load(f)
+        else:
+            summary = {}
+
+        # Merge modalities
+        existing_mods = summary.get("pipeline_config", {}).get("modalities", [])
+        all_mods = list(dict.fromkeys(existing_mods + new_modalities))
+        summary.setdefault("pipeline_config", {})["modalities"] = all_mods
+
+        # Merge schema
+        existing_schema = summary.get("pipeline_schema", {})
+        existing_schema.update(result.pipeline_schema)
+        summary["pipeline_schema"] = existing_schema
+
+        # Append augmentation log
+        augment_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "new_modalities": new_modalities,
+            "chromosomes_augmented": result.chromosomes_processed,
+            "chromosomes_skipped": result.chromosomes_skipped,
+            "runtime_seconds": round(result.runtime_seconds, 2),
+        }
+        summary.setdefault("augmentations", []).append(augment_entry)
+
+        with open(summary_path, "w") as f:
+            json.dump(summary, f, indent=2, default=str)
+        logger.info("Updated feature summary with augmentation → %s", summary_path)
+
+
+def detect_existing_modalities(output_dir: Path) -> set[str]:
+    """Detect which modalities are present in existing artifacts.
+
+    Strategy (in priority order):
+    1. Read feature_summary.json → pipeline_config.modalities
+    2. Fallback: read first parquet's columns, match against registry
+
+    Parameters
+    ----------
+    output_dir : Path
+        Directory containing analysis_sequences parquets.
+
+    Returns
+    -------
+    set of str
+        Names of modalities whose output columns are present.
+    """
+    summary_path = output_dir / "feature_summary.json"
+
+    # Strategy 1: summary file, cross-checked against actual parquet columns.
+    # The summary may be stale (e.g., columns were stripped manually), so
+    # verify that declared modalities actually have columns in the parquets.
+    if summary_path.exists():
+        with open(summary_path) as f:
+            summary = json.load(f)
+        declared_mods = summary.get("pipeline_config", {}).get("modalities", [])
+        schema_map = summary.get("pipeline_schema", {})
+
+        if declared_mods and schema_map:
+            # Cross-check: read columns from first parquet
+            parquets = sorted(output_dir.glob("analysis_sequences_*.parquet"))
+            if parquets:
+                actual_cols = set(
+                    pl.scan_parquet(parquets[0]).collect_schema().names()
+                )
+                verified = set()
+                for mod_name in declared_mods:
+                    mod_cols = schema_map.get(mod_name, [])
+                    if mod_cols and set(mod_cols).issubset(actual_cols):
+                        verified.add(mod_name)
+                    elif not mod_cols:
+                        # No schema info — trust the summary
+                        verified.add(mod_name)
+                    else:
+                        logger.info(
+                            "Modality '%s' declared in summary but columns "
+                            "missing from %s — treating as absent.",
+                            mod_name, parquets[0].name,
+                        )
+                logger.info(
+                    "Detected %d existing modalities (summary + column check): %s",
+                    len(verified), sorted(verified),
+                )
+                return verified
+
+    # Strategy 2: column matching against registry
+    parquets = sorted(output_dir.glob("analysis_sequences_*.parquet"))
+    if not parquets:
+        logger.info("No existing parquets found in %s", output_dir)
+        return set()
+
+    # Read columns from first parquet (lightweight)
+    existing_cols = set(pl.scan_parquet(parquets[0]).collect_schema().names())
+
+    # Import modalities to populate registry
+    from . import modalities as _  # noqa: F401
+
+    detected = set()
+    for name in FeaturePipeline.available_modalities():
+        mod_cls, cfg_cls = FeaturePipeline._REGISTRY[name]
+        mod = mod_cls(mod_cls.default_config())
+        output_cols = set(mod.meta.output_columns)
+        if output_cols and output_cols.issubset(existing_cols):
+            detected.add(name)
+
+    logger.info(
+        "Detected %d existing modalities by column matching: %s",
+        len(detected), sorted(detected),
+    )
+    return detected

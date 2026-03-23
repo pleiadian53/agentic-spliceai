@@ -23,7 +23,7 @@ Example
 from .modality import Modality, ModalityConfig, ModalityMeta
 from .pipeline import FeaturePipeline, FeaturePipelineConfig
 from .sampling import PositionSamplingConfig, sample_positions
-from .workflow import FeatureWorkflow, FeatureWorkflowResult
+from .workflow import FeatureWorkflow, FeatureWorkflowResult, detect_existing_modalities
 
 # Trigger modality auto-registration
 from . import modalities as _modalities  # noqa: F401
@@ -38,4 +38,5 @@ __all__ = [
     "sample_positions",
     "FeatureWorkflow",
     "FeatureWorkflowResult",
+    "detect_existing_modalities",
 ]
