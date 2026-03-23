@@ -25,6 +25,7 @@ pipeline:
     - conservation                  # +9 columns: PhyloP/PhastCons scores + context stats
     - epigenetic                    # +12 columns: histone marks across tissues (Strategy B)
     - junction                      # +12 columns: RNA-seq junction evidence (GTEx v8, 353K junctions)
+    - rbp_eclip                     # +8 columns: RBP eCLIP binding (ENCODE, K562/HepG2)
 
 modality_configs:
   base_scores:
@@ -71,6 +72,15 @@ modality_configs:
     breadth_threshold: 3            # reads per tissue to count toward breadth
     include_psi: true               # simplified PSI (dominance among competitors)
     # junction_data_path: null      # auto-resolved from registry (junctions.tsv)
+
+  rbp_eclip:
+    aggregation: summarized         # cross-RBP summary stats
+    cell_lines:                     # ENCODE eCLIP cell lines
+      - K562                        # blood/CML (eCLIP Tier 1)
+      - HepG2                       # liver (eCLIP Tier 1)
+    min_neg_log10_pvalue: 2.0       # -log10(0.01) — IDR-filtered peaks only
+    batch_size: 5000                # positions per batch in interval overlap
+    # eclip_data_path: null         # auto-resolved from registry
 
 sampling:
   enabled: true

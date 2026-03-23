@@ -129,6 +129,18 @@ class FeatureSchema:
         'junction_psi',
         'junction_psi_variance',
     ])
+
+    # RBP eCLIP binding features (ENCODE, K562/HepG2)
+    RBP_ECLIP_COLS: List[str] = field(default_factory=lambda: [
+        'rbp_n_bound',
+        'rbp_max_signal',
+        'rbp_max_neg_log10_pvalue',
+        'rbp_has_splice_regulator',
+        'rbp_n_sr_proteins',
+        'rbp_n_hnrnps',
+        'rbp_cell_line_breadth',
+        'rbp_mean_signal',
+    ])
     
     # Label columns (ground truth)
     LABEL_COLS: List[str] = field(default_factory=lambda: [
@@ -171,7 +183,8 @@ class FeatureSchema:
             self.DONOR_PATTERN_COLS +
             self.ACCEPTOR_PATTERN_COLS +
             self.COMPARATIVE_COLS +
-            self.JUNCTION_COLS
+            self.JUNCTION_COLS +
+            self.RBP_ECLIP_COLS
         )
     
     def get_minimal_feature_cols(self) -> List[str]:

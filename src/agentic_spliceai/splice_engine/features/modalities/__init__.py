@@ -48,6 +48,12 @@ def _register_junction() -> None:
     FeaturePipeline.register("junction", JunctionModality, JunctionConfig)
 
 
+def _register_rbp_eclip() -> None:
+    from .rbp_eclip import RBPEclipConfig, RBPEclipModality
+
+    FeaturePipeline.register("rbp_eclip", RBPEclipModality, RBPEclipConfig)
+
+
 # Register modalities that may have heavier dependencies lazily
 _register_annotation()
 _register_sequence()
@@ -55,3 +61,4 @@ _register_genomic()
 _register_conservation()
 _register_epigenetic()
 _register_junction()
+_register_rbp_eclip()

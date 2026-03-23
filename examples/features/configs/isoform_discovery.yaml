@@ -35,6 +35,7 @@ pipeline:
     - conservation                  # +9 columns: PhyloP/PhastCons (alt sites under selection?)
     - epigenetic                    # +12 columns: histone marks (tissue-specific splicing)
     # - junction                    # +12 columns: RNA-seq junction evidence (requires junctions.tsv)
+    - rbp_eclip                     # +8 columns: RBP binding (alternative splicing regulators)
 
 modality_configs:
   base_scores:
@@ -80,6 +81,14 @@ modality_configs:
     aggregation: summarized
     breadth_threshold: 3
     include_psi: true
+
+  rbp_eclip:
+    aggregation: summarized
+    cell_lines:
+      - K562
+      - HepG2
+    min_neg_log10_pvalue: 2.0
+    batch_size: 5000
 
 # ── Position Sampling — Isoform-Aware ──────────────────────────────
 # Lower threshold + proximity window captures:
