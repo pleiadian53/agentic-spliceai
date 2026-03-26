@@ -182,7 +182,7 @@ graph TB
 ### 2. Adaptive Meta-Learning (Foundation-Adaptor Framework)
 **Multimodal deep learning**: Refine predictions using context-aware meta-models
 - **Foundation**: Base model predictions (canonical knowledge)
-- **Adaptor**: 7-modality feature fusion (base scores, conservation, epigenetic marks, RNA-seq junction evidence, DNA sequence, genomic context, gene annotations) — see [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md)
+- **Adaptor**: 9-modality feature fusion (base scores, conservation, epigenetic marks, chromatin accessibility, RNA-seq junction evidence, RBP eCLIP binding, DNA sequence, genomic context, gene annotations) — see [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md)
 - **Context embedding**: Patient variants, disease state, tissue type
 - **Self-improvement**: Learn from validation feedback continuously
 
@@ -416,12 +416,12 @@ graph TB
 | Layer | Purpose | Output | Status |
 |-------|---------|--------|--------|
 | **Base Layer** | Canonical splice prediction (MANE) | Baseline scores for ~10% of sites | ✅ Complete (Phases 1–3) |
-| **Feature Engineering** | Multimodal evidence fusion | 7-modality, 86-column enriched features | ✅ Complete (Phase 5A) |
+| **Feature Engineering** | Multimodal evidence fusion | 9-modality, 100-column enriched features | ✅ Complete (Phase 5A) |
 | **Foundation Models** | Evo2/SpliceBERT splice classification | Per-nucleotide embeddings + classifiers | 🔬 Experimental |
-| **Meta Layer** | Context-aware adaptive prediction | Novel sites (90% beyond MANE) | 🔄 Active (Phase 5B) |
+| **Meta Layer** | Context-aware adaptive prediction (M1-M4) | Novel sites (90% beyond MANE) | 🔄 Active (Phase 6) |
 | **Agentic Layer** | Multi-source validation + reports | Validated isoforms + drug targets | 📋 Planned (Phases 7–9) |
 
-**Feature engineering details**: The multimodal pipeline fuses 7 data modalities into 86 feature columns per genomic position via a YAML-driven workflow. See [`docs/multimodal_feature_engineering/feature_catalog.md`](docs/multimodal_feature_engineering/feature_catalog.md) for the complete feature reference and [`examples/features/`](examples/features/) for usage examples.
+**Feature engineering details**: The multimodal pipeline fuses 9 data modalities into 100 feature columns per genomic position via a YAML-driven workflow. See [`docs/multimodal_feature_engineering/feature_catalog.md`](docs/multimodal_feature_engineering/feature_catalog.md) for the complete feature reference and [`examples/features/`](examples/features/) for usage examples and per-modality tutorials.
 
 ### Key Innovation: Delta Score Analysis
 
@@ -792,11 +792,17 @@ agentic-spliceai/
 │   │   │   │   ├── pipeline.py          # FeaturePipeline (dependency resolution)
 │   │   │   │   ├── workflow.py          # FeatureWorkflow (genome-scale)
 │   │   │   │   ├── modality.py          # Modality protocol (ABC)
-│   │   │   │   └── modalities/          # 4 modalities:
+│   │   │   │   ├── verification.py     # Position alignment verification
+│   │   │   │   └── modalities/          # 9 modalities:
 │   │   │   │       ├── base_scores.py       # 43 engineered features
-│   │   │   │       ├── annotation.py        # Ground truth labels
-│   │   │   │       ├── sequence.py          # DNA context (pyfaidx)
-│   │   │   │       └── genomic.py           # Positional features (GC, CpG)
+│   │   │   │       ├── annotation.py        # Ground truth labels (3)
+│   │   │   │       ├── sequence.py          # DNA context via pyfaidx (3)
+│   │   │   │       ├── genomic.py           # GC content, CpG, dinucs (4)
+│   │   │   │       ├── conservation.py      # PhyloP/PhastCons bigWig (9)
+│   │   │   │       ├── epigenetic.py        # H3K36me3/H3K4me3 ChIP-seq (12)
+│   │   │   │       ├── junction.py          # GTEx RNA-seq junctions (12)
+│   │   │   │       ├── rbp_eclip.py         # ENCODE RBP eCLIP binding (8)
+│   │   │   │       └── chrom_access.py      # ENCODE ATAC-seq accessibility (6)
 │   │   │   │
 │   │   │   ├── eval/                # 📊 Cross-layer evaluation
 │   │   │   │   ├── metrics.py           # TP/FP/FN, sensitivity, specificity
