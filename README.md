@@ -342,15 +342,17 @@ graph TB
     subgraph META["<b>🧠 META LAYER</b> - Adaptive Context-Aware Prediction"]
         direction TB
         
-        MULTIMODAL["<b>🎨 Foundation-Adaptor Framework</b><br/>Multimodal Deep Learning Fusion"]:::metalayer
-        
-        DNA["<b>🧬 DNA Sequence</b><br/>CNN/Transformer<br/>HyenaDNA"]:::input
-        BASE["<b>📊 Base Scores</b><br/>Foundation Model<br/>Predictions"]:::input
-        CTX["<b>🎯 Context</b><br/>Variants • Disease<br/>Tissue • Patient"]:::input
-        
-        DNA --> MULTIMODAL
+        MULTIMODAL["<b>🎨 Multimodal Evidence Fusion</b><br/>9 Modalities • 100 Features"]:::metalayer
+
+        BASE["<b>📊 Base Scores</b><br/>Foundation Model<br/>Predictions (43)"]:::input
+        SEQ["<b>🧬 Sequence + Genomic</b><br/>DNA Context • GC<br/>Conservation (19)"]:::input
+        EPI["<b>🧪 Epigenetic + Chromatin</b><br/>H3K36me3 • H3K4me3<br/>ATAC-seq (18)"]:::input
+        RNA["<b>🔬 RNA Evidence</b><br/>Junction Reads • RBP<br/>eCLIP Binding (20)"]:::input
+
         BASE --> MULTIMODAL
-        CTX --> MULTIMODAL
+        SEQ --> MULTIMODAL
+        EPI --> MULTIMODAL
+        RNA --> MULTIMODAL
         
         FUSION["<b>⚡ Fusion Predictor</b><br/>+ Delta Scorer<br/>━━━━━━━━━━━━━━━<br/>Δ = Meta - Base<br/>High Δ → Novel Site!"]:::fusion
         
@@ -1137,7 +1139,7 @@ MIT License - see LICENSE file for details
 
 ---
 
-### Phase 4: Feature Engineering & Multimodal Evidence ✅ **CORE DONE**
+### Phase 4: Feature Engineering & Multimodal Evidence ✅ **COMPLETE**
 
 **Goal**: Multimodal feature framework for meta-layer training
 
@@ -1146,13 +1148,21 @@ MIT License - see LICENSE file for details
 - [x] Annotation modality (ground truth labels from GTF)
 - [x] Sequence modality (DNA context windows via pyfaidx)
 - [x] Genomic modality (GC content, CpG islands, dinucleotides)
-- [x] Genome-scale `FeatureWorkflow` with checkpointing
+- [x] Conservation modality (PhyloP/PhastCons from UCSC bigWig, 9 features)
+- [x] Epigenetic modality (H3K36me3/H3K4me3 ChIP-seq across 5 ENCODE cell lines, 12 features)
+- [x] Junction reads modality (GTEx v8 RNA-seq, 353K junctions, 54 tissues, 12 features)
+- [x] RBP eCLIP binding modality (ENCODE K562/HepG2, SR/hnRNP families, 8 features)
+- [x] Chromatin accessibility modality (ENCODE ATAC-seq, 5 cell lines, 6 features)
+- [x] Genome-scale `FeatureWorkflow` with checkpointing and `--augment` for incremental modality addition
 - [x] Feature schema standardization (`meta_layer/core/feature_schema.py`)
-- [ ] Additional modalities (chromatin, histone marks, RNA-seq expression)
+- [x] YAML-driven config system with 4 profiles (default, full_stack, isoform_discovery, meta_m3_novel)
+- [x] Position alignment verification (`features/verification.py`)
 
-**Deliverable**: 4-modality feature pipeline (1,675 lines, 9 files) ✅
+**Deliverable**: 9-modality feature pipeline — 100 feature columns across base scores, annotation, sequence, genomic context, conservation, epigenetic marks, junction reads, RBP binding, and chromatin accessibility ✅
 
-**Verified**: chr22 — 17.6M positions, 54 columns, 58s
+**Verified**: Full-genome feature generation across 17 chromosomes; chr22 — 96K sampled positions, 110 columns
+
+**See**: [`examples/features/docs/`](examples/features/docs/) for per-modality tutorials
 
 ---
 
@@ -1179,18 +1189,28 @@ MIT License - see LICENSE file for details
 
 **Goal**: Context-aware adaptive splice prediction via meta-learning
 
-- [ ] Validated delta prediction (hybrid label strategy from SpliceVarDB)
-- [ ] Conditional splice landscape prediction (Formulation A)
-- [ ] Virtual transcript reconstruction (junction-level donor-acceptor pairing)
-- [ ] RNA-seq junction integration (GTEx/TCGA ground truth)
-- [ ] Training pipeline with weak supervision (Level 0–4 label hierarchy)
-- [ ] Delta score analysis for novel site detection
+Four model variants target progressively harder problems:
+- **M1 — Canonical Classification**: Recalibrate base model predictions using multimodal context
+- **M2 — Alternative Splice Sites**: Predict tissue-specific and isoform-specific splice sites
+- **M3 — Novel Site Discovery**: Predict unannotated splice sites (junction as held-out target)
+- **M4 — Perturbation-Induced**: Predict variant/disease/treatment effects on splicing
 
-**Key Challenge**: Weak supervision — SpliceVarDB provides categorical labels (Level 1) but meta-layer needs positional predictions (Level 3). Four formulations explored: Conditional Landscape, Latent State, Contrastive Multi-Resolution, Generalized Perturbation.
+Progress:
+- [x] XGBoost M1 baseline (99.78% accuracy, PR-AUC 0.999/0.998, full-stack 100 features)
+- [x] Modality ablation analysis with Tree SHAP importance
+- [x] GTEx v8 junction data integration (353K junctions, 54 tissues)
+- [x] Full-genome feature generation (17 chromosomes, 9 modalities)
+- [ ] Full-genome cross-validation with balanced chromosome splits
+- [ ] M3 novel site predictor (junction as target, not feature)
+- [ ] Virtual transcript reconstruction (junction-level donor-acceptor pairing)
+- [ ] Delta score analysis and M4 perturbation framework
+
+**Key Insight**: Junction support is the #2 feature by SHAP (31.3%), reducing false negatives by 60-70%. Conservation importance is 10x underestimated by XGBoost gain — always use SHAP.
 
 **Deliverable**: Context-aware predictions that discover the 90% of splice sites beyond canonical annotations
 
-**See**: [`docs/meta_layer/splice_prediction/`](docs/meta_layer/splice_prediction/) for detailed analysis and formulations
+**See**: [`examples/meta_layer/docs/meta_model_variants_m1_m4.md`](examples/meta_layer/docs/meta_model_variants_m1_m4.md) for the M1-M4 framework;
+[`docs/meta_layer/predicting_induced_splice_sites/`](docs/meta_layer/predicting_induced_splice_sites/) for theoretical formulations
 
 ---
 
