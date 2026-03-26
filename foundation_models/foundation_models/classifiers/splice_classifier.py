@@ -891,7 +891,11 @@ class SpliceClassifier(nn.Module):
             dilations=ckpt.get("dilations", [1, 4, 16]),
             dropout=ckpt.get("dropout", 0.1),
         )
-        model.load_state_dict(ckpt["model_state_dict"])
+        state_dict = ckpt["model_state_dict"]
+        # Temperature is handled separately below — remove from state_dict
+        # to avoid "unexpected key" errors on fresh (uncalibrated) models.
+        state_dict.pop("temperature", None)
+        model.load_state_dict(state_dict)
         if "temperature" in ckpt:
             model.temperature = nn.Parameter(ckpt["temperature"].to(device))
         model.to(device)
@@ -903,3 +907,26 @@ class SpliceClassifier(nn.Module):
             "temperature" in ckpt,
         )
         return model
+
+    @classmethod
+    def load_model(
+        cls,
+        path: str | Path,
+        device: str = "cpu",
+    ) -> "SpliceClassifier":
+        """Load a trained (and optionally calibrated) SpliceClassifier.
+
+        Alias for :meth:`load_checkpoint` — use when loading a finalized
+        model for inference rather than resuming training.
+
+        Args:
+            path: Path to ``best_model.pt`` or directory containing it.
+            device: Device to load onto.
+
+        Returns:
+            Ready-to-use SpliceClassifier in eval mode.
+        """
+        p = Path(path)
+        if p.is_dir():
+            p = p / "best_model.pt"
+        return cls.load_checkpoint(p, device=device)

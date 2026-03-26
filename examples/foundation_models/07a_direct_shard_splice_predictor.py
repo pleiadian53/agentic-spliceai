@@ -44,6 +44,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import h5py
 import numpy as np
 import torch
+import torch.nn as nn
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1152,6 +1153,12 @@ def main() -> None:
                         help="Synthetic data for pipeline validation")
     parser.add_argument("--resume", action="store_true",
                         help="Skip Phase 1 if shard files already exist")
+    parser.add_argument("--checkpoint", type=str, default=None,
+                        help="Path to best_model.pt or directory containing it. "
+                             "Loads a pre-trained classifier instead of training.")
+    parser.add_argument("--eval-only", action="store_true",
+                        help="Skip Phase 1+2, run only Phase 3 evaluation. "
+                             "Requires --checkpoint.")
 
     args = parser.parse_args()
 
@@ -1286,7 +1293,8 @@ def main() -> None:
         _registry = get_genomic_registry(build=_build, release=_release)
         _gtf_path = str(_registry.get_gtf_path(validate=True))
 
-        all_gene_chroms: Dict[str, str] = {}
+        # Build gene info dict with coordinates (needed for live inference in Phase 3)
+        all_gene_info: Dict[str, GeneEntry] = {}
         for chrom in chromosomes:
             chrom_chr = f"chr{chrom}" if not chrom.startswith("chr") else chrom
             chrom_bare = _normalize_chrom(chrom)
@@ -1297,7 +1305,18 @@ def main() -> None:
                 chrom_val = str(row.get("chrom") or row.get("seqname", ""))
                 if not chrom_val.startswith("chr"):
                     chrom_val = f"chr{chrom_val}"
-                all_gene_chroms[row["gene_id"]] = chrom_val
+                all_gene_info[row["gene_id"]] = GeneEntry(
+                    gene_id=row["gene_id"],
+                    gene_name=row.get("gene_name", row["gene_id"]),
+                    chrom=chrom_val,
+                    start=row["start"],
+                    end=row["end"],
+                    strand=row.get("strand", "+"),
+                    n_windows=0,
+                    n_splice_sites=0,
+                    hdf5_path="",
+                )
+        all_gene_chroms = {gid: e.chrom for gid, e in all_gene_info.items()}
 
         split = build_gene_split(
             all_gene_chroms, preset=args.split, val_fraction=0.1, seed=args.seed,
@@ -1308,6 +1327,89 @@ def main() -> None:
             "  Split: %d train, %d val, %d test genes",
             len(split.train_genes), len(split.val_genes), len(split.test_genes),
         )
+
+    # ===================================================================
+    # Eval-only mode: skip Phase 1+2, jump straight to Phase 3
+    # ===================================================================
+    if args.eval_only:
+        if not args.checkpoint:
+            logger.error("--eval-only requires --checkpoint")
+            sys.exit(1)
+
+        # For mock mode, generate synthetic data to get manifest + split
+        if args.mock:
+            mock_manifest = extract_mock_embeddings(
+                n_genes=args.n_genes, hidden_dim=hidden_dim,
+                window_size=window_size, step_size=step_size,
+                output_dir=output_dir, seed=args.seed,
+            )
+            gene_chromosomes = {e.gene_id: e.chrom for e in mock_manifest}
+            split = build_gene_split(
+                gene_chromosomes, preset=args.split, val_fraction=0.1, seed=args.seed,
+                custom_train_chroms=custom_train_chroms,
+                custom_test_chroms=custom_test_chroms,
+            )
+            test_manifest = [e for e in mock_manifest if e.gene_id in split.test_genes]
+        elif split is None:
+            logger.error("--eval-only requires --chromosomes (for test gene discovery)")
+            sys.exit(1)
+        else:
+            # Real data: build test manifest from GTF gene info
+            test_manifest = [
+                all_gene_info[g] for g in split.test_genes if g in all_gene_info
+            ]
+
+        from foundation_models.classifiers.splice_classifier import SpliceClassifier
+
+        ckpt_path = Path(args.checkpoint)
+        if ckpt_path.is_dir():
+            ckpt_path = ckpt_path / "best_model.pt"
+        device = get_device()
+        classifier = SpliceClassifier.load_model(ckpt_path, device=device)
+
+        # Load temperature if saved separately and not already in checkpoint
+        temp_path = ckpt_path.parent / "temperature.pt"
+        if temp_path.exists() and classifier.temperature is None:
+            classifier.temperature = nn.Parameter(
+                torch.load(temp_path, map_location=device, weights_only=True)
+            )
+            logger.info("Loaded calibration temperature from %s", temp_path)
+        logger.info(
+            "Eval-only mode: %d test genes from %d test chromosomes",
+            len(test_manifest), len({e.chrom for e in test_manifest}),
+        )
+
+        # Phase 3 only
+        logger.info("Phase 3/3: Evaluating on test chromosomes...")
+        results = evaluate_on_test_set(
+            classifier=classifier,
+            manifest=test_manifest,
+            test_genes=split.test_genes,
+            output_dir=output_dir,
+            model_name=args.foundation_model if not args.mock else "",
+            model_kwargs=model_kwargs,
+            build=args.build,
+            window_size=window_size,
+            step_size=step_size,
+            max_context=meta.max_context,
+            tokenization=meta.tokenization,
+        )
+
+        elapsed = time.time() - t0
+        print()
+        print("=" * 70)
+        print("Eval-only Complete")
+        print("=" * 70)
+        print(f"  Model:        {meta.name}")
+        print(f"  Checkpoint:   {ckpt_path}")
+        print(f"  Test genes:   {len(test_manifest)}")
+        if results:
+            print(f"  Mean AUROC:   {results.get('mean_auroc', float('nan')):.4f}")
+            print(f"  Mean AUPRC:   {results.get('mean_auprc', float('nan')):.4f}")
+            print(f"  Mean F1:      {results.get('mean_f1', float('nan')):.4f}")
+        print(f"  Time:         {elapsed / 60:.1f} min")
+        print()
+        sys.exit(0)
 
     # ===================================================================
     # Phase 1: Extract → direct to shard files
@@ -1351,6 +1453,19 @@ def main() -> None:
                 "Re-run without --resume to also extract any missing chromosomes."
             )
             manifest = []  # empty — Phase 2 uses shard files directly
+            # Add test gene entries so Phase 3 can run live inference.
+            # These have hdf5_path="" which triggers the live inference path.
+            # Phase 2 filters by train/val genes so these are excluded from training.
+            if all_gene_info:
+                test_entries = [
+                    all_gene_info[g] for g in split.test_genes
+                    if g in all_gene_info
+                ]
+                manifest.extend(test_entries)
+                logger.info(
+                    "  Added %d test gene entries for Phase 3 live inference",
+                    len(test_entries),
+                )
     else:
         logger.info("Phase 1/3: Extracting embeddings → direct to shards...")
         manifest = extract_to_shards(
@@ -1380,46 +1495,76 @@ def main() -> None:
         sys.exit(1)
 
     # ===================================================================
-    # Phase 2: Train from shards
+    # Phase 2: Train from shards (or load checkpoint)
     # ===================================================================
-    logger.info("Phase 2/3: Training from shards...")
+    val_dataset = None
+    val_loader = None
 
-    logger.info(
-        "  Split: %d train, %d val, %d test genes",
-        len(split.train_genes), len(split.val_genes), len(split.test_genes),
-    )
+    if args.checkpoint:
+        # Skip training — load pre-trained classifier from checkpoint
+        from foundation_models.classifiers.splice_classifier import SpliceClassifier
 
-    n_train_win = sum(e.n_windows for e in manifest if e.gene_id in split.train_genes)
-    n_val_win = sum(e.n_windows for e in manifest if e.gene_id in split.val_genes)
-    n_test_genes = sum(1 for e in manifest if e.gene_id in split.test_genes)
-    if manifest:
-        logger.info(
-            "  Windows: %d train, %d val | Test genes: %d (live inference)",
-            n_train_win, n_val_win, n_test_genes,
-        )
+        ckpt_path = Path(args.checkpoint)
+        if ckpt_path.is_dir():
+            ckpt_path = ckpt_path / "best_model.pt"
+        device = get_device()
+        classifier = SpliceClassifier.load_model(ckpt_path, device=device)
+        logger.info("Phase 2/3: Loaded classifier from %s (skipping training)", ckpt_path)
+
+        # Build val loader for calibration if shards exist
+        existing_val_shards = sorted(
+            shard_dir.glob("val*shard_*.h5")
+        ) if shard_dir.exists() else []
+        if existing_val_shards:
+            from foundation_models.data.datasets import ShardedWindowDataset
+            val_dataset = ShardedWindowDataset(existing_val_shards)
+            val_loader = torch.utils.data.DataLoader(
+                val_dataset, batch_size=args.batch_size, shuffle=False,
+                pin_memory=torch.cuda.is_available(),
+            )
+            logger.info(
+                "  Loaded %d val shards (%d windows) for calibration",
+                len(existing_val_shards), len(val_dataset),
+            )
     else:
+        logger.info("Phase 2/3: Training from shards...")
+
         logger.info(
-            "  Windows: from %d shard files (manifest missing) | Test genes: %d (live inference)",
-            len(existing_train_shards), len(split.test_genes),
+            "  Split: %d train, %d val, %d test genes",
+            len(split.train_genes), len(split.val_genes), len(split.test_genes),
         )
 
-    classifier, val_dataset, val_loader = train_classifier(
-        manifest=manifest,
-        train_genes=split.train_genes,
-        val_genes=split.val_genes,
-        input_dim=hidden_dim,
-        output_dir=output_dir,
-        architecture=args.architecture,
-        hidden_dim=args.hidden_dim,
-        lr=args.lr,
-        batch_size=args.batch_size,
-        weight_decay=args.weight_decay,
-        epochs=args.epochs,
-        patience=args.patience,
-        focal_gamma=args.focal_gamma,
-        use_shards=True,  # Always use shards in 07a
-        seed=args.seed,
-    )
+        n_train_win = sum(e.n_windows for e in manifest if e.gene_id in split.train_genes)
+        n_val_win = sum(e.n_windows for e in manifest if e.gene_id in split.val_genes)
+        n_test_genes = sum(1 for e in manifest if e.gene_id in split.test_genes)
+        if manifest:
+            logger.info(
+                "  Windows: %d train, %d val | Test genes: %d (live inference)",
+                n_train_win, n_val_win, n_test_genes,
+            )
+        else:
+            logger.info(
+                "  Windows: from %d shard files (manifest missing) | Test genes: %d (live inference)",
+                len(existing_train_shards), len(split.test_genes),
+            )
+
+        classifier, val_dataset, val_loader = train_classifier(
+            manifest=manifest,
+            train_genes=split.train_genes,
+            val_genes=split.val_genes,
+            input_dim=hidden_dim,
+            output_dir=output_dir,
+            architecture=args.architecture,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            batch_size=args.batch_size,
+            weight_decay=args.weight_decay,
+            epochs=args.epochs,
+            patience=args.patience,
+            focal_gamma=args.focal_gamma,
+            use_shards=True,  # Always use shards in 07a
+            seed=args.seed,
+        )
 
     # ===================================================================
     # Phase 2.5: Calibrate probabilities (temperature scaling)
