@@ -175,7 +175,7 @@ graph LR
 ### 2. Adaptive Meta-Learning (Foundation-Adaptor Framework)
 **Multimodal deep learning**: Refine predictions using context-aware meta-models
 - **Foundation**: Base model predictions (canonical knowledge)
-- **Adaptor**: 9-modality feature fusion (base scores, conservation, epigenetic marks, chromatin accessibility, RNA-seq junction evidence, RBP eCLIP binding, DNA sequence, genomic context, gene annotations) — see [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md)
+- **Adaptor**: 9-modality feature fusion (base scores, conservation, epigenetic marks, chromatin accessibility, RNA-seq junction evidence, RBP eCLIP binding, DNA sequence, genomic context, gene annotations) — see [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md) and [`examples/features/`](examples/features/)
 - **Context embedding**: Patient variants, disease state, tissue type
 - **Self-improvement**: Learn from validation feedback continuously
 
