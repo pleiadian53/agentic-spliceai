@@ -16,9 +16,9 @@ feature engineering pipeline. Each modality is a registered `Modality` subclass 
 | `epigenetic` | 12 | External data | ENCODE ChIP-seq bigWig tracks | Histone modification signals across cell types |
 | `junction` | 12 | External data | STAR SJ.out.tab / GTEx / recount3 | RNA-seq splice junction read evidence |
 | `rbp_eclip` | 8 | External data | ENCODE eCLIP narrowPeak (K562, HepG2) | RNA-binding protein occupancy at splice sites |
-| `chrom_access` | 6 | External data | ENCODE ATAC-seq bigWig (5 cell lines) | Chromatin accessibility (open vs closed chromatin) |
+| `chrom_access` | 12 | External data | ENCODE ATAC-seq (5 cell lines) + DNase-seq (5 primary tissues) | Chromatin accessibility (open vs closed chromatin) |
 
-**Total**: 100 feature columns (default full-stack configuration).
+**Total**: 106 feature columns (default full-stack configuration).
 
 ---
 
@@ -286,23 +286,24 @@ Source file: `modalities/rbp_eclip.py`
 | `rbp_cell_line_breadth` | Derived | Number of cell lines (0-2) with binding evidence at this position |
 | `rbp_mean_signal` | Derived | Mean fold-enrichment across all overlapping peaks |
 
-#### chrom_access (6 columns)
+#### chrom_access (12 columns)
 
-Chromatin accessibility from ENCODE ATAC-seq fold-change-over-control bigWig tracks.
-Default mode is **summarized** (Strategy B): cross-tissue summary statistics from
-5 ENCODE cell lines (K562, GM12878, HepG2, A549, IMR-90).
+Chromatin accessibility from two complementary ENCODE data sources:
+- **ATAC-seq** (fold-change-over-control): 5 cancer cell lines (K562, GM12878, HepG2, A549, IMR-90)
+- **DNase-seq** (read-depth normalized): 5 primary tissues (brain cortex, heart, lung, muscle, liver)
 
-ATAC-seq measures nucleosome-free DNA — positions where the DNA is physically accessible
-to regulatory factors including the spliceosome. Complementary to (not redundant with)
-histone marks: a position can have high H3K36me3 (transcribed exon body) while being
-nucleosome-occupied (low accessibility).
+Both assays measure nucleosome-free DNA but use different signal normalization
+(different scales), so they are kept as separate column groups (`atac_*` and `dnase_*`).
+The meta-layer model learns their individual contributions.
 
 GRCh38 only. For GRCh37 builds, all columns are filled with NaN (graceful degradation).
 Requires `pyBigWig`.
 
 Source file: `modalities/chrom_access.py`
 
-**See**: [`examples/features/docs/chromatin-accessibility-tutorial.md`](../../examples/features/docs/chromatin-accessibility-tutorial.md) for biology background and ENCODE data sources.
+**See**: [`examples/features/docs/chromatin-accessibility-tutorial.md`](../../examples/features/docs/chromatin-accessibility-tutorial.md) for biology background, ENCODE data sources, and why ATAC/DNase use separate registries.
+
+**ATAC-seq (fold-change, cancer cell lines) — 6 columns**
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -312,6 +313,17 @@ Source file: `modalities/chrom_access.py`
 | `atac_variance` | Derived | Variance of ATAC-seq signal across cell lines; high = tissue-specific accessibility |
 | `atac_context_mean` | Derived | Mean signal in a 150bp window around position (averaged across cell lines) |
 | `atac_has_peak` | Derived | Binary: 1.0 if maximum signal > peak threshold (default > 3.0 fold-change), 0.0 otherwise |
+
+**DNase-seq (read-depth normalized, primary tissues) — 6 columns**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `dnase_max_across_tissues` | Derived | Maximum DNase-seq read-depth signal across primary tissues |
+| `dnase_mean_across_tissues` | Derived | Mean DNase-seq signal across tissues |
+| `dnase_tissue_breadth` | Derived | Number of tissues with signal above threshold (default > 5.0 read-depth) |
+| `dnase_variance` | Derived | Variance of DNase-seq signal across tissues; high = tissue-specific accessibility |
+| `dnase_context_mean` | Derived | Mean signal in a 150bp window around position (averaged across tissues) |
+| `dnase_has_peak` | Derived | Binary: 1.0 if maximum signal > peak threshold (default > 10.0 read-depth), 0.0 otherwise |
 
 ---
 

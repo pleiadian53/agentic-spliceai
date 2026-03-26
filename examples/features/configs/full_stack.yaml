@@ -84,6 +84,7 @@ modality_configs:
     # eclip_data_path: null         # auto-resolved from registry
 
   chrom_access:
+    # ATAC-seq (fold-change-over-control, cancer cell lines)
     cell_lines:
       - K562                        # blood/CML
       - GM12878                     # lymphoblastoid
@@ -92,8 +93,17 @@ modality_configs:
       - IMR-90                      # normal fibroblast
     window: 150                     # half-window (bp) — ATAC peaks ~200bp (nucleosome scale)
     aggregation: summarized         # cross-tissue stats: max, mean, breadth, variance
-    signal_threshold: 2.0           # fold-change cutoff for tissue_breadth count
-    peak_threshold: 3.0             # fold-change cutoff for binary has_peak feature
+    signal_threshold: 2.0           # ATAC fold-change cutoff for tissue_breadth
+    peak_threshold: 3.0             # ATAC fold-change cutoff for has_peak
+    # DNase-seq (read-depth normalized, primary tissues)
+    dnase_cell_lines:
+      - brain_cortex                # frontal cortex (ENCSR000EIY)
+      - heart                       # heart (ENCSR989YAW)
+      - lung                        # lung (ENCSR141IUS)
+      - muscle                      # psoas muscle (ENCSR019MYA)
+      - liver                       # liver (ENCSR562FNN)
+    dnase_signal_threshold: 5.0     # read-depth normalized (higher scale than ATAC)
+    dnase_peak_threshold: 10.0      # read-depth normalized
     remote_fallback: true
 
 sampling:

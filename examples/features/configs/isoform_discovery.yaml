@@ -102,6 +102,14 @@ modality_configs:
     aggregation: summarized
     signal_threshold: 2.0
     peak_threshold: 3.0
+    dnase_cell_lines:
+      - brain_cortex
+      - heart
+      - lung
+      - muscle
+      - liver
+    dnase_signal_threshold: 5.0
+    dnase_peak_threshold: 10.0
     remote_fallback: true
 
 # ── Position Sampling — Isoform-Aware ──────────────────────────────

@@ -142,14 +142,22 @@ class FeatureSchema:
         'rbp_mean_signal',
     ])
 
-    # Chromatin accessibility features (ENCODE ATAC-seq, cross-tissue)
+    # Chromatin accessibility features (ENCODE ATAC-seq + DNase-seq)
     CHROM_ACCESS_COLS: List[str] = field(default_factory=lambda: [
+        # ATAC-seq (fold-change, cancer cell lines)
         'atac_max_across_tissues',
         'atac_mean_across_tissues',
         'atac_tissue_breadth',
         'atac_variance',
         'atac_context_mean',
         'atac_has_peak',
+        # DNase-seq (read-depth normalized, primary tissues)
+        'dnase_max_across_tissues',
+        'dnase_mean_across_tissues',
+        'dnase_tissue_breadth',
+        'dnase_variance',
+        'dnase_context_mean',
+        'dnase_has_peak',
     ])
     
     # Label columns (ground truth)

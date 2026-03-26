@@ -465,6 +465,159 @@ class FeatureWorkflow:
 
         return result
 
+    def refresh(
+        self,
+        chromosomes: List[str],
+        modalities: List[str],
+    ) -> FeatureWorkflowResult:
+        """Recompute specified modalities in existing artifacts.
+
+        Drops existing columns for the named modalities, rebuilds them
+        using the current pipeline config (which may have changed — e.g.,
+        new cell lines added to chrom_access), and saves atomically.
+
+        Unlike ``augment()`` which adds NEW modalities, ``refresh()``
+        re-runs EXISTING modalities with updated configs.
+
+        Parameters
+        ----------
+        chromosomes : list of str
+            Chromosomes to refresh.
+        modalities : list of str
+            Modality names to recompute.
+
+        Returns
+        -------
+        FeatureWorkflowResult
+            Refresh results.
+        """
+        t0 = time.time()
+
+        # Build sub-pipeline with the modalities to refresh
+        refresh_config = FeaturePipelineConfig(
+            base_model=self.pipeline_config.base_model,
+            modalities=modalities,
+            modality_configs={
+                k: v for k, v in self.pipeline_config.modality_configs.items()
+                if k in modalities
+            },
+            output_format=self.pipeline_config.output_format,
+        )
+
+        from . import modalities as _  # noqa: F401
+
+        sub_pipeline = FeaturePipeline(refresh_config)
+        sub_schema = sub_pipeline.get_output_schema()
+        refresh_cols = {
+            col for cols in sub_schema.values() for col in cols
+        }
+
+        result = FeatureWorkflowResult(
+            success=False,
+            output_dir=self.output_dir,
+            pipeline_schema=sub_schema,
+        )
+
+        logger.info(
+            "Refreshing %d modalities: %s (%d columns to recompute)",
+            len(modalities), modalities, len(refresh_cols),
+        )
+
+        total_positions = 0
+        fmt = self.pipeline_config.output_format
+
+        for chrom in chromosomes:
+            output_path = self._get_chrom_output_path(chrom, fmt)
+
+            if not output_path.exists():
+                logger.warning(
+                    "No existing artifact for %s at %s — skipping.",
+                    chrom, output_path,
+                )
+                result.chromosomes_skipped.append(chrom)
+                continue
+
+            existing_df = pl.read_parquet(output_path)
+            n_positions = existing_df.height
+
+            # Drop columns that will be recomputed
+            cols_to_drop = [c for c in refresh_cols if c in existing_df.columns]
+            if cols_to_drop:
+                logger.info(
+                    "Refreshing %s: dropping %d old columns, recomputing...",
+                    chrom, len(cols_to_drop),
+                )
+                existing_df = existing_df.drop(cols_to_drop)
+
+            # Validate required inputs
+            for mod in sub_pipeline._modalities:
+                missing = mod.meta.required_inputs - set(existing_df.columns)
+                if missing:
+                    raise ValueError(
+                        f"Modality '{mod.meta.name}' requires columns "
+                        f"{sorted(missing)} not found in {output_path.name}."
+                    )
+
+            # Recompute modalities
+            logger.info(
+                "Refreshing %s: %d positions, recomputing %d columns...",
+                chrom, n_positions, len(refresh_cols),
+            )
+            refreshed = sub_pipeline.transform(existing_df)
+            del existing_df
+
+            self._atomic_write(refreshed, output_path, fmt)
+            logger.info(
+                "Saved refreshed %s: %d positions, %d columns -> %s",
+                chrom, refreshed.height, refreshed.width, output_path,
+            )
+
+            result.chromosomes_processed.append(chrom)
+            total_positions += refreshed.height
+            del refreshed
+
+        result.total_positions = total_positions
+        result.success = True
+        result.runtime_seconds = time.time() - t0
+
+        # Update summary with refresh event
+        self._update_summary_after_refresh(result, modalities)
+
+        return result
+
+    def _update_summary_after_refresh(
+        self,
+        result: FeatureWorkflowResult,
+        modalities: List[str],
+    ) -> None:
+        """Update feature_summary.json after a modality refresh."""
+        summary_path = self.output_dir / "feature_summary.json"
+
+        if summary_path.exists():
+            with open(summary_path) as f:
+                summary = json.load(f)
+        else:
+            summary = {}
+
+        # Update schema for refreshed modalities
+        existing_schema = summary.get("pipeline_schema", {})
+        existing_schema.update(result.pipeline_schema)
+        summary["pipeline_schema"] = existing_schema
+
+        # Append refresh log
+        refresh_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "refreshed_modalities": modalities,
+            "chromosomes_refreshed": result.chromosomes_processed,
+            "chromosomes_skipped": result.chromosomes_skipped,
+            "runtime_seconds": round(result.runtime_seconds, 2),
+        }
+        summary.setdefault("refreshes", []).append(refresh_entry)
+
+        with open(summary_path, "w") as f:
+            json.dump(summary, f, indent=2, default=str)
+        logger.info("Updated feature summary with refresh → %s", summary_path)
+
     # ------------------------------------------------------------------
     # I/O helpers
     # ------------------------------------------------------------------

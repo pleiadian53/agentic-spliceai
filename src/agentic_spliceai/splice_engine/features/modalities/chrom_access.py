@@ -1,28 +1,31 @@
-"""Chromatin accessibility modality — ATAC-seq open chromatin features from ENCODE.
+"""Chromatin accessibility modality — ATAC-seq + DNase-seq from ENCODE.
 
-Extracts chromatin accessibility signals from ENCODE ATAC-seq
-fold-change-over-control bigWig tracks across a panel of cell types.
+Extracts chromatin accessibility signals from two complementary assays:
 
-Uses Strategy B (cross-tissue summary statistics): max, mean, breadth,
-variance, context_mean, and a binary has_peak indicator. This captures
-whether a genomic position is physically accessible to regulatory factors
-(spliceosome, RBPs, transcription factors) — complementary to histone
-marks which indicate chromatin *state* but not *accessibility* directly.
+- **ATAC-seq** (fold-change-over-control): 5 ENCODE cancer cell lines
+  (K562, GM12878, HepG2, A549, IMR-90)
+- **DNase-seq** (read-depth normalized signal): 5 primary tissues
+  (brain cortex, heart, lung, muscle, liver)
 
-A position can have high H3K36me3 (transcribed exon body) while being
-nucleosome-occupied (not accessible). The meta-layer can learn these
-interaction patterns when both modalities are present.
+Both assays measure nucleosome-free DNA — positions physically accessible
+to regulatory factors — but use different signal normalization. ATAC-seq
+reports fold-change over control; DNase-seq reports read-depth normalized
+signal. The values are on different scales, so they are kept as **separate
+column groups** (``atac_*`` and ``dnase_*``) within the same modality.
+The meta-layer model learns their individual contributions.
 
-GRCh38 only — ENCODE ATAC-seq signal tracks are aligned to GRCh38.
-For GRCh37 builds, all columns are filled with NaN and a warning is logged.
+Uses Strategy B (cross-tissue summary statistics) for both: max, mean,
+breadth, variance, context_mean, and a binary has_peak indicator.
+
+GRCh38 only. For GRCh37 builds, all columns are filled with NaN.
 
 Requires ``pyBigWig`` (optional dependency).
 
 See Also
 --------
 examples/features/docs/chromatin-accessibility-tutorial.md
-    Full tutorial on chromatin accessibility, ATAC-seq data, and
-    feature interpretation.
+    Full tutorial on chromatin accessibility, ATAC-seq vs DNase-seq data,
+    and feature interpretation.
 """
 
 import logging
@@ -100,6 +103,76 @@ ATAC_TRACK_REGISTRY: dict[str, dict[str, dict[str, str]]] = {
 DEFAULT_ATAC_CELL_LINES = ("K562", "GM12878", "HepG2", "A549", "IMR-90")
 
 
+# ── ENCODE DNase-seq track registry (GRCh38 only) ────────────────────
+# Read-depth normalized signal bigWig files (NOT fold-change — DNase-seq
+# processing does not produce fold-change-over-control tracks on ENCODE).
+#
+# WHY A SEPARATE REGISTRY (not merged into ATAC_TRACK_REGISTRY):
+# DNase-seq and ATAC-seq measure the same biological property (chromatin
+# accessibility) but use different signal normalization:
+#   - ATAC-seq: fold-change over control (values typically 0-20)
+#   - DNase-seq: read-depth normalized (values typically 0-100+)
+# Mixing them in the same summary statistics would be meaningless.
+# They are kept as separate column groups (atac_* and dnase_*) so the
+# meta-layer model can learn their separate contributions.
+#
+# These are PRIMARY TISSUE samples (not cancer cell lines), providing
+# complementary tissue coverage to the ATAC-seq cancer cell line panel.
+
+DNASE_TRACK_REGISTRY: dict[str, dict[str, dict[str, str]]] = {
+    "GRCh38": {
+        "brain_cortex": {
+            "url": (
+                "https://encode-public.s3.amazonaws.com/2020/11/22/"
+                "a8f1a670-279c-4096-bd41-dfea58797f8c/ENCFF243QQE.bigWig"
+            ),
+            "accession": "ENCFF243QQE",
+            "experiment": "ENCSR000EIY",
+            "filename": "ENCFF243QQE.bigWig",
+        },
+        "heart": {
+            "url": (
+                "https://encode-public.s3.amazonaws.com/2025/08/21/"
+                "2221005d-7829-495b-8e59-2f99e6f91148/ENCFF885WJZ.bigWig"
+            ),
+            "accession": "ENCFF885WJZ",
+            "experiment": "ENCSR989YAW",
+            "filename": "ENCFF885WJZ.bigWig",
+        },
+        "lung": {
+            "url": (
+                "https://encode-public.s3.amazonaws.com/2025/10/01/"
+                "a199b4b3-6547-4c98-b6ff-191254c80b0d/ENCFF958NZO.bigWig"
+            ),
+            "accession": "ENCFF958NZO",
+            "experiment": "ENCSR141IUS",
+            "filename": "ENCFF958NZO.bigWig",
+        },
+        "muscle": {
+            "url": (
+                "https://encode-public.s3.amazonaws.com/2025/10/01/"
+                "fb9a13cf-3cf6-4565-937b-93eb4a184a0a/ENCFF952ARY.bigWig"
+            ),
+            "accession": "ENCFF952ARY",
+            "experiment": "ENCSR019MYA",
+            "filename": "ENCFF952ARY.bigWig",
+        },
+        "liver": {
+            "url": (
+                "https://encode-public.s3.amazonaws.com/2025/08/14/"
+                "caacdb4d-3c4e-41ef-b355-001984b7f0f3/ENCFF017TVV.bigWig"
+            ),
+            "accession": "ENCFF017TVV",
+            "experiment": "ENCSR562FNN",
+            "filename": "ENCFF017TVV.bigWig",
+        },
+    },
+    # GRCh37: No ENCODE DNase-seq signal tracks aligned to hg19.
+}
+
+DEFAULT_DNASE_CELL_LINES = ("brain_cortex", "heart", "lung", "muscle", "liver")
+
+
 def _check_pybigwig() -> None:
     """Verify pyBigWig is importable."""
     try:
@@ -122,19 +195,23 @@ class ChromAccessConfig(ModalityConfig):
     base_model : str
         Base model name for build resolution (e.g., 'openspliceai').
     cell_lines : tuple of str
-        Cell lines to query. Default: 5-cell panel (K562, GM12878,
-        HepG2, A549, IMR-90).
+        ATAC-seq cell lines. Default: 5-cell panel (K562, GM12878,
+        HepG2, A549, IMR-90). Fold-change-over-control signal.
     window : int
-        Half-window (bp) for context features. ATAC-seq peaks are
-        ~200bp (nucleosome scale). Default: 150.
+        Half-window (bp) for context features. Default: 150.
     aggregation : str
         'summarized' (Strategy B, default): cross-tissue summary stats.
     signal_threshold : float
-        Minimum fold-change signal to count a tissue as "accessible"
-        for the tissue_breadth feature. Default: 2.0.
+        ATAC fold-change threshold for tissue_breadth. Default: 2.0.
     peak_threshold : float
-        Higher fold-change threshold for the binary has_peak feature.
-        Default: 3.0.
+        ATAC fold-change threshold for has_peak. Default: 3.0.
+    dnase_cell_lines : tuple of str
+        DNase-seq primary tissues. Default: brain_cortex, heart, lung,
+        muscle, liver. Read-depth normalized signal (different scale).
+    dnase_signal_threshold : float
+        DNase read-depth threshold for tissue_breadth. Default: 5.0.
+    dnase_peak_threshold : float
+        DNase read-depth threshold for has_peak. Default: 10.0.
     cache_dir : Path or None
         Local bigWig cache directory. If None, uses remote ENCODE URLs.
     remote_fallback : bool
@@ -147,18 +224,23 @@ class ChromAccessConfig(ModalityConfig):
     aggregation: str = "summarized"
     signal_threshold: float = 2.0
     peak_threshold: float = 3.0
+    # DNase-seq settings (primary tissues, read-depth normalized signal)
+    dnase_cell_lines: tuple[str, ...] = DEFAULT_DNASE_CELL_LINES
+    dnase_signal_threshold: float = 5.0  # read-depth scale (higher than ATAC fold-change)
+    dnase_peak_threshold: float = 10.0
     cache_dir: Optional[Path] = None
     remote_fallback: bool = True
 
 
 class ChromAccessModality(Modality):
-    """Chromatin accessibility features from ENCODE ATAC-seq data.
+    """Chromatin accessibility features from ENCODE ATAC-seq + DNase-seq.
 
-    Extracts fold-change-over-control signals from ENCODE ATAC-seq
-    bigWig tracks across a panel of cell types.
+    Extracts accessibility signals from two complementary data sources:
+    - ATAC-seq (fold-change-over-control) from cancer cell lines → ``atac_*``
+    - DNase-seq (read-depth normalized) from primary tissues → ``dnase_*``
 
-    In 'summarized' mode (default), produces cross-tissue statistics:
-    max, mean, breadth, variance, context_mean, and has_peak.
+    In 'summarized' mode (default), produces cross-tissue statistics
+    for each source: max, mean, breadth, variance, context_mean, has_peak.
 
     GRCh38 only. For GRCh37, fills all columns with NaN.
     """
@@ -178,24 +260,33 @@ class ChromAccessModality(Modality):
             required_inputs=frozenset({"chrom", "position"}),
             optional_inputs=frozenset(),
             description=(
-                "Chromatin accessibility (ATAC-seq) from ENCODE "
-                "across multiple cell types."
+                "Chromatin accessibility (ATAC-seq + DNase-seq) "
+                "from ENCODE across cell lines and primary tissues."
             ),
         )
 
     def _compute_output_columns(self) -> list[str]:
         """Compute output column names based on config."""
-        if self._cfg.aggregation == "summarized":
-            return [
-                "atac_max_across_tissues",
-                "atac_mean_across_tissues",
-                "atac_tissue_breadth",
-                "atac_variance",
-                "atac_context_mean",
-                "atac_has_peak",
-            ]
-        # Only summarized mode is supported
-        return []
+        if self._cfg.aggregation != "summarized":
+            return []
+        cols = [
+            "atac_max_across_tissues",
+            "atac_mean_across_tissues",
+            "atac_tissue_breadth",
+            "atac_variance",
+            "atac_context_mean",
+            "atac_has_peak",
+        ]
+        if self._cfg.dnase_cell_lines:
+            cols.extend([
+                "dnase_max_across_tissues",
+                "dnase_mean_across_tissues",
+                "dnase_tissue_breadth",
+                "dnase_variance",
+                "dnase_context_mean",
+                "dnase_has_peak",
+            ])
+        return cols
 
     @classmethod
     def default_config(cls) -> ChromAccessConfig:
@@ -230,6 +321,15 @@ class ChromAccessModality(Modality):
                         f"Cell line '{cl}' not in ATAC-seq registry for "
                         f"{build}. Available: {list(available_cl.keys())}"
                     )
+            # Validate DNase cell lines
+            if self._cfg.dnase_cell_lines and build in DNASE_TRACK_REGISTRY:
+                available_dnase = DNASE_TRACK_REGISTRY[build]
+                for cl in self._cfg.dnase_cell_lines:
+                    if cl not in available_dnase:
+                        errors.append(
+                            f"Tissue '{cl}' not in DNase-seq registry for "
+                            f"{build}. Available: {list(available_dnase.keys())}"
+                        )
 
         return errors
 
@@ -242,20 +342,53 @@ class ChromAccessModality(Modality):
 
         logger.info(
             "Chrom access modality: %d positions, build=%s, "
-            "cell_lines=%s, aggregation=%s",
+            "atac_cell_lines=%s, dnase_cell_lines=%s, aggregation=%s",
             n_positions, build,
-            self._cfg.cell_lines, self._cfg.aggregation,
+            self._cfg.cell_lines, self._cfg.dnase_cell_lines,
+            self._cfg.aggregation,
         )
 
         # Graceful degradation for unsupported builds
         if build not in ATAC_TRACK_REGISTRY:
             logger.warning(
-                "Build '%s' has no ENCODE ATAC-seq tracks. "
+                "Build '%s' has no ENCODE ATAC-seq/DNase-seq tracks. "
                 "Filling all chrom_access columns with NaN.", build,
             )
             return self._fill_nan(df)
 
-        df = self._transform_summarized(df, build)
+        # ATAC-seq (cancer cell lines, fold-change signal)
+        df = self._transform_source(
+            df, build,
+            registry=ATAC_TRACK_REGISTRY,
+            cell_lines=self._cfg.cell_lines,
+            signal_threshold=self._cfg.signal_threshold,
+            peak_threshold=self._cfg.peak_threshold,
+            prefix="atac",
+            source_label="ATAC-seq",
+        )
+
+        # DNase-seq (primary tissues, read-depth normalized signal)
+        if self._cfg.dnase_cell_lines:
+            if build in DNASE_TRACK_REGISTRY:
+                df = self._transform_source(
+                    df, build,
+                    registry=DNASE_TRACK_REGISTRY,
+                    cell_lines=self._cfg.dnase_cell_lines,
+                    signal_threshold=self._cfg.dnase_signal_threshold,
+                    peak_threshold=self._cfg.dnase_peak_threshold,
+                    prefix="dnase",
+                    source_label="DNase-seq",
+                )
+            else:
+                logger.warning(
+                    "Build '%s' has no DNase-seq tracks. "
+                    "Filling dnase_* columns with NaN.", build,
+                )
+                for col_name in self._compute_output_columns():
+                    if col_name.startswith("dnase_") and col_name not in df.columns:
+                        df = df.with_columns(
+                            pl.lit(None).cast(pl.Float64).alias(col_name)
+                        )
 
         logger.info(
             "Chrom access modality: added %d columns",
@@ -265,34 +398,42 @@ class ChromAccessModality(Modality):
 
     # ── Summarized mode (Strategy B) ──────────────────────────────────
 
-    def _transform_summarized(
-        self, df: pl.DataFrame, build: str
+    def _transform_source(
+        self,
+        df: pl.DataFrame,
+        build: str,
+        *,
+        registry: dict[str, dict[str, dict[str, str]]],
+        cell_lines: tuple[str, ...],
+        signal_threshold: float,
+        peak_threshold: float,
+        prefix: str,
+        source_label: str,
     ) -> pl.DataFrame:
-        """Cross-tissue summary statistics for ATAC-seq signal."""
+        """Cross-tissue summary statistics for one accessibility source.
+
+        Reused for both ATAC-seq and DNase-seq — the extraction logic
+        is identical; only the registry, thresholds, and column prefix
+        differ.
+        """
         n = df.height
 
-        # Collect per-cell-line scores at each position
-        # Shape: (n_positions, n_cell_lines)
-        cellline_scores = np.full(
-            (n, len(self._cfg.cell_lines)), np.nan
-        )
-        # Context means (pooled across cell lines for final context_mean)
-        cellline_context = np.full(
-            (n, len(self._cfg.cell_lines)), np.nan
-        )
+        cellline_scores = np.full((n, len(cell_lines)), np.nan)
+        cellline_context = np.full((n, len(cell_lines)), np.nan)
 
-        n_cl = len(self._cfg.cell_lines)
-        for cl_idx, cl in enumerate(self._cfg.cell_lines):
-            track_info = ATAC_TRACK_REGISTRY[build].get(cl)
+        n_cl = len(cell_lines)
+        for cl_idx, cl in enumerate(cell_lines):
+            track_info = registry[build].get(cl)
             if track_info is None:
                 logger.warning(
-                    "No ATAC-seq track for %s in %s. Skipping.", cl, build,
+                    "No %s track for %s in %s. Skipping.",
+                    source_label, cl, build,
                 )
                 continue
 
             logger.info(
-                "  [%d/%d] Processing cell line %s (%s)...",
-                cl_idx + 1, n_cl, cl, track_info["accession"],
+                "  [%s %d/%d] Processing %s (%s)...",
+                prefix.upper(), cl_idx + 1, n_cl, cl, track_info["accession"],
             )
 
             t0 = time.monotonic()
@@ -307,8 +448,8 @@ class ChromAccessModality(Modality):
             elapsed = time.monotonic() - t0
             n_valid = int(np.sum(~np.isnan(scores)))
             logger.info(
-                "  [%d/%d] %s done: %d/%d positions scored in %.1fs",
-                cl_idx + 1, n_cl, cl, n_valid, n, elapsed,
+                "  [%s %d/%d] %s done: %d/%d positions scored in %.1fs",
+                prefix.upper(), cl_idx + 1, n_cl, cl, n_valid, n, elapsed,
             )
 
         # Aggregate across cell lines (ignoring NaN)
@@ -318,24 +459,21 @@ class ChromAccessModality(Modality):
             var_vals = np.nanvar(cellline_scores, axis=1)
             context_mean_vals = np.nanmean(cellline_context, axis=1)
 
-        # Tissue breadth: count of cell lines with signal > threshold
         breadth_vals = np.nansum(
-            cellline_scores > self._cfg.signal_threshold, axis=1
+            cellline_scores > signal_threshold, axis=1
         ).astype(np.float64)
 
-        # Binary peak indicator: max signal > peak_threshold
-        has_peak = (max_vals > self._cfg.peak_threshold).astype(np.float64)
-        # Ensure NaN positions stay NaN (not False → 0.0)
+        has_peak = (max_vals > peak_threshold).astype(np.float64)
         all_nan_mask = np.all(np.isnan(cellline_scores), axis=1)
         has_peak[all_nan_mask] = np.nan
 
         df = df.with_columns([
-            pl.Series("atac_max_across_tissues", max_vals, dtype=pl.Float64),
-            pl.Series("atac_mean_across_tissues", mean_vals, dtype=pl.Float64),
-            pl.Series("atac_tissue_breadth", breadth_vals, dtype=pl.Float64),
-            pl.Series("atac_variance", var_vals, dtype=pl.Float64),
-            pl.Series("atac_context_mean", context_mean_vals, dtype=pl.Float64),
-            pl.Series("atac_has_peak", has_peak, dtype=pl.Float64),
+            pl.Series(f"{prefix}_max_across_tissues", max_vals, dtype=pl.Float64),
+            pl.Series(f"{prefix}_mean_across_tissues", mean_vals, dtype=pl.Float64),
+            pl.Series(f"{prefix}_tissue_breadth", breadth_vals, dtype=pl.Float64),
+            pl.Series(f"{prefix}_variance", var_vals, dtype=pl.Float64),
+            pl.Series(f"{prefix}_context_mean", context_mean_vals, dtype=pl.Float64),
+            pl.Series(f"{prefix}_has_peak", has_peak, dtype=pl.Float64),
         ])
 
         return df

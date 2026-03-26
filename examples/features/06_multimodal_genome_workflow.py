@@ -44,6 +44,11 @@ Usage:
     python 06_multimodal_genome_workflow.py --config configs/full_stack.yaml \\
         --chromosomes all --augment
 
+    # Refresh an existing modality with updated config (e.g., after adding
+    # DNase-seq cell lines to chrom_access). Drops old columns, recomputes.
+    python 06_multimodal_genome_workflow.py --config configs/full_stack.yaml \\
+        --chromosomes chr22 --refresh chrom_access
+
 Example:
     python 06_multimodal_genome_workflow.py --dry-run
 """
@@ -332,6 +337,12 @@ def main() -> int:
              "Loads existing parquets, detects present modalities, runs only "
              "missing ones, column-joins, and saves. Requires prior run output.",
     )
+    parser.add_argument(
+        "--refresh", nargs="+", metavar="MODALITY",
+        help="Recompute specified modalities in existing artifacts. "
+             "Drops old columns and re-runs with current config. "
+             "Use when a modality's config has changed (e.g., new cell lines).",
+    )
 
     args = parser.parse_args()
 
@@ -341,6 +352,10 @@ def main() -> int:
         parser.error("--augment and --force are mutually exclusive")
     if args.augment and args.resume:
         parser.error("--augment and --resume are mutually exclusive")
+    if args.refresh and args.augment:
+        parser.error("--refresh and --augment are mutually exclusive")
+    if args.refresh and args.force:
+        parser.error("--refresh and --force are mutually exclusive")
 
     logging.basicConfig(
         level=logging.INFO,
@@ -385,6 +400,7 @@ def main() -> int:
     print(f"  Resume:       {args.resume}")
     print(f"  Force:        {args.force}")
     print(f"  Augment:      {args.augment}")
+    print(f"  Refresh:      {args.refresh or False}")
     print(f"  Registered:   {FeaturePipeline.available_modalities()}")
 
     # Show per-modality column counts
@@ -402,8 +418,8 @@ def main() -> int:
         return 0
 
     # ── Step 2: Resolve or generate predictions ───────────────────────
-    # Skip prediction resolution for --augment (reads existing output, not predictions)
-    if not args.augment:
+    # Skip prediction resolution for --augment/--refresh (reads existing output)
+    if not args.augment and not args.refresh:
         input_dir = _resolve_input_dir(model, args.input_dir)
         input_dir = _ensure_all_chromosomes(input_dir, model, chromosomes, chunk_size)
         print(f"\n  Input: {input_dir}")
@@ -455,6 +471,37 @@ def main() -> int:
         print(f"  Output: {workflow.output_dir}")
         print(f"\n  Augmenting with: {new_mods}")
         result = workflow.augment(chromosomes=chromosomes, new_modalities=new_mods)
+    elif args.refresh:
+        # Refresh existing modalities with updated config
+        refresh_mods = args.refresh
+
+        # Validate that requested modalities exist in pipeline
+        available = set(pipeline_config.modalities)
+        unknown = [m for m in refresh_mods if m not in available]
+        if unknown:
+            print(f"\n  Error: unknown modalities to refresh: {unknown}")
+            print(f"  Available: {sorted(available)}")
+            return 1
+
+        print(f"\n  Refresh mode:")
+        print(f"    Modalities to refresh: {refresh_mods}")
+
+        # Resolve output_dir (same as augment)
+        if output_dir is None:
+            resources = get_model_resources(model)
+            registry = resources.get_registry()
+            output_dir = registry.get_base_model_eval_dir(model) / "analysis_sequences"
+
+        workflow = FeatureWorkflow(
+            pipeline_config=pipeline_config,
+            input_dir=output_dir,
+            output_dir=output_dir,
+            sampling_config=sampling_config,
+        )
+
+        print(f"  Output: {workflow.output_dir}")
+        print(f"\n  Refreshing: {refresh_mods}")
+        result = workflow.refresh(chromosomes=chromosomes, modalities=refresh_mods)
     else:
         workflow = FeatureWorkflow(
             pipeline_config=pipeline_config,
