@@ -54,6 +54,12 @@ def _register_rbp_eclip() -> None:
     FeaturePipeline.register("rbp_eclip", RBPEclipModality, RBPEclipConfig)
 
 
+def _register_chrom_access() -> None:
+    from .chrom_access import ChromAccessConfig, ChromAccessModality
+
+    FeaturePipeline.register("chrom_access", ChromAccessModality, ChromAccessConfig)
+
+
 # Register modalities that may have heavier dependencies lazily
 _register_annotation()
 _register_sequence()
@@ -62,3 +68,4 @@ _register_conservation()
 _register_epigenetic()
 _register_junction()
 _register_rbp_eclip()
+_register_chrom_access()

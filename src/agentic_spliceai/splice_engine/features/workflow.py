@@ -641,11 +641,18 @@ def detect_existing_modalities(output_dir: Path) -> set[str]:
         schema_map = summary.get("pipeline_schema", {})
 
         if declared_mods and schema_map:
-            # Cross-check: read columns from first parquet
+            # Cross-check: read columns from the parquet with the fewest
+            # columns (the least-augmented file). Using the first file
+            # alphabetically can give false positives when some chromosomes
+            # have been augmented but others haven't yet.
             parquets = sorted(output_dir.glob("analysis_sequences_*.parquet"))
             if parquets:
+                min_parquet = min(
+                    parquets,
+                    key=lambda p: len(pl.scan_parquet(p).collect_schema().names()),
+                )
                 actual_cols = set(
-                    pl.scan_parquet(parquets[0]).collect_schema().names()
+                    pl.scan_parquet(min_parquet).collect_schema().names()
                 )
                 verified = set()
                 for mod_name in declared_mods:
@@ -659,7 +666,7 @@ def detect_existing_modalities(output_dir: Path) -> set[str]:
                         logger.info(
                             "Modality '%s' declared in summary but columns "
                             "missing from %s — treating as absent.",
-                            mod_name, parquets[0].name,
+                            mod_name, min_parquet.name,
                         )
                 logger.info(
                     "Detected %d existing modalities (summary + column check): %s",

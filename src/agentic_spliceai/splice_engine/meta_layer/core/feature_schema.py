@@ -141,6 +141,16 @@ class FeatureSchema:
         'rbp_cell_line_breadth',
         'rbp_mean_signal',
     ])
+
+    # Chromatin accessibility features (ENCODE ATAC-seq, cross-tissue)
+    CHROM_ACCESS_COLS: List[str] = field(default_factory=lambda: [
+        'atac_max_across_tissues',
+        'atac_mean_across_tissues',
+        'atac_tissue_breadth',
+        'atac_variance',
+        'atac_context_mean',
+        'atac_has_peak',
+    ])
     
     # Label columns (ground truth)
     LABEL_COLS: List[str] = field(default_factory=lambda: [
@@ -184,7 +194,8 @@ class FeatureSchema:
             self.ACCEPTOR_PATTERN_COLS +
             self.COMPARATIVE_COLS +
             self.JUNCTION_COLS +
-            self.RBP_ECLIP_COLS
+            self.RBP_ECLIP_COLS +
+            self.CHROM_ACCESS_COLS
         )
     
     def get_minimal_feature_cols(self) -> List[str]:

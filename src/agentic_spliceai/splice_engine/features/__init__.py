@@ -23,6 +23,12 @@ Example
 from .modality import Modality, ModalityConfig, ModalityMeta
 from .pipeline import FeaturePipeline, FeaturePipelineConfig
 from .sampling import PositionSamplingConfig, sample_positions
+from .verification import (
+    PositionAlignmentVerifier,
+    VerificationReport,
+    verify_artifact,
+    verify_artifact_directory,
+)
 from .workflow import FeatureWorkflow, FeatureWorkflowResult, detect_existing_modalities
 
 # Trigger modality auto-registration
@@ -39,4 +45,8 @@ __all__ = [
     "FeatureWorkflow",
     "FeatureWorkflowResult",
     "detect_existing_modalities",
+    "PositionAlignmentVerifier",
+    "VerificationReport",
+    "verify_artifact",
+    "verify_artifact_directory",
 ]

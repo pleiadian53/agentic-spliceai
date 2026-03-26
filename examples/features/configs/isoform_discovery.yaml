@@ -36,6 +36,7 @@ pipeline:
     - epigenetic                    # +12 columns: histone marks (tissue-specific splicing)
     # - junction                    # +12 columns: RNA-seq junction evidence (requires junctions.tsv)
     - rbp_eclip                     # +8 columns: RBP binding (alternative splicing regulators)
+    - chrom_access                  # +6 columns: ATAC-seq accessibility (open chromatin at splice sites)
 
 modality_configs:
   base_scores:
@@ -89,6 +90,19 @@ modality_configs:
       - HepG2
     min_neg_log10_pvalue: 2.0
     batch_size: 5000
+
+  chrom_access:
+    cell_lines:
+      - K562
+      - GM12878
+      - HepG2
+      - A549
+      - IMR-90
+    window: 150
+    aggregation: summarized
+    signal_threshold: 2.0
+    peak_threshold: 3.0
+    remote_fallback: true
 
 # ── Position Sampling — Isoform-Aware ──────────────────────────────
 # Lower threshold + proximity window captures:

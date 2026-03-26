@@ -26,6 +26,7 @@ pipeline:
     - epigenetic                    # +12 columns: histone marks across tissues (Strategy B)
     - junction                      # +12 columns: RNA-seq junction evidence (GTEx v8, 353K junctions)
     - rbp_eclip                     # +8 columns: RBP eCLIP binding (ENCODE, K562/HepG2)
+    - chrom_access                  # +6 columns: ATAC-seq accessibility (ENCODE, cross-tissue)
 
 modality_configs:
   base_scores:
@@ -81,6 +82,19 @@ modality_configs:
     min_neg_log10_pvalue: 2.0       # -log10(0.01) — IDR-filtered peaks only
     batch_size: 5000                # positions per batch in interval overlap
     # eclip_data_path: null         # auto-resolved from registry
+
+  chrom_access:
+    cell_lines:
+      - K562                        # blood/CML
+      - GM12878                     # lymphoblastoid
+      - HepG2                       # liver
+      - A549                        # lung adenocarcinoma
+      - IMR-90                      # normal fibroblast
+    window: 150                     # half-window (bp) — ATAC peaks ~200bp (nucleosome scale)
+    aggregation: summarized         # cross-tissue stats: max, mean, breadth, variance
+    signal_threshold: 2.0           # fold-change cutoff for tissue_breadth count
+    peak_threshold: 3.0             # fold-change cutoff for binary has_peak feature
+    remote_fallback: true
 
 sampling:
   enabled: true
