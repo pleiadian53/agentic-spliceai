@@ -2,7 +2,7 @@
 
 **Context-Aware Novel Isoform Discovery for Drug Target Identification**
 
-**Agentic-SpliceAI** builds upon the [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) framework, inheriting its powerful base layer and **adaptive meta-learning capabilities** while adding **agentic AI workflows** to enable novel isoform discovery. This next-generation platform discovers disease-specific, variant-induced, and tissue-specific RNA isoforms that go beyond canonical annotations.
+**Agentic-SpliceAI** is a multimodal deep learning platform for discovering novel RNA isoforms — disease-specific, variant-induced, and tissue-specific splice variants that go beyond canonical annotations. Originally refactored from [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai), it has evolved into a self-sustained system with extensible foundation model predictors, 9-modality evidence fusion, agentic AI validation, and a meta-learning framework (M1-M4) targeting progressively harder splice prediction problems.
 
 By combining **adaptive splice site prediction** through multimodal deep learning, **meta-learning refinement**, and **agentic AI validation**, we enable the discovery of novel therapeutic targets and biomarkers for precision medicine.
 
@@ -208,16 +208,23 @@ graph TB
 
 ## 🎯 Key Features
 
-### 🧩 Inherited from Meta-SpliceAI (Base + Meta Layers)
+### 🧬 Base Layer — Extensible Splice Prediction
 
 | Component | Description |
 |-----------|-------------|
-| **Extensible Base Layer** | Foundation models (SpliceAI, OpenSpliceAI, + any new model) with standardized I/O |
-| **Adaptive Meta Layer** | Foundation-Adaptor framework via multimodal deep learning |
-| **Context Integration** | DNA sequences + base scores + patient/disease/tissue context |
-| **Tabular Meta-Models** | XGBoost with SHAP interpretability (optional) |
-| **Smart Checkpointing** | Chunk-level resumption for genome-scale analysis |
-| **Memory Efficiency** | Mini-batch processing for stable memory usage |
+| **Classical Models** | SpliceAI (GRCh37), OpenSpliceAI (GRCh38/MANE) with standardized I/O |
+| **Foundation Model Predictors** | Splice site classifiers trained on Evo2, SpliceBERT, and other DNA foundation model embeddings — frozen-head and end-to-end fine-tuning pipelines |
+| **9-Modality Feature Fusion** | 100 features across base scores, conservation, epigenetics, chromatin accessibility, junction reads, RBP binding, DNA sequence, genomic context, annotations |
+| **YAML-Driven Configs** | 4 profiles (default, full_stack, isoform_discovery, meta_m3_novel) — add/drop modalities per modeling objective |
+
+### 🧠 Meta Layer — Context-Aware Adaptive Prediction
+
+| Component | Description |
+|-----------|-------------|
+| **M1-M4 Model Variants** | Four progressively harder tasks: canonical (M1), alternative (M2), novel discovery (M3), perturbation-induced (M4) |
+| **Tabular Meta-Models** | XGBoost baseline with Tree SHAP interpretability (99.78% accuracy, PR-AUC 0.999) |
+| **Deep Meta-Models** | Neural network fusion of multimodal features + contextual DNA sequences + complex data types (RNA secondary structure, protein domains) — capturing cross-modal interactions that tabular models miss (planned) |
+| **Smart Checkpointing** | Chunk-level resumption and `--augment` for incremental modality addition |
 
 ### 🤖 NEW: Agentic Workflow Enhancements
 
@@ -531,7 +538,7 @@ MIT License - see LICENSE file for details
 
 ## 🙏 Acknowledgments
 
-- Built on [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) foundation
+- Originally refactored from [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai)
 - Nexus Research Agent from [Agentic AI Lab](https://github.com/pleiadian53/agentic-ai-lab)
 - Foundation models: [Evo2](https://github.com/ArcInstitute/evo2) (Arc Institute), [SpliceAI](https://github.com/Illumina/SpliceAI) (Illumina), [OpenSpliceAI](https://github.com/Kuocheng-Liao/OpenSpliceAI)
 - LLM-powered workflows via OpenAI and Anthropic APIs
