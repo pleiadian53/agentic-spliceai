@@ -139,6 +139,8 @@ nav:
       - Data Preparation CLI: base_layer/DATA_PREPARATION_CLI.md
       - Processing Architecture: base_layer/PROCESSING_ARCHITECTURE.md
       - Position & Coordinate Systems: base_layer/POSITION_COORDINATE_SYSTEMS.md
+  - Multimodal Features:
+      - Feature Catalog: multimodal_feature_engineering/feature_catalog.md
   - Meta Layer:
       - Overview: meta_layer/README.md
       - Architecture: meta_layer/ARCHITECTURE.md
@@ -147,6 +149,10 @@ nav:
           - Roadmap: meta_layer/methods/ROADMAP.md
           - Paired Delta Prediction: meta_layer/methods/PAIRED_DELTA_PREDICTION.md
           - Validated Delta Prediction: meta_layer/methods/VALIDATED_DELTA_PREDICTION.md
+      - Induced Splice Sites:
+          - Alternative Splice Prediction: meta_layer/predicting_induced_splice_sites/01_alternative_splice_prediction_analysis.md
+          - Virtual Transcripts: meta_layer/predicting_induced_splice_sites/02_virtual_transcripts.md
+          - Data Sources & Landscape: meta_layer/predicting_induced_splice_sites/03_data_sources_and_landscape.md
       - Experiments:
           - Overview: meta_layer/experiments/README.md
           - 001 Canonical Classification: meta_layer/experiments/001_canonical_classification/README.md
@@ -157,10 +163,10 @@ nav:
       - Overview: foundation_models/README.md
       - Evo2 Junction Labels: foundation_models/evo2/junction_support_labels.md
       - DeepSpeed Training: foundation_models/training/deepspeed_training.md
-  - Isoform Discovery:
-      - Overview: isoform_discovery/README.md
-  - Variant Analysis:
-      - Overview: variant_analysis/README.md
+  - Applications:
+      - Overview: applications/README.md
+      - Isoform Discovery: isoform_discovery/README.md
+      - Variant Analysis: variant_analysis/README.md
   - Agency:
       - Overview: agency/README.md
       - Memory Tutorial: agency/AGENTIC_MEMORY_TUTORIAL.md
@@ -170,12 +176,14 @@ nav:
       - Splice Prediction Guide: tutorials/SPLICE_PREDICTION_GUIDE.md
   - API Reference:
       - Overview: api/README.md
+      - Endpoints: api/ENDPOINTS.md
   - Biological Background:
       - Overview: biology/README.md
   - Bioinformatics:
       - Overview: bioinformatics/README.md
   - Workflows:
       - Overview: workflows/README.md
+  - Roadmap: ROADMAP.md
   - About:
       - Contributing: CONTRIBUTING.md
       - Math Test Page: test_math.md

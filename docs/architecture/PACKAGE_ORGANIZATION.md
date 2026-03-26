@@ -384,14 +384,38 @@ from evo2.model import Evo2SplicePredictor
 
 ---
 
-## 🎯 Next Steps
+## ✅ Implementation Status (March 2026)
 
-1. **Create `foundation_models/` package**
-2. **Set up `environment-evo2.yml`** with GPU dependencies
-3. **Implement `evo2/model.py`** with Evo2 wrapper
-4. **Create adapter** to SpliceAI format
-5. **Write example** in `examples/foundation_models/`
-6. **Document** pod setup in `foundation_models/README.md`
+**Option 1 (Parallel Package) was adopted.** The `foundation_models/` sub-project is fully operational:
+
+```
+foundation_models/
+├── pyproject.toml                    # Separate dependencies
+├── README.md                         # Setup + hardware requirements
+├── foundation_models/
+│   ├── evo2/                         # Evo2-based exon classifier
+│   │   ├── config.py                 # Evo2Config (device auto-detect)
+│   │   ├── model.py                  # HuggingFace wrapper
+│   │   ├── embedder.py               # Chunked extraction + HDF5 cache
+│   │   └── classifier.py             # ExonClassifier (linear/MLP/CNN/LSTM)
+│   ├── classifiers/                  # Splice classifiers
+│   │   └── splice_classifier.py      # Direct shard predictor
+│   └── utils/                        # Quantization, chunking
+├── configs/
+│   ├── gpu_config.yaml               # Infrastructure defaults (GPU, volume, deps)
+│   └── skypilot/                     # SkyPilot cloud deployment (RunPod)
+└── docs/                             # Sub-project documentation
+```
+
+**Key achievements**:
+- 4 classifier architectures (linear, MLP, CNN, LSTM)
+- Device-aware quantization routing (INT8 for MPS/CPU, bitsandbytes for CUDA)
+- SkyPilot + RunPod cloud workflows (A40/A100 GPU)
+- GPU task runner with generic SkyPilot config builder + launcher
+- Ops scripts for cluster provisioning, data staging, and pipeline execution
+- Direct shard splice predictor for foundation model fine-tuning
+
+**See**: [`foundation_models/README.md`](../../foundation_models/README.md) for current setup and hardware requirements
 
 ---
 

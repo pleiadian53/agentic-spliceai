@@ -1,317 +1,201 @@
-# Agentic-SpliceAI - Project Structure
+# Agentic-SpliceAI — Project Structure
 
 **Complete overview of the agentic-spliceai project organization**
 
-> **Note**: This file is located at `docs/architecture/STRUCTURE.md`. For quick setup, see [`SETUP.md`](../SETUP.md).
+> **Last Updated**: March 2026
 
 ## 📁 Directory Structure
 
 ```
 agentic-spliceai/
-├── README.md                    # Project overview & vision
-├── SETUP.md                     # Setup instructions (root for quick access)
-├── QUICKSTART.md                # 5-minute getting started
-├── LICENSE                      # MIT License
-│
-├── environment.yml              # Mamba environment definition
-├── pyproject.toml               # Poetry project configuration
-├── requirements.txt             # Pip requirements (legacy)
-├── .env.example                 # Environment variable template
-├── .gitignore                   # Git ignore rules
-│
-├── agentic_spliceai/                # Main package
-│   ├── __init__.py              # Package initialization
-│   ├── data_access.py           # Dataset loading and querying
-│   ├── planning.py              # Chart code generation
-│   ├── llm_client.py            # LLM API client
-│   ├── utils.py                 # Utility functions
-│   ├── splice_analysis.py       # Splice-specific analysis
+├── src/                             # Core production code (pip installable)
+│   ├── agentic_spliceai/
+│   │   ├── splice_engine/           # 🧬 Core splice prediction engine
+│   │   │   ├── config/                  # Configuration management
+│   │   │   │   ├── genomic_config.py        # Config dataclass & loader
+│   │   │   │   └── settings.yaml            # Default settings
+│   │   │   ├── resources/               # Genomic resource management
+│   │   │   │   ├── registry.py              # Path resolution for GTF/FASTA/models
+│   │   │   │   └── schema.py                # Column standardization (splice_type, chrom)
+│   │   │   ├── utils/                   # Shared utilities
+│   │   │   │   ├── dataframe.py             # DataFrame operations
+│   │   │   │   ├── display.py               # Printing & formatting
+│   │   │   │   ├── filesystem.py            # File I/O helpers
+│   │   │   │   └── memory_monitor.py        # Background RSS monitor + graceful abort
+│   │   │   ├── base_layer/              # Base model predictions
+│   │   │   │   ├── models/                  # Model configs + runner
+│   │   │   │   ├── prediction/              # Core prediction logic
+│   │   │   │   ├── workflows/               # Chunked prediction pipeline
+│   │   │   │   ├── io/                      # Artifact management
+│   │   │   │   └── data/                    # Data types & preparation
+│   │   │   ├── features/                # 🎨 Multimodal feature engineering
+│   │   │   │   ├── pipeline.py              # FeaturePipeline (dependency resolution)
+│   │   │   │   ├── workflow.py              # FeatureWorkflow (genome-scale)
+│   │   │   │   ├── modality.py              # Modality protocol (ABC)
+│   │   │   │   ├── sampling.py              # Early position sampling
+│   │   │   │   ├── verification.py          # Position alignment verification
+│   │   │   │   └── modalities/              # 9 registered modalities:
+│   │   │   │       ├── base_scores.py           # 43 engineered features
+│   │   │   │       ├── annotation.py            # Ground truth labels (3)
+│   │   │   │       ├── sequence.py              # DNA context via pyfaidx (3)
+│   │   │   │       ├── genomic.py               # GC content, CpG, dinucs (4)
+│   │   │   │       ├── conservation.py          # PhyloP/PhastCons bigWig (9)
+│   │   │   │       ├── epigenetic.py            # H3K36me3/H3K4me3 ChIP-seq (12)
+│   │   │   │       ├── junction.py              # GTEx RNA-seq junctions (12)
+│   │   │   │       ├── rbp_eclip.py             # ENCODE RBP eCLIP binding (8)
+│   │   │   │       └── chrom_access.py          # ENCODE ATAC-seq accessibility (6)
+│   │   │   ├── eval/                    # 📊 Cross-layer evaluation
+│   │   │   │   ├── metrics.py               # TP/FP/FN, sensitivity, specificity
+│   │   │   │   ├── splitting.py             # Chromosome-based train/test splits
+│   │   │   │   ├── calibration.py           # ECE, reliability curves
+│   │   │   │   ├── output.py                # EvaluationOutputWriter
+│   │   │   │   └── display.py               # Result visualization
+│   │   │   ├── data/                    # Cross-layer data utilities
+│   │   │   │   └── sampling.py              # Balanced train/test sampling
+│   │   │   ├── meta_layer/              # 🧠 Meta-learning layer
+│   │   │   │   ├── core/                    # Configuration & schema
+│   │   │   │   │   ├── config.py                # MetaLayerConfig
+│   │   │   │   │   └── feature_schema.py        # Feature definitions (9 column groups)
+│   │   │   │   ├── models/                  # Neural network models
+│   │   │   │   ├── training/                # Training pipeline
+│   │   │   │   └── workflows/               # Meta-layer workflows
+│   │   │   └── cli/                     # CLI entry points
+│   │   │       ├── predict.py               # agentic-spliceai-predict
+│   │   │       └── prepare.py               # agentic-spliceai-prepare
+│   │   ├── agents/                      # 🤖 Agentic workflows (Phase 7)
+│   │   ├── server/                      # FastAPI splice service
+│   │   └── analysis/                    # Analysis tools & templates
 │   │
-│   ├── server/                  # FastAPI service
-│   │   ├── splice_service.py    # Main API service
-│   │   ├── config.py            # Configuration
-│   │   ├── schemas.py           # Pydantic models
-│   │   └── manage.py            # Service management
-│   │
-│   └── docs/                    # Package-level docs
-│       └── README.md            # Package documentation
+│   └── nexus/                           # 📚 Research agent package
+│       ├── agents/                          # Multi-agent pipeline
+│       │   ├── research/                        # Research orchestrator
+│       │   ├── planner/                         # Research planning
+│       │   ├── researcher/                      # Information gathering
+│       │   ├── writer/                          # Report writing
+│       │   └── editor/                          # Report refinement
+│       ├── core/                            # Core utilities
+│       ├── cli/                             # CLI interface
+│       └── templates/                       # Report templates
 │
-├── docs/                        # Global documentation
-│   ├── README.md                # Documentation index
-│   ├── STRUCTURE.md             # This file - Project structure overview
-│   ├── base_layer/              # Base layer documentation
-│   ├── isoform_discovery/       # Isoform discovery vision & roadmap
-│   ├── installation/            # Setup guides
-│   ├── PACKAGE_ORGANIZATION.md  # Experimental package guidelines
-│   └── SPLICE_PREDICTION_GUIDE.md  # Splice prediction guide
+├── foundation_models/               # 🔬 Experimental sub-project (own pyproject.toml)
+│   ├── foundation_models/
+│   │   ├── evo2/                        # Evo2-based exon classifier
+│   │   ├── classifiers/                 # Splice classifiers
+│   │   └── utils/                       # Quantization, chunking
+│   ├── configs/                         # GPU + SkyPilot configs
+│   └── docs/                            # Sub-project documentation
 │
-├── examples/                    # Driver scripts for development
-│   ├── _example_utils.py        # Path resolution utilities
-│   ├── README.md                # Examples overview
-│   ├── base_layer/              # Base layer prediction examples
-│   ├── data_preparation/        # Data prep workflow examples
-│   ├── meta_layer/              # Meta layer examples (Phase 5)
-│   └── variant_analysis/        # Variant analysis examples (Phase 6)
+├── server/                          # 🌐 Standalone FastAPI services
+│   ├── bio/                             # Bioinformatics Lab UI (port 8005)
+│   ├── splice_service/                  # Splice prediction API (port 8004)
+│   └── chart_service/                   # Chart/viz API (port 8003)
 │
-├── scripts/                     # Utility scripts & tools
-│   ├── setup/                   # Setup & verification
-│   │   └── verify_setup.py      # Verify installation
-│   ├── validation/              # Validation & testing
-│   │   └── compare_evaluation.py  # Comparison tools
-│   ├── docs/                    # Scripts documentation
-│   └── README.md                # Scripts overview
+├── examples/                        # 📖 Learning path examples
+│   ├── base_layer/                      # 5 scripts: prediction → precomputation
+│   ├── features/                        # Multimodal feature engineering
+│   │   ├── 06_multimodal_genome_workflow.py  # YAML-driven genome-scale workflow
+│   │   ├── configs/                     # 4 YAML profiles
+│   │   ├── docs/                        # Per-modality tutorials
+│   │   └── verify_feature_alignment.py  # Position alignment verification
+│   ├── meta_layer/                      # Meta-layer training scripts
+│   │   ├── 01_xgboost_baseline.py       # M1 XGBoost baseline
+│   │   ├── 02_calibration_analysis.py   # Calibration evaluation
+│   │   ├── 03_modality_ablation.py      # Leave-one-out ablation + SHAP
+│   │   └── docs/                        # M1-M4 model variants guide
+│   ├── foundation_models/              # 7+ scripts: resource check → orchestrate
+│   └── data_preparation/               # Data prep & ground truth generation
 │
-├── tests/                       # Unit tests
-│   ├── test_data_access.py
-│   ├── test_planning.py
-│   ├── test_splice_analysis.py
-│   └── conftest.py              # Pytest configuration
+├── scripts/                         # Utility scripts
+│   ├── aggregate_gtex_junctions.py      # GTEx v8 junction aggregation
+│   └── aggregate_eclip_peaks.py         # ENCODE eCLIP peak aggregation
 │
-├── data/                        # Data directory
-│   ├── README.md                # Data documentation
-│   └── .gitkeep                 # Keep directory in git
+├── data/                            # Data directory (symlinked, not in git)
+│   ├── ensembl/GRCh37/                  # Ensembl annotations
+│   └── mane/GRCh38/                     # MANE annotations + derived data
+│       ├── junction_data/                   # GTEx junction parquets
+│       ├── rbp_data/                        # ENCODE eCLIP parquets
+│       └── openspliceai_eval/               # Predictions + feature artifacts
 │
-└── output/                      # Generated outputs
-    └── splice_charts/           # Generated charts
+├── notebooks/                       # Jupyter analysis & demos
+├── docs/                            # Public documentation (MkDocs)
+├── dev/                             # Private development notes
+│   ├── sessions/                        # Date-stamped session logs
+│   ├── planning/                        # Roadmap, wishlist
+│   ├── tasks/                           # todo.md, lessons.md
+│   └── refactoring/                     # Refactoring plans & logs
+├── tests/                           # Unit & integration tests
+└── pyproject.toml                   # Package configuration
 ```
 
 ## 📚 Documentation Hierarchy
 
-### 1. Global Documentation (`docs/`)
+### 1. Public Documentation (`docs/`)
 
-**Purpose:** High-level, topic-based documentation for users and contributors.
+Topic-based documentation for users and contributors. Organized by architectural layer and concern:
 
-**Structure:**
-```
-docs/
-├── README.md                    # Documentation index
-├── architecture/                # System design
-│   ├── overview.md
-│   ├── components.md
-│   └── data_flow.md
-├── tutorials/                   # Learning guides
-│   ├── getting_started.md
-│   └── advanced_usage.md
-├── installation/                # Setup guides
-│   ├── environment.md
-│   └── troubleshooting.md
-├── api/                         # API reference
-│   ├── rest_api.md
-│   └── python_api.md
-├── biology/                     # Domain knowledge
-│   ├── splice_sites.md
-│   └── alternative_splicing.md
-└── workflows/                   # Analysis patterns
-    ├── predefined.md
-    └── custom.md
-```
+| Directory | Content |
+|-----------|---------|
+| `docs/architecture/` | System design, package organization, structure |
+| `docs/system_design/` | Resource management, configuration, output patterns |
+| `docs/base_layer/` | Data preparation, processing architecture, coordinates |
+| `docs/meta_layer/` | Foundation-Adaptor architecture, methods, experiments |
+| `docs/multimodal_feature_engineering/` | Feature catalog (100 columns, 9 modalities) |
+| `docs/applications/` | Domain-specific workflows (oncology, VUS, neurology) |
+| `docs/api/` | REST endpoints, data format, configuration |
+| `docs/tutorials/` | Splice prediction guide |
+| `docs/foundation_models/` | Evo2, SpliceBERT, DeepSpeed training |
+| `docs/biology/` | Splice site biology background |
 
-### 2. Package Documentation (`agentic_spliceai/docs/`)
+### 2. Per-Modality Tutorials (`examples/features/docs/`)
 
-**Purpose:** Code-specific documentation close to implementation.
+Detailed tutorials for each external data modality:
+- `epigenetic-marks-tutorial.md` — H3K36me3/H3K4me3 ChIP-seq
+- `rbp-eclip-tutorial.md` — ENCODE RBP eCLIP binding
+- `chromatin-accessibility-tutorial.md` — ENCODE ATAC-seq
 
-**Contents:**
-- Module API references
-- Implementation details
-- Code examples
-- Internal architecture
+### 3. Private Development Notes (`dev/`)
 
-## 🔧 Configuration Files
+Session logs, refactoring plans, task tracking. Not published.
 
-### `environment.yml`
-Mamba/Conda environment definition with all dependencies.
+## 🔧 Key Configuration Files
 
-```yaml
-name: agentic-spliceai
-channels:
-  - conda-forge
-dependencies:
-  - python=3.11
-  - openai
-  - fastapi
-  - duckdb
-  # ... more dependencies
-```
+| File | Purpose |
+|------|---------|
+| `pyproject.toml` | Package metadata, dependencies, CLI entry points, linting config |
+| `environment.yml` | Mamba/Conda environment definition |
+| `src/.../config/settings.yaml` | Default genomic settings (builds, chromosomes, paths) |
+| `examples/features/configs/*.yaml` | Feature engineering workflow profiles |
+| `foundation_models/configs/gpu_config.yaml` | GPU infrastructure defaults |
 
-### `pyproject.toml`
-Poetry project configuration with metadata and dependencies.
+## 🎯 CLI Entry Points
 
-```toml
-[project]
-name = "agentic-spliceai"
-version = "0.1.0"
-dependencies = [
-    "openai",
-    "fastapi",
-    # ... more dependencies
-]
-```
+Defined in `pyproject.toml [project.scripts]`:
 
-### `.gitignore`
-Excludes from version control:
-- `.env` - Environment variables
-- `output/` - Generated files
-- `data/*.tsv` - Data files
-- Python artifacts
+| Command | Purpose |
+|---------|---------|
+| `agentic-spliceai` | Main CLI |
+| `agentic-spliceai-predict` | Splice site prediction |
+| `agentic-spliceai-prepare` | Data preparation |
+| `agentic-spliceai-server` | FastAPI service |
+| `nexus` | Research agent CLI |
+| `nexus-server` | Research agent server |
 
-## 🎯 Module Responsibilities
-
-### Core Modules
-
-**`data_access.py`**
-- Dataset loading (TSV, CSV, Parquet, SQLite)
-- SQL query execution
-- Schema introspection
-- Data validation
-
-**`planning.py`**
-- Chart code generation
-- Code critique and refinement
-- Reflection loops
-- Prompt engineering
-
-**`llm_client.py`**
-- OpenAI API integration
-- Retry logic
-- Error handling
-- Response parsing
-
-**`utils.py`**
-- Model recommendations
-- File operations
-- Logging utilities
-- Helper functions
-
-**`splice_analysis.py`**
-- Domain context
-- Analysis templates
-- Template-based generation
-- Exploratory analysis
-
-### Server Modules
-
-**`server/splice_service.py`**
-- FastAPI application
-- REST endpoints
-- Request handling
-- Response formatting
-
-**`server/config.py`**
-- Path resolution
-- Configuration management
-- Environment variables
-- Constants
-
-**`server/schemas.py`**
-- Pydantic models
-- Request validation
-- Response schemas
-- Type definitions
-
-## 🚀 Development Workflow
-
-### 1. Environment Setup
+## 📦 Installation
 
 ```bash
-# Create environment
-mamba env create -f environment.yml
-mamba activate agentic-spliceai
+# Core only (local development)
+pip install -e ".[dev]"
 
-# Or use poetry
-poetry install
+# Run predictions
+agentic-spliceai-predict --genes BRCA1 TP53
+
+# Foundation models (pod with GPU)
+pip install -e ./foundation_models
 ```
 
-### 2. Development
+## 🔗 Related Documentation
 
-```bash
-# Run tests
-pytest
-
-# Format code
-black .
-ruff check .
-
-# Type checking
-mypy agentic_spliceai/
-```
-
-### 3. Running Server
-
-```bash
-cd agentic_spliceai/server
-python splice_service.py
-# Visit http://localhost:8004/docs
-```
-
-### 4. Documentation
-
-- **Add global docs** → `docs/<topic>/`
-- **Add package docs** → `agentic_spliceai/docs/`
-
-## 📦 Package Distribution
-
-### Local Installation
-
-```bash
-# Development mode
-pip install -e .
-
-# With optional dependencies
-pip install -e ".[dev,bio]"
-```
-
-### Building
-
-```bash
-# Build distribution
-python -m build
-
-# Install from wheel
-pip install dist/agentic_spliceai-0.1.0-py3-none-any.whl
-```
-
-## 🔗 Integration Points
-
-### With agentic-ai-public
-
-- Shares core patterns (reflection, planning)
-- Can use same environment
-- Independent git repositories
-- Manual code syncing
-
-### With External Tools
-
-- OpenAI API for LLM
-- DuckDB for data access
-- FastAPI for web service
-- Matplotlib/Seaborn for visualization
-
-## 🎨 Design Principles
-
-1. **Modularity** - Clear separation of concerns
-2. **Documentation** - Three-tier documentation structure
-3. **Testability** - Comprehensive test coverage
-4. **Extensibility** - Easy to add new analyses
-5. **Portability** - Self-contained and relocatable
-
-## 📝 File Naming Conventions
-
-- **Python files:** `snake_case.py`
-- **Documentation:** `UPPERCASE.md` or `lowercase.md`
-- **Tests:** `test_*.py`
-- **Examples:** `descriptive_name.py`
-
-## 🔍 Finding Things
-
-**I want to...**
-
-- **Understand the architecture** → `docs/architecture/`
-- **Learn how to use it** → `docs/tutorials/`
-- **Check API reference** → `docs/api/` or `agentic_spliceai/docs/`
-- **See examples** → `examples/`
-- **Run tests** → `tests/`
-
----
-
-**Last Updated:** 2025-11-19  
-**Version:** 0.1.0
+- [Package Organization](PACKAGE_ORGANIZATION.md) — Experimental package strategy
+- [Architecture Overview](README.md) — Three-layer pipeline diagram
+- [System Design](../system_design/README.md) — Design principles and patterns
+- [Roadmap](../ROADMAP.md) — Development phases and status

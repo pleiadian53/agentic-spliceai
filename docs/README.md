@@ -41,12 +41,22 @@ Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isofo
 | [base_layer/PROCESSING_ARCHITECTURE.md](base_layer/PROCESSING_ARCHITECTURE.md) | Chunking & processing architecture |
 | [base_layer/POSITION_COORDINATE_SYSTEMS.md](base_layer/POSITION_COORDINATE_SYSTEMS.md) | Position / coordinate system reference |
 
+### Multimodal Feature Engineering
+
+| Document | Description |
+| --- | --- |
+| [multimodal_feature_engineering/feature_catalog.md](multimodal_feature_engineering/feature_catalog.md) | Complete 9-modality, 100-column feature reference |
+| [Epigenetic marks tutorial](../examples/features/docs/epigenetic-marks-tutorial.md) | H3K36me3/H3K4me3 ChIP-seq modality |
+| [RBP eCLIP tutorial](../examples/features/docs/rbp-eclip-tutorial.md) | ENCODE RBP binding modality |
+| [Chromatin accessibility tutorial](../examples/features/docs/chromatin-accessibility-tutorial.md) | ENCODE ATAC-seq modality |
+
 ### Meta Layer
 
 | Document | Description |
 | --- | --- |
 | [meta_layer/README.md](meta_layer/README.md) | Meta layer overview |
 | [meta_layer/ARCHITECTURE.md](meta_layer/ARCHITECTURE.md) | Foundation-Adaptor architecture |
+| [M1-M4 model variants](../examples/meta_layer/docs/meta_model_variants_m1_m4.md) | Four meta-layer model variants for splice prediction |
 | [meta_layer/methods/README.md](meta_layer/methods/README.md) | Methods overview |
 | [meta_layer/methods/ROADMAP.md](meta_layer/methods/ROADMAP.md) | Development roadmap |
 | [meta_layer/methods/PAIRED_DELTA_PREDICTION.md](meta_layer/methods/PAIRED_DELTA_PREDICTION.md) | Paired delta prediction method |
@@ -69,10 +79,11 @@ Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isofo
 | [foundation_models/evo2/junction_support_labels.md](foundation_models/evo2/junction_support_labels.md) | Evo2 junction support labels |
 | [foundation_models/training/deepspeed_training.md](foundation_models/training/deepspeed_training.md) | DeepSpeed training guide |
 
-### Isoform Discovery & Variant Analysis
+### Applications & Use Cases
 
 | Document | Description |
 | --- | --- |
+| [applications/README.md](applications/README.md) | Domain-specific application workflows |
 | [isoform_discovery/README.md](isoform_discovery/README.md) | Novel isoform discovery overview |
 | [variant_analysis/README.md](variant_analysis/README.md) | Variant analysis overview |
 
@@ -104,6 +115,13 @@ Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isofo
 | Document | Description |
 | --- | --- |
 | [api/README.md](api/README.md) | REST & Python API reference |
+| [api/ENDPOINTS.md](api/ENDPOINTS.md) | API endpoints, configuration, and data format |
+
+### Project
+
+| Document | Description |
+| --- | --- |
+| [ROADMAP.md](ROADMAP.md) | Development roadmap (Phases 1-10+) |
 
 ---
 
@@ -128,8 +146,11 @@ Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isofo
 | Use agentic validation | [agency/README.md](agency/README.md) |
 | Follow a tutorial | [tutorials/SPLICE_PREDICTION_GUIDE.md](tutorials/SPLICE_PREDICTION_GUIDE.md) |
 | Read splice biology | [biology/README.md](biology/README.md) |
-| Use the API | [api/README.md](api/README.md) |
+| Use the API | [api/ENDPOINTS.md](api/ENDPOINTS.md) |
+| Explore multimodal features | [multimodal_feature_engineering/feature_catalog.md](multimodal_feature_engineering/feature_catalog.md) |
+| See the roadmap | [ROADMAP.md](ROADMAP.md) |
+| Find application workflows | [applications/README.md](applications/README.md) |
 
 ---
 
-**Last Updated:** February 2026
+**Last Updated:** March 2026
