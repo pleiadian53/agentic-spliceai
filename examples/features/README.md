@@ -9,18 +9,22 @@
 ## Learning Path
 
 **New to multimodal features?**
+
 1. Start with `01_base_score_features.py` — 43 engineered features from base model predictions
 2. Run `02_annotation_and_genomic.py` — add ground truth labels and positional features
 
 **Adding external data modalities:**
+
 3. Use `03_configurable_modalities.py` — conservation + epigenetic marks via bigWig streaming
 4. Explore `05_multimodal_exploration.py` — interactive feature analysis
 
 **Genome-scale feature generation (main pipeline):**
+
 5. Use `06_multimodal_genome_workflow.py` — YAML-driven, all 9 modalities, per-chromosome parquet output
 6. Use `06a_ephemeral_genome_workflow.py` — memory-bounded variant (predict → featurize → delete per chromosome)
 
 **Verification:**
+
 7. Run `verify_feature_alignment.py` — validate position alignment across all modalities
 
 ---
