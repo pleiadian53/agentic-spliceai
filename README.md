@@ -127,30 +127,23 @@ graph TD
 **Our Solution**: **Context-aware adaptive prediction** through multimodal meta-learning discovers novel isoforms:
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#1e3a8a','primaryTextColor':'#fff','primaryBorderColor':'#1e40af','lineColor':'#3b82f6','secondaryColor':'#059669','tertiaryColor':'#dc2626','background':'#f8fafc','mainBkg':'#1e3a8a','secondaryBkg':'#059669','tertiaryBkg':'#dc2626','textColor':'#1e293b','fontSize':'16px','fontFamily':'ui-sans-serif, system-ui, sans-serif'}}}%%
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#1e3a8a','primaryTextColor':'#fff','lineColor':'#3b82f6','fontSize':'15px','fontFamily':'ui-sans-serif, system-ui, sans-serif'}}}%%
 
-graph TB
-    A["<b>📊 Canonical Annotations</b><br/><i>MANE/RefSeq (~10% of sites)</i>"]:::canonical
-    B["<b>🧬 Foundation Models</b><br/><i>SpliceAI | OpenSpliceAI | Extensible</i>"]:::foundation
-    C["<b>🎯 Adaptive Meta-Learning</b><br/><i>Foundation-Adaptor Framework<br/>Multimodal Deep Learning</i>"]:::metalayer
-    D["<b>🔍 Novel Splice Site Detection</b><br/><i>Delta Score Analysis<br/>Context Clustering</i>"]:::discovery
-    E["<b>🧩 Isoform Reconstruction</b><br/><i>Splice Site Assembly<br/>ORF Validation</i>"]:::assembly
-    F["<b>🤖 Agentic Validation</b><br/><i>Literature + RNA-seq + Clinical<br/>Multi-Source Evidence</i>"]:::agentic
-    G["<b>💊 Novel Isoform Catalog</b><br/><i>Drug Target Discovery<br/>Precision Medicine</i>"]:::output
+graph LR
+    A["<b>📊 Annotations</b><br/>MANE/RefSeq<br/><i>~10% of sites</i>"]:::canonical
+    B["<b>🧬 Base Layer</b><br/>SpliceAI • OpenSpliceAI<br/>Evo2 • SpliceBERT"]:::foundation
+    C["<b>🎯 Meta Layer</b><br/>9-Modality Fusion<br/>M1-M4 Models"]:::metalayer
+    D["<b>🔍 Discovery</b><br/>Delta Scoring<br/>Isoform Assembly"]:::discovery
+    E["<b>🤖 Agentic Layer</b><br/>Literature • RNA-seq<br/>Clinical Validation"]:::agentic
+    F["<b>💊 Novel Isoform<br/>Catalog</b><br/>Drug Targets<br/>Precision Medicine"]:::output
 
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    E --> F
-    F --> G
+    A --> B --> C --> D --> E --> F
 
-    classDef canonical fill:#1e3a8a,stroke:#1e40af,stroke-width:3px,color:#ffffff
-    classDef foundation fill:#0891b2,stroke:#0e7490,stroke-width:3px,color:#ffffff
-    classDef metalayer fill:#7c3aed,stroke:#6d28d9,stroke-width:3px,color:#ffffff
-    classDef discovery fill:#059669,stroke:#047857,stroke-width:3px,color:#ffffff
-    classDef assembly fill:#ea580c,stroke:#c2410c,stroke-width:3px,color:#ffffff
-    classDef agentic fill:#dc2626,stroke:#b91c1c,stroke-width:3px,color:#ffffff
+    classDef canonical fill:#1e3a8a,stroke:#1e40af,stroke-width:2px,color:#ffffff
+    classDef foundation fill:#0891b2,stroke:#0e7490,stroke-width:2px,color:#ffffff
+    classDef metalayer fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#ffffff
+    classDef discovery fill:#059669,stroke:#047857,stroke-width:2px,color:#ffffff
+    classDef agentic fill:#dc2626,stroke:#b91c1c,stroke-width:2px,color:#ffffff
     classDef output fill:#d97706,stroke:#b45309,stroke-width:3px,color:#ffffff
 ```
 
