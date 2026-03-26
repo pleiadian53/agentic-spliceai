@@ -1,219 +1,269 @@
 # Foundation Models Examples
 
-**Sub-project**: `foundation_models/` (Evo2, Nucleotide Transformer, etc.)
-**Purpose**: User-facing tutorials for embedding extraction, classifier training, and resource planning
+**Sub-project**: `foundation_models/` — multi-model splice site prediction pipeline
+**Models**: SpliceBERT, Evo2, HyenaDNA, DNABERT-2 (extensible via `BaseEmbeddingModel`)
 
 ---
 
 ## Learning Path
 
 **New to foundation models?**
-1. Start with `01_resource_check.py` — understand what your hardware can run
-2. Run `02_synthetic_training_pipeline.py` — full end-to-end workflow without needing Evo2
+1. Start with `01_synthetic_pipeline.py` — full end-to-end workflow without GPU
+2. Run `03_train_and_evaluate.py` — train a classifier from pre-extracted embeddings
 
 **Ready for real embeddings?**
-3. Extract embeddings with `03_embedding_extraction.py` (requires Evo2 + GPU)
-4. Train and evaluate with `04_train_and_evaluate.py`
+3. Extract embeddings with `02_embedding_extraction.py` (requires GPU)
+4. Run `05_sparse_exon_classifier.py` — multi-model comparison on sparse exon data
 
-**Full pipeline orchestrator:**
-5. Use `05_run_pipeline.py` to combine all steps with a single command
+**Genome-scale splice prediction (main pipeline):**
+5. Use `07a_direct_shard_splice_predictor.py` — extract, train, calibrate, evaluate
+
+**Fine-tuning foundation models:**
+6. Use `08_foundation_model_finetuning.py` — unfreeze and fine-tune the embedding model
+
+**GPU cluster operations:**
+7. `ops_provision_cluster.py` — acquire and manage RunPod pods via SkyPilot
+8. `ops_stage_data.py` — upload reference data to network volume
+9. `ops_run_pipeline.py` — execute jobs on running clusters
 
 ---
 
 ## Available Examples
 
-### 01_resource_check.py
-**Hardware Feasibility Check**
-
-Detects current hardware and prints a feasibility table for all foundation model tasks.
-
-```bash
-# Auto-detect current hardware
-python examples/foundation_models/01_resource_check.py
-
-# Simulate a specific hardware target
-python examples/foundation_models/01_resource_check.py --hardware a40-48gb
-python examples/foundation_models/01_resource_check.py --hardware a100-80gb
-
-# List available profiles
-python examples/foundation_models/01_resource_check.py --list-hardware
-
-# Detailed check for a specific task
-python examples/foundation_models/01_resource_check.py --task embedding --model-size 40b
-```
-
-**Output**: Feasibility table showing which tasks can run (embedding extraction, classifier training, LoRA fine-tuning) with memory estimates.
-
----
-
-### 02_synthetic_training_pipeline.py
+### 01_synthetic_pipeline.py
 **End-to-End Pipeline with Synthetic Data**
 
-Full workflow — generate, train, evaluate — without needing Evo2 or a GPU. Always works on any hardware.
+Full workflow — generate, train, evaluate — without needing a GPU. Always works on any hardware.
 
 ```bash
-python examples/foundation_models/02_synthetic_training_pipeline.py --output /tmp/fm_demo/
-
-# Custom parameters
-python examples/foundation_models/02_synthetic_training_pipeline.py \
-    --output /tmp/fm_demo/ --n-genes 10 --architecture cnn --epochs 30
+python examples/foundation_models/01_synthetic_pipeline.py --output /tmp/fm_demo/
 ```
-
-**What it does**:
-1. Generates synthetic embeddings with realistic exon/intron block structure
-2. Trains an ExonClassifier with early stopping and LR scheduling
-3. Evaluates and saves metrics JSON
-
-**Output**: Embeddings HDF5, labels NPZ, model checkpoint, metrics JSON. AUROC ~0.5 is expected (random embeddings); real Evo2 embeddings should yield AUROC > 0.9.
 
 **Runtime**: < 30 seconds on CPU.
 
 ---
 
-### 03_embedding_extraction.py
-**Extract Evo2 Embeddings (Requires GPU)**
+### 02_embedding_extraction.py
+**Extract Foundation Model Embeddings (Requires GPU)**
 
-Loads gene sequences, runs resource check, and extracts per-nucleotide Evo2 embeddings.
+Loads gene sequences and extracts per-nucleotide embeddings from any registered model.
 
 ```bash
-# Check resources first
-python examples/foundation_models/01_resource_check.py --task embedding
-
-# Extract embeddings
-python examples/foundation_models/03_embedding_extraction.py \
+python examples/foundation_models/02_embedding_extraction.py \
     --genes BRCA1 TP53 --output /tmp/fm_demo/embeddings/
-
-# Evo2 40B (requires A100 80GB+)
-python examples/foundation_models/03_embedding_extraction.py \
-    --genes BRCA1 --model-size 40b --output /tmp/fm_demo/embeddings/
-
-# Remote GPU via SkyPilot
-sky launch foundation_models/configs/skypilot/extract_embeddings_a40.yaml
 ```
-
-**Prerequisites**: Prepared gene data (`agentic-spliceai-prepare --genes BRCA1 TP53`).
-
-**Output**: HDF5 embeddings + `.labels.npz` per-nucleotide exon labels.
 
 ---
 
-### 04_train_and_evaluate.py
-**Train and Evaluate ExonClassifier**
+### 03_train_and_evaluate.py
+**Train and Evaluate SpliceClassifier**
 
-Trains from pre-extracted embeddings with resource check, early stopping, and full evaluation.
+Trains from pre-extracted embeddings with early stopping and full evaluation.
 
 ```bash
-# From synthetic data
-python examples/foundation_models/04_train_and_evaluate.py \
+python examples/foundation_models/03_train_and_evaluate.py \
     --embeddings /tmp/fm_demo/embeddings.h5 \
     --labels /tmp/fm_demo/embeddings.labels.npz \
     --output /tmp/fm_demo/model/
-
-# With custom architecture
-python examples/foundation_models/04_train_and_evaluate.py \
-    --embeddings /tmp/fm_demo/embeddings.h5 \
-    --labels /tmp/fm_demo/embeddings.labels.npz \
-    --output /tmp/fm_demo/model/ \
-    --architecture cnn --window-size 1024 --epochs 50
-
-# Remote GPU via SkyPilot
-sky launch foundation_models/configs/skypilot/train_classifier_a40.yaml
-```
-
-**Output**: Model checkpoint (`best_model.pt`), evaluation metrics JSON (AUROC, AUPRC, F1, precision, recall).
-
----
-
-### 05_run_pipeline.py
-**End-to-End Pipeline Orchestrator**
-
-Combines all 4 steps (resource check, extract, download, train) into a single parameterized command. Three modes: dry-run (default), local-only, and execute.
-
-```bash
-# Dry-run — print config + commands (no cost)
-python examples/foundation_models/05_run_pipeline.py \
-    --model-size 7b --gpu a40 --chromosomes 22
-
-# Local — synthetic data, always works
-python examples/foundation_models/05_run_pipeline.py \
-    --local-only --output-dir /tmp/fm_pipeline/
-
-# Execute — launches SkyPilot jobs (costs money!)
-python examples/foundation_models/05_run_pipeline.py \
-    --execute --model-size 7b --gpu a40 --chromosomes 22 --train-local
-```
-
-**Knobs**: `--gpu` (a40/a100/h100), `--model-size` (7b/40b), `--chromosomes`, `--architecture`, `--window-size`, `--epochs`, `--cloud` (default: runpod)
-
-**Cost tracking**: Estimates GPU cost from wall-clock time and hourly rates. Prints cost summary after execution.
-
-**Output**: Auto-named directory (e.g., `output/fm_pipelines/evo2_7b_chr22/`) with embeddings, checkpoints, and metrics.
-
----
-
-## Common Workflows
-
-### Local: Synthetic Pipeline (No GPU Required)
-```bash
-# Full pipeline with synthetic data
-python examples/foundation_models/02_synthetic_training_pipeline.py --output /tmp/fm_demo/
-```
-
-### Local: Real Embeddings (Requires GPU)
-```bash
-# 1. Prepare data
-agentic-spliceai-prepare --genes BRCA1 TP53
-
-# 2. Extract embeddings
-python examples/foundation_models/03_embedding_extraction.py \
-    --genes BRCA1 TP53 --output /tmp/fm_real/
-
-# 3. Train and evaluate
-python examples/foundation_models/04_train_and_evaluate.py \
-    --embeddings /tmp/fm_real/embeddings.h5 \
-    --labels /tmp/fm_real/embeddings.labels.npz \
-    --output /tmp/fm_real/model/
-```
-
-### Remote GPU via SkyPilot
-```bash
-# Check which hardware you need
-python examples/foundation_models/01_resource_check.py --hardware a40-48gb
-
-# Launch embedding extraction on RunPod A40
-sky launch foundation_models/configs/skypilot/extract_embeddings_a40.yaml
-
-# Launch classifier training
-sky launch foundation_models/configs/skypilot/train_classifier_a40.yaml
-
-# Tear down when done
-sky down extract-emb-7b
-sky down train-classifier
 ```
 
 ---
 
-## SkyPilot Configs
+### 04_extract_and_train.py
+**Combined Extract + Train Pipeline**
 
-Pre-built YAML templates in `foundation_models/configs/skypilot/`:
+Single-command workflow that extracts embeddings and trains a classifier.
 
-| Config | GPU | Task |
-|--------|-----|------|
-| `extract_embeddings_a40.yaml` | A40 48GB | Evo2 7B embedding extraction |
-| `extract_embeddings_a100.yaml` | A100 80GB | Evo2 40B embedding extraction |
-| `train_classifier_a40.yaml` | A40 48GB | ExonClassifier training |
+---
+
+### 05_sparse_exon_classifier.py
+**Multi-Model Sparse Exon Classifier**
+
+Reproduce the Evo2 paper's exon classification benchmark across multiple models.
+Supports `--mock` for local testing without CUDA.
+
+```bash
+# Mock mode (no GPU)
+python examples/foundation_models/05_sparse_exon_classifier.py --mock
+
+# Real: compare SpliceBERT vs HyenaDNA on chr22
+python examples/foundation_models/05_sparse_exon_classifier.py \
+    --model splicebert --chromosomes 22
+```
+
+**Results (Phase A)**: Evo2 0.9937, SpliceBERT 0.8594, HyenaDNA 0.8242, DNABERT-2 0.6556 AUROC.
+
+---
+
+### 06_dense_splice_predictor.py
+**Dense Splice Site Predictor (Deprecated)**
+
+Earlier approach using per-gene HDF5 caching. Superseded by `07a` for genome-scale work.
+
+---
+
+### 07_genome_scale_splice_predictor.py
+**Genome-Scale Splice Predictor (Original)**
+
+Per-gene HDF5 caching with streaming DataLoader. Works for small chromosome subsets
+but hits disk limits at genome scale. See `07a` for the production version.
+
+---
+
+### 07a_direct_shard_splice_predictor.py
+**Production Genome-Scale Splice Site Predictor**
+
+The main entry point for training splice site classifiers on foundation model embeddings.
+Three-phase pipeline: extract embeddings to shards, train classifier, evaluate on held-out
+chromosomes.
+
+```bash
+# Mock mode (local, no GPU)
+python examples/foundation_models/07a_direct_shard_splice_predictor.py \
+    --mock -o /tmp/test-07a/
+
+# Full genome (GPU pod)
+python examples/foundation_models/07a_direct_shard_splice_predictor.py \
+    --foundation-model splicebert \
+    --chromosomes all \
+    --split spliceai \
+    --batch-size 256 \
+    -o /runpod-volume/output/splice_classifier/splicebert-full-genome/
+
+# Evaluate a trained model (no retraining)
+python examples/foundation_models/07a_direct_shard_splice_predictor.py \
+    --foundation-model splicebert \
+    --chromosomes all \
+    --split spliceai \
+    --eval-only \
+    --checkpoint /path/to/model/ \
+    -o /path/to/output/
+
+# Resume after interruption (reuses existing shards)
+python examples/foundation_models/07a_direct_shard_splice_predictor.py \
+    --foundation-model splicebert \
+    --chromosomes all \
+    --resume \
+    -o /path/to/output/
+
+# Subset with balanced split (largest chroms to train)
+python examples/foundation_models/07a_direct_shard_splice_predictor.py \
+    --foundation-model splicebert \
+    --chromosomes 3,22 \
+    --split balanced \
+    -o /tmp/test-subset/
+```
+
+**Key features**:
+- Direct-to-shard extraction (no per-gene HDF5 files)
+- Fork-safe HDF5 dataset with multi-worker DataLoader
+- Incremental manifest saving (crash-recoverable)
+- Post-hoc temperature calibration
+- Per-chromosome test evaluation (memory-bounded)
+- `--checkpoint` / `--eval-only` for loading trained models
+- `--split balanced` for subset chromosome runs
+- `--train-chromosomes` / `--test-chromosomes` for explicit control
+
+**Latest results (SpliceBERT, full genome)**:
+- 380K training windows, 93 shards, SpliceAI chromosome split
+- Best val_AUPRC: 0.8904 (epoch 97/100)
+- Calibration: ECE 0.0001 → 0.0000
+
+---
+
+### 08_foundation_model_finetuning.py
+**Foundation Model Fine-Tuning**
+
+Unfreezes the foundation model and fine-tunes end-to-end with the splice classifier head.
+Supports warm-starting from a frozen-head checkpoint (`--from-frozen`).
+
+```bash
+# Mock mode
+python examples/foundation_models/08_foundation_model_finetuning.py \
+    --mock -o /tmp/test-finetune/
+
+# Real: fine-tune SpliceBERT on chr22
+python examples/foundation_models/08_foundation_model_finetuning.py \
+    --foundation-model splicebert \
+    --chromosomes 22 \
+    --from-frozen /path/to/07a/model/best_model.pt \
+    -o /path/to/output/
+```
+
+---
+
+## Ops Scripts
+
+### ops_provision_cluster.py
+**Provision GPU Clusters**
+
+Acquire a RunPod pod via SkyPilot, install packages, link the network volume.
+
+```bash
+# Provision with defaults (A40)
+python examples/foundation_models/ops_provision_cluster.py
+
+# First time: provision + upload data to volume
+python examples/foundation_models/ops_provision_cluster.py --stage-data
+
+# Show running clusters
+python examples/foundation_models/ops_provision_cluster.py --status
+
+# Tear down
+python examples/foundation_models/ops_provision_cluster.py --down
+```
+
+### ops_stage_data.py
+**Stage Data to Network Volume**
+
+Direct rsync to a running pod — faster than SkyPilot file_mounts for iterative uploads.
+
+```bash
+python examples/foundation_models/ops_stage_data.py
+python examples/foundation_models/ops_stage_data.py --weights spliceai
+```
+
+### ops_run_pipeline.py
+**Execute Jobs on Clusters**
+
+Run scripts on existing or new clusters.
+
+```bash
+python examples/foundation_models/ops_run_pipeline.py --execute \
+    --cluster <name> --no-teardown \
+    -- python your_script.py --args
+```
+
+---
+
+## GPU Infrastructure
+
+### Network Volume
+- RunPod volume "AI lab extension" (500 GB, CA-MTL-1)
+- Mounted at `/runpod-volume` on SkyPilot pods (NOT `/workspace`)
+- Persists across pod teardown — shards, models, and data survive
+
+### Key Paths on Pod
+| Path | Content |
+|------|---------|
+| `~/sky_workdir/` | Project code (synced by SkyPilot) |
+| `/runpod-volume/data/` | FASTA, GTF, splice sites |
+| `/runpod-volume/output/` | Training output, shards, models |
+
+### GPU Config
+Edit `foundation_models/configs/gpu_config.yaml` for GPU type, model deps, and volume settings.
 
 ---
 
 ## Related
 
-- **Notebook tutorial**: `../../notebooks/foundation_models/01_training_pipeline.ipynb`
-- **Sub-project scripts**: `foundation_models/examples/` (developer-level 01-04)
-- **Sub-project docs**: `foundation_models/docs/`
-- **Resource estimator**: `foundation_models/foundation_models/utils/resources.py`
-- **Base layer examples**: `../base_layer/`
-- **Data preparation**: `../data_preparation/`
+- **Training performance guide**: `docs/training-performance/gpu-utilization-guide.md`
+- **SpliceBERT integration**: `foundation_models/foundation_models/splicebert/`
+- **SpliceClassifier**: `foundation_models/foundation_models/classifiers/splice_classifier.py`
+- **Data pipeline**: `foundation_models/foundation_models/data/` (datasets, sharding)
+- **Model comparison**: `docs/model-comparison.md`
+- **Session logs**: `dev/sessions/` (detailed implementation history)
 
 ---
 
-**Last Updated**: March 3, 2026
+**Last Updated**: March 26, 2026

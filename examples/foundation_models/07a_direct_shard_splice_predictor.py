@@ -820,6 +820,121 @@ def train_classifier(
 # Phase 3: Evaluate with SpliceAI-standard metrics
 # ---------------------------------------------------------------------------
 
+def _compute_cls_metrics(
+    true_flat: np.ndarray,
+    scores: np.ndarray,
+    cls_idx: int,
+) -> Dict[str, Any]:
+    """Compute AUROC/AUPRC/F1 for a single splice class."""
+    from sklearn.metrics import average_precision_score, roc_auc_score
+
+    y_true = (true_flat == cls_idx).astype(np.int32)
+    n_positive = int(y_true.sum())
+    n_total = len(y_true)
+
+    if n_positive > 0 and n_positive < n_total:
+        auroc = float(roc_auc_score(y_true, scores))
+        auprc = float(average_precision_score(y_true, scores))
+    else:
+        auroc = float("nan")
+        auprc = float("nan")
+
+    pred_positive = (scores >= 0.5).astype(np.int32)
+    tp = int(((pred_positive == 1) & (y_true == 1)).sum())
+    fp = int(((pred_positive == 1) & (y_true == 0)).sum())
+    fn = int(((pred_positive == 0) & (y_true == 1)).sum())
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = (2 * precision * recall / (precision + recall)
+          if (precision + recall) > 0 else 0.0)
+
+    return {
+        "auroc": auroc, "auprc": auprc,
+        "precision": precision, "recall": recall, "f1": f1,
+        "tp": tp, "fp": fp, "fn": fn,
+        "n_positive": n_positive, "n_total": n_total,
+    }
+
+
+def _evaluate_gene(
+    entry: GeneEntry,
+    classifier: Any,
+    device: str,
+    window_size: int,
+    step_size: int,
+    *,
+    _model: Any = None,
+    _fasta: Any = None,
+    _splice_sites_df: Any = None,
+    max_context: int = 512,
+    tokenization: str = "nucleotide",
+) -> Optional[tuple]:
+    """Evaluate a single gene and return (true, donor_scores, acceptor_scores).
+
+    Returns None if the gene should be skipped (too short, missing from FASTA, etc.).
+    """
+    if entry.hdf5_path:
+        # Mock mode or cached embeddings
+        with h5py.File(entry.hdf5_path, "r") as f:
+            emb = f["embeddings"][:]
+            lbl = f["labels"][:]
+        emb_t = torch.tensor(emb, dtype=torch.float32).to(device)
+        preds = classifier.predict(emb_t)
+        return (lbl.flatten(), preds["donor_prob"].flatten(), preds["acceptor_prob"].flatten())
+
+    # Live inference path
+    from foundation_models.utils.chunking import build_splice_labels
+
+    chrom_key = _resolve_chrom_key(_fasta, entry.chrom)
+    if chrom_key is None:
+        return None
+
+    gene_seq = str(_fasta[chrom_key][entry.start:entry.end]).upper()
+    gene_len = len(gene_seq)
+    if gene_len < window_size:
+        return None
+
+    labels = build_splice_labels(
+        gene_id=entry.gene_id,
+        gene_start=entry.start,
+        gene_sequence_length=gene_len,
+        splice_sites_df=_splice_sites_df,
+    )
+
+    gene_emb = extract_dense_gene_embeddings(
+        model=_model,
+        gene_sequence=gene_seq,
+        max_context=max_context,
+        tokenization=tokenization,
+        overlap=None,
+    )
+
+    gene_true, gene_donor, gene_acceptor = [], [], []
+    pos = 0
+    while pos + window_size <= gene_len:
+        win_emb = gene_emb[pos:pos + window_size]
+        win_lbl = labels[pos:pos + window_size]
+        emb_t = torch.tensor(win_emb[np.newaxis], dtype=torch.float32).to(device)
+        preds = classifier.predict(emb_t)
+        gene_true.append(win_lbl)
+        gene_donor.append(preds["donor_prob"].flatten())
+        gene_acceptor.append(preds["acceptor_prob"].flatten())
+        pos += step_size
+
+    del gene_emb, gene_seq, labels
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    if not gene_true:
+        return None
+
+    return (
+        np.concatenate(gene_true),
+        np.concatenate(gene_donor),
+        np.concatenate(gene_acceptor),
+    )
+
+
 def evaluate_on_test_set(
     classifier: Any,
     manifest: List[GeneEntry],
@@ -835,17 +950,17 @@ def evaluate_on_test_set(
 ) -> Dict:
     """Evaluate trained classifier on test chromosomes.
 
+    Processes one chromosome at a time to bound memory usage. Each chromosome's
+    predictions are concatenated, metrics computed, and then freed before moving
+    to the next chromosome. Per-chromosome and aggregate metrics are saved.
+
     For real-data runs (07a), test genes have ``hdf5_path=""`` because Phase 1
     never writes per-gene cache.  This function runs the foundation model **live**
     on each test gene (load FASTA → encode → classify window-by-window).
 
     For mock runs, test genes have valid ``hdf5_path`` from ``extract_mock_embeddings``,
     so they are read from the cached HDF5 files (no model reload needed).
-
-    Computes per-class AUROC/AUPRC and site-level precision/recall/F1.
     """
-    from sklearn.metrics import average_precision_score, roc_auc_score
-
     device = get_device()
     classifier.to(device)
     classifier.eval()
@@ -861,13 +976,11 @@ def evaluate_on_test_set(
     _model = None
     _fasta = None
     _splice_sites_df = None
-    _fasta_path = None
 
     if needs_live_inference and model_name:
         import pandas as pd
         from pyfaidx import Fasta
         from foundation_models.base import load_embedding_model
-        from foundation_models.utils.chunking import build_splice_labels
 
         release = "1.3" if "MANE" in build.upper() else None
         try:
@@ -905,153 +1018,148 @@ def evaluate_on_test_set(
         )
         return {}
 
-    # Collect per-gene predictions
-    all_true = []
-    all_donor_score = []
-    all_acceptor_score = []
-    n_test_genes = 0
-
+    # --- Per-chromosome evaluation (memory-bounded) ---
+    # Group test entries by chromosome
+    chrom_groups: Dict[str, List[GeneEntry]] = {}
     for entry in test_entries:
-        if entry.hdf5_path:
-            # Mock mode or any future case where test gene has a cached HDF5 file
-            with h5py.File(entry.hdf5_path, "r") as f:
-                emb = f["embeddings"][:]  # [n_win, W, H]
-                lbl = f["labels"][:]      # [n_win, W]
+        chrom_groups.setdefault(entry.chrom, []).append(entry)
 
-            emb_t = torch.tensor(emb, dtype=torch.float32).to(device)
-            preds = classifier.predict(emb_t)
+    # Natural sort chromosomes (chr1, chr3, chr5, chr7, chr9)
+    sorted_chroms = sorted(
+        chrom_groups.keys(),
+        key=lambda c: (int(c.lstrip("chrXYMT")) if c.lstrip("chr").isdigit() else 999, c),
+    )
 
-            all_true.append(lbl.flatten())
-            all_donor_score.append(preds["donor_prob"].flatten())
-            all_acceptor_score.append(preds["acceptor_prob"].flatten())
-            n_test_genes += 1
+    per_chrom_results: Dict[str, Dict] = {}
+    total_genes = 0
+    total_positions = 0
 
-            del emb, lbl, emb_t
+    for chrom in sorted_chroms:
+        entries = chrom_groups[chrom]
+        chrom_true, chrom_donor, chrom_acceptor = [], [], []
+        chrom_genes = 0
+        t_chrom = time.time()
 
-        else:
-            # Live inference path: load from FASTA, extract embeddings, classify
-            from foundation_models.utils.chunking import build_splice_labels
+        for entry in entries:
+            result = _evaluate_gene(
+                entry, classifier, device, window_size, step_size,
+                _model=_model, _fasta=_fasta,
+                _splice_sites_df=_splice_sites_df,
+                max_context=max_context, tokenization=tokenization,
+            )
+            if result is None:
+                continue
 
-            chrom_key = _resolve_chrom_key(_fasta, entry.chrom)
-            if chrom_key is None:
-                logger.warning(
-                    "  Phase 3: %s (%s) not in FASTA — skipping",
-                    entry.gene_id, entry.chrom,
+            gene_true, gene_donor, gene_acceptor = result
+            chrom_true.append(gene_true)
+            chrom_donor.append(gene_donor)
+            chrom_acceptor.append(gene_acceptor)
+            chrom_genes += 1
+
+            if chrom_genes % 50 == 0:
+                logger.info(
+                    "  Phase 3 [%s]: %d / %d genes...",
+                    chrom, chrom_genes, len(entries),
                 )
-                continue
 
-            gene_seq = str(_fasta[chrom_key][entry.start:entry.end]).upper()
-            gene_len = len(gene_seq)
-            if gene_len < window_size:
-                continue
+        if not chrom_true:
+            logger.warning("  Phase 3 [%s]: no evaluable genes — skipping", chrom)
+            continue
 
-            labels = build_splice_labels(
-                gene_id=entry.gene_id,
-                gene_start=entry.start,
-                gene_sequence_length=gene_len,
-                splice_sites_df=_splice_sites_df,
+        # Concatenate and compute metrics for this chromosome
+        true_flat = np.concatenate(chrom_true)
+        donor_flat = np.concatenate(chrom_donor)
+        acceptor_flat = np.concatenate(chrom_acceptor)
+
+        # Free the per-gene arrays immediately
+        del chrom_true, chrom_donor, chrom_acceptor
+
+        chrom_metrics: Dict[str, Any] = {
+            "n_genes": chrom_genes,
+            "n_positions": len(true_flat),
+        }
+        for cls_name, cls_idx, scores in [
+            ("acceptor", 1, acceptor_flat),
+            ("donor", 2, donor_flat),
+        ]:
+            chrom_metrics[cls_name] = _compute_cls_metrics(true_flat, scores, cls_idx)
+
+        # Mean across splice classes
+        for metric in ("auroc", "auprc", "f1"):
+            vals = [
+                chrom_metrics[c][metric] for c in ("acceptor", "donor")
+                if not (isinstance(chrom_metrics[c][metric], float)
+                        and np.isnan(chrom_metrics[c][metric]))
+            ]
+            chrom_metrics[f"mean_{metric}"] = (
+                float(np.mean(vals)) if vals else float("nan")
             )
 
-            # Extract full-gene embeddings then classify window by window
-            gene_emb = extract_dense_gene_embeddings(
-                model=_model,
-                gene_sequence=gene_seq,
-                max_context=max_context,
-                tokenization=tokenization,
-                overlap=None,
-            )
+        per_chrom_results[chrom] = chrom_metrics
+        total_genes += chrom_genes
+        total_positions += len(true_flat)
 
-            gene_true = []
-            gene_donor = []
-            gene_acceptor = []
+        elapsed_chrom = time.time() - t_chrom
+        logger.info(
+            "  Phase 3 [%s]: %d genes, %d positions, "
+            "AUPRC=%.4f (acc=%.4f, don=%.4f) — %.1f min",
+            chrom, chrom_genes, len(true_flat),
+            chrom_metrics["mean_auprc"],
+            chrom_metrics["acceptor"]["auprc"],
+            chrom_metrics["donor"]["auprc"],
+            elapsed_chrom / 60,
+        )
 
-            pos = 0
-            while pos + window_size <= gene_len:
-                win_emb = gene_emb[pos:pos + window_size]
-                win_lbl = labels[pos:pos + window_size]
+        # Save per-chromosome metrics incrementally (survives crashes)
+        with open(eval_dir / f"test_metrics_{chrom}.json", "w") as f:
+            json.dump(chrom_metrics, f, indent=2, default=str)
 
-                emb_t = torch.tensor(
-                    win_emb[np.newaxis], dtype=torch.float32
-                ).to(device)
-                preds = classifier.predict(emb_t)
-
-                gene_true.append(win_lbl)
-                gene_donor.append(preds["donor_prob"].flatten())
-                gene_acceptor.append(preds["acceptor_prob"].flatten())
-
-                pos += step_size
-
-            if not gene_true:
-                del gene_emb, gene_seq, labels
-                continue
-
-            all_true.append(np.concatenate(gene_true))
-            all_donor_score.append(np.concatenate(gene_donor))
-            all_acceptor_score.append(np.concatenate(gene_acceptor))
-            n_test_genes += 1
-
-            if n_test_genes % 10 == 0:
-                logger.info("  Phase 3: Evaluated %d test genes...", n_test_genes)
-
-            del gene_emb, gene_seq, labels
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+        # Free chromosome arrays
+        del true_flat, donor_flat, acceptor_flat
+        import gc
+        gc.collect()
 
     if _fasta is not None:
         _fasta.close()
 
-    if not all_true:
+    if not per_chrom_results:
         logger.warning("No test genes found — skipping evaluation")
         return {}
 
-    true_flat = np.concatenate(all_true)
-    donor_flat = np.concatenate(all_donor_score)
-    acceptor_flat = np.concatenate(all_acceptor_score)
-
+    # --- Aggregate results across chromosomes ---
     results: Dict[str, Any] = {
-        "n_test_genes": n_test_genes,
-        "n_test_positions": len(true_flat),
+        "n_test_genes": total_genes,
+        "n_test_positions": total_positions,
+        "per_chromosome": per_chrom_results,
     }
 
-    # Per-class metrics
-    for cls_name, cls_idx, scores in [
-        ("acceptor", 1, acceptor_flat),
-        ("donor", 2, donor_flat),
-    ]:
-        y_true = (true_flat == cls_idx).astype(np.int32)
-        n_positive = int(y_true.sum())
-        n_total = len(y_true)
+    # Weighted-average aggregate metrics (weighted by n_positions per chromosome)
+    for cls_name in ("acceptor", "donor"):
+        agg: Dict[str, float] = {}
+        for metric in ("auroc", "auprc", "precision", "recall", "f1"):
+            weighted_sum = 0.0
+            weight_sum = 0
+            for _chrom, cm in per_chrom_results.items():
+                if cls_name not in cm:
+                    continue
+                val = cm[cls_name][metric]
+                if isinstance(val, float) and np.isnan(val):
+                    continue
+                w = cm["n_positions"]
+                weighted_sum += val * w
+                weight_sum += w
+            agg[metric] = weighted_sum / weight_sum if weight_sum > 0 else float("nan")
 
-        if n_positive > 0 and n_positive < n_total:
-            auroc = float(roc_auc_score(y_true, scores))
-            auprc = float(average_precision_score(y_true, scores))
-        else:
-            auroc = float("nan")
-            auprc = float("nan")
+        # Aggregate counts
+        agg["tp"] = sum(cm.get(cls_name, {}).get("tp", 0) for cm in per_chrom_results.values())
+        agg["fp"] = sum(cm.get(cls_name, {}).get("fp", 0) for cm in per_chrom_results.values())
+        agg["fn"] = sum(cm.get(cls_name, {}).get("fn", 0) for cm in per_chrom_results.values())
+        agg["n_positive"] = sum(
+            cm.get(cls_name, {}).get("n_positive", 0) for cm in per_chrom_results.values()
+        )
+        agg["n_total"] = total_positions
+        results[cls_name] = agg
 
-        # Site-level precision/recall/F1 at threshold 0.5
-        pred_positive = (scores >= 0.5).astype(np.int32)
-        tp = int(((pred_positive == 1) & (y_true == 1)).sum())
-        fp = int(((pred_positive == 1) & (y_true == 0)).sum())
-        fn = int(((pred_positive == 0) & (y_true == 1)).sum())
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-
-        results[cls_name] = {
-            "auroc": auroc,
-            "auprc": auprc,
-            "precision": precision,
-            "recall": recall,
-            "f1": f1,
-            "tp": tp,
-            "fp": fp,
-            "fn": fn,
-            "n_positive": n_positive,
-            "n_total": n_total,
-        }
-
-    # Mean across splice classes
     for metric in ("auroc", "auprc", "f1"):
         vals = [
             results[c][metric] for c in ("acceptor", "donor")
@@ -1059,20 +1167,31 @@ def evaluate_on_test_set(
         ]
         results[f"mean_{metric}"] = float(np.mean(vals)) if vals else float("nan")
 
-    # Save
+    # Save aggregate
     with open(eval_dir / "test_metrics.json", "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     # Print
     print()
     print("Test Metrics (held-out chromosomes):")
-    print(f"  Genes: {n_test_genes}, Positions: {len(true_flat):,}")
+    print(f"  Genes: {total_genes}, Positions: {total_positions:,}")
+    print()
+    print("  Per-chromosome breakdown:")
+    for chrom in sorted_chroms:
+        if chrom not in per_chrom_results:
+            continue
+        cm = per_chrom_results[chrom]
+        print(f"    {chrom:6s}: {cm['n_genes']:4d} genes, {cm['n_positions']:>10,} pos, "
+              f"AUPRC={cm['mean_auprc']:.4f} "
+              f"(acc={cm['acceptor']['auprc']:.4f}, don={cm['donor']['auprc']:.4f})")
+    print()
+    print("  Aggregate (position-weighted):")
     for cls_name in ("acceptor", "donor"):
         m = results[cls_name]
-        print(f"  {cls_name:10s}: AUROC={m['auroc']:.4f}, AUPRC={m['auprc']:.4f}, "
+        print(f"    {cls_name:10s}: AUROC={m['auroc']:.4f}, AUPRC={m['auprc']:.4f}, "
               f"F1={m['f1']:.4f} (P={m['precision']:.4f}, R={m['recall']:.4f}) "
               f"[{m['n_positive']} sites]")
-    print(f"  {'mean':10s}: AUROC={results['mean_auroc']:.4f}, "
+    print(f"    {'mean':10s}: AUROC={results['mean_auroc']:.4f}, "
           f"AUPRC={results['mean_auprc']:.4f}, F1={results['mean_f1']:.4f}")
     print()
 
