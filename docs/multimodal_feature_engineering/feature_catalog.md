@@ -1,6 +1,6 @@
 # Multimodal Feature Catalog
 
-Complete reference for all 7 feature modalities in the agentic-spliceai meta-layer
+Complete reference for all 9 feature modalities in the agentic-spliceai meta-layer
 feature engineering pipeline. Each modality is a registered `Modality` subclass in
 `src/agentic_spliceai/splice_engine/features/modalities/`.
 
@@ -15,8 +15,10 @@ feature engineering pipeline. Each modality is a registered `Modality` subclass 
 | `conservation` | 9 | External data | UCSC PhyloP/PhastCons bigWig tracks | Evolutionary constraint from multi-species alignment |
 | `epigenetic` | 12 | External data | ENCODE ChIP-seq bigWig tracks | Histone modification signals across cell types |
 | `junction` | 12 | External data | STAR SJ.out.tab / GTEx / recount3 | RNA-seq splice junction read evidence |
+| `rbp_eclip` | 8 | External data | ENCODE eCLIP narrowPeak (K562, HepG2) | RNA-binding protein occupancy at splice sites |
+| `chrom_access` | 6 | External data | ENCODE ATAC-seq bigWig (5 cell lines) | Chromatin accessibility (open vs closed chromatin) |
 
-**Total**: 86 feature columns (default full-stack configuration).
+**Total**: 100 feature columns (default full-stack configuration).
 
 ---
 
@@ -260,6 +262,57 @@ Source file: `modalities/junction.py`
 | `junction_psi` | Derived | Percent Spliced In: max_reads / total_reads at position; measures dominance of strongest junction |
 | `junction_psi_variance` | Derived | Variance of PSI across tissues (multi-tissue only; NaN for single-sample) |
 
+#### rbp_eclip (8 columns)
+
+RNA-binding protein (RBP) occupancy from ENCODE eCLIP experiments. Features are
+**sparse** — most positions have zero values (no overlapping peaks). Uses pre-aggregated
+parquet from `scripts/aggregate_eclip_peaks.py` which queries the ENCODE REST API
+for IDR-filtered replicate-merged narrowPeak files.
+
+Default cell lines: K562, HepG2. GRCh38 only; GRCh37 returns zero-filled columns.
+
+Source file: `modalities/rbp_eclip.py`
+
+**See**: [`examples/features/docs/rbp-eclip-tutorial.md`](../../examples/features/docs/rbp-eclip-tutorial.md) for biology background and interpretation guide.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `rbp_n_bound` | Derived | Count of unique RBPs with binding peaks overlapping this position |
+| `rbp_max_signal` | Derived | Maximum fold-enrichment across all overlapping RBP peaks |
+| `rbp_max_neg_log10_pvalue` | Derived | Maximum significance (-log10 p-value) among overlapping peaks |
+| `rbp_has_splice_regulator` | Derived | Binary: 1.0 if any known splice regulator (SR protein, hnRNP, or core factor) is bound |
+| `rbp_n_sr_proteins` | Derived | Count of SR proteins (SRSF1, SRSF3, etc.) with peaks at this position |
+| `rbp_n_hnrnps` | Derived | Count of hnRNP proteins (HNRNPA1, HNRNPC, etc.) with peaks |
+| `rbp_cell_line_breadth` | Derived | Number of cell lines (0-2) with binding evidence at this position |
+| `rbp_mean_signal` | Derived | Mean fold-enrichment across all overlapping peaks |
+
+#### chrom_access (6 columns)
+
+Chromatin accessibility from ENCODE ATAC-seq fold-change-over-control bigWig tracks.
+Default mode is **summarized** (Strategy B): cross-tissue summary statistics from
+5 ENCODE cell lines (K562, GM12878, HepG2, A549, IMR-90).
+
+ATAC-seq measures nucleosome-free DNA — positions where the DNA is physically accessible
+to regulatory factors including the spliceosome. Complementary to (not redundant with)
+histone marks: a position can have high H3K36me3 (transcribed exon body) while being
+nucleosome-occupied (low accessibility).
+
+GRCh38 only. For GRCh37 builds, all columns are filled with NaN (graceful degradation).
+Requires `pyBigWig`.
+
+Source file: `modalities/chrom_access.py`
+
+**See**: [`examples/features/docs/chromatin-accessibility-tutorial.md`](../../examples/features/docs/chromatin-accessibility-tutorial.md) for biology background and ENCODE data sources.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `atac_max_across_tissues` | Derived | Maximum ATAC-seq fold-change signal across all cell lines at this position |
+| `atac_mean_across_tissues` | Derived | Mean ATAC-seq signal across cell lines |
+| `atac_tissue_breadth` | Derived | Number of cell lines with signal above threshold (default > 2.0 fold-change) |
+| `atac_variance` | Derived | Variance of ATAC-seq signal across cell lines; high = tissue-specific accessibility |
+| `atac_context_mean` | Derived | Mean signal in a 150bp window around position (averaged across cell lines) |
+| `atac_has_peak` | Derived | Binary: 1.0 if maximum signal > peak threshold (default > 3.0 fold-change), 0.0 otherwise |
+
 ---
 
 ## Data Leakage Reference
@@ -292,6 +345,20 @@ to programmatically enforce these exclusions.
 | Category | Count | Examples |
 |----------|-------|---------|
 | Raw (direct from data source) | ~10 | `donor_score`, `phylop_score`, `phastcons_score`, `sequence`, `junction_is_annotated` |
-| Derived (engineered from raw) | ~76 | `probability_entropy`, `donor_surge_ratio`, `conservation_contrast`, `h3k36me3_tissue_breadth` |
+| Derived (engineered from raw) | ~90 | `probability_entropy`, `donor_surge_ratio`, `conservation_contrast`, `h3k36me3_tissue_breadth`, `rbp_n_bound`, `atac_has_peak` |
 | Labels (never use as features) | 1 | `splice_type` |
 | Metadata (not for training) | ~11 | `gene_id`, `chrom`, `position`, `window_start`, `transcript_id` |
+
+---
+
+## Per-Modality Tutorials
+
+For detailed biology background, data source descriptions, and interpretation guidance:
+
+- [Epigenetic Marks Tutorial](../../examples/features/docs/epigenetic-marks-tutorial.md) — H3K36me3/H3K4me3 ChIP-seq
+- [RBP eCLIP Tutorial](../../examples/features/docs/rbp-eclip-tutorial.md) — ENCODE RBP binding
+- [Chromatin Accessibility Tutorial](../../examples/features/docs/chromatin-accessibility-tutorial.md) — ENCODE ATAC-seq
+
+---
+
+*Last Updated: March 2026*
