@@ -170,7 +170,7 @@ graph LR
 **Foundation models**: Pre-trained splice predictors (SpliceAI, OpenSpliceAI, and extensible to any new model)
 - Standardized I/O protocol for seamless integration
 - Support for GRCh37 (SpliceAI) and GRCh38 (OpenSpliceAI)
-- Easy addition of new foundation models (Evo, GPT-based, etc.)
+- Easy addition of new foundation models — see [`examples/foundation_models/`](examples/foundation_models/) for Evo2, SpliceBERT prototypes
 
 ### 2. Adaptive Meta-Learning (Foundation-Adaptor Framework)
 **Multimodal deep learning**: Refine predictions using context-aware meta-models
