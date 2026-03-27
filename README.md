@@ -178,7 +178,7 @@ graph LR
 ### 2. Adaptive Meta-Learning (Foundation-Adaptor Framework)
 **Multimodal deep learning**: Refine predictions using context-aware meta-models
 - **Foundation**: Base model predictions (canonical knowledge)
-- **Adaptor**: 9-modality feature fusion (base scores, conservation, epigenetic marks, chromatin accessibility, RNA-seq junction evidence, RBP eCLIP binding, DNA sequence, genomic context, gene annotations) — see [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md) and [`examples/features/`](examples/features/)
+- **Adaptor**: Multimodal feature fusion (base scores, conservation, epigenetic marks, chromatin accessibility, RNA-seq junction evidence, RBP eCLIP binding, DNA sequence, genomic context, gene annotations) — see [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md) and [`examples/features/`](examples/features/)
 - **Context embedding**: Patient variants, disease state, tissue type
 - **Self-improvement**: Learn from validation feedback continuously
 
@@ -255,7 +255,7 @@ graph LR
 | Layer | Purpose | Output | Status |
 |-------|---------|--------|--------|
 | **Base Layer** | Canonical splice prediction (MANE) | Baseline scores for ~10% of sites | ✅ Complete |
-| **Feature Engineering** | 9-modality evidence fusion | 100 enriched feature columns | ✅ Complete |
+| **Feature Engineering** | Multimodal evidence fusion | 100+ enriched feature columns | ✅ Complete |
 | **Foundation Models** | Evo2/SpliceBERT classification | Per-nucleotide embeddings | 🔬 Experimental |
 | **Meta Layer** | Context-aware prediction (M1-M4) | Novel sites (90% beyond MANE) | 🔄 Active |
 | **Agentic Layer** | Multi-source validation + reports | Validated isoforms + drug targets | 📋 Planned |
