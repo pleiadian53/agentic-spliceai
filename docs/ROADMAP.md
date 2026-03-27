@@ -75,18 +75,27 @@
 
 ### Phase 6: Meta Layer Training — ACTIVE RESEARCH
 
-Four model variants (M1-M4):
+Hierarchical multi-task prediction framework — shared 9-modality feature
+infrastructure with specialized model heads for progressively harder tasks:
 
 | Variant | Purpose | Status |
 |---------|---------|--------|
 | M1 | Canonical Classification | XGBoost baseline 99.78% acc, PR-AUC 0.999/0.998 |
+| **M2a** | **Ensembl vs MANE evaluation** — predict alternative splice sites in (Ensembl \ MANE) that the base model never saw | **Next priority** |
 | M2 | Alternative Splice Sites (tissue-specific, isoform-specific) | Planned |
 | M3 | Novel Site Discovery (junction as held-out target) | Planned |
 | M4 | Perturbation-Induced (variant/disease/treatment effects) | Planned |
 
+**M2a is the strongest justification for multimodality**: M1 already achieves
+99.7% on canonical sites (little room to prove multimodality's value).
+Ensembl-only sites are where the base model is weakest — the delta
+(meta - base) at these positions directly measures the value of multimodal
+evidence fusion. Requires: Ensembl/GRCh38 annotations, set difference
+computation, base score evaluation, then full meta-layer rescue + ablation.
+
 **Key Insight**: Junction support is the #2 feature by SHAP (31.3%), reducing false negatives by 60-70%.
 
-**See**: `examples/meta_layer/docs/meta_model_variants_m1_m4.md`
+**See**: `examples/meta_layer/docs/meta_model_variants_m1_m4.md` for the full M1-M4 framework and M2a evaluation design
 
 ### Phase 7: Agentic Validation Layer — PLANNED
 
