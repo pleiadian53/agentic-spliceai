@@ -454,6 +454,22 @@ def main() -> int:
         print(f"    Requested modalities: {pipeline_config.modalities}")
         print(f"    New modalities: {new_mods if new_mods else '(none)'}")
 
+        # Check if any requested chromosomes lack artifacts entirely
+        ext = "parquet" if pipeline_config.output_format == "parquet" else "tsv"
+        missing_artifacts = [
+            c for c in chromosomes
+            if not (output_dir / f"analysis_sequences_{c}.{ext}").exists()
+        ]
+        if missing_artifacts:
+            print(f"\n  Error: {len(missing_artifacts)} chromosome(s) have no "
+                  f"existing artifacts: {missing_artifacts}")
+            print(f"  --augment adds columns to existing parquets. "
+                  f"Run without --augment first to generate them:")
+            print(f"    python 06_multimodal_genome_workflow.py "
+                  f"--config configs/full_stack.yaml "
+                  f"--chromosomes {' '.join(missing_artifacts)} --memory-limit 5")
+            return 1
+
         if not new_mods:
             print(f"\n  Nothing to augment — all {len(requested_mods)} "
                   f"modalities already present.")
@@ -481,6 +497,22 @@ def main() -> int:
         if unknown:
             print(f"\n  Error: unknown modalities to refresh: {unknown}")
             print(f"  Available: {sorted(available)}")
+            return 1
+
+        # Check if any requested chromosomes lack artifacts entirely
+        ext = "parquet" if pipeline_config.output_format == "parquet" else "tsv"
+        missing_artifacts = [
+            c for c in chromosomes
+            if not (output_dir / f"analysis_sequences_{c}.{ext}").exists()
+        ]
+        if missing_artifacts:
+            print(f"\n  Error: {len(missing_artifacts)} chromosome(s) have no "
+                  f"existing artifacts: {missing_artifacts}")
+            print(f"  --refresh recomputes columns in existing parquets. "
+                  f"Run without --refresh first to generate them:")
+            print(f"    python 06_multimodal_genome_workflow.py "
+                  f"--config configs/full_stack.yaml "
+                  f"--chromosomes {' '.join(missing_artifacts)} --memory-limit 5")
             return 1
 
         print(f"\n  Refresh mode:")
