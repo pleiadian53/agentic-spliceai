@@ -27,6 +27,7 @@ pipeline:
     - junction                      # +12 columns: RNA-seq junction evidence (GTEx v8, 353K junctions)
     - rbp_eclip                     # +8 columns: RBP eCLIP binding (ENCODE, K562/HepG2)
     - chrom_access                  # +6 columns: ATAC-seq accessibility (ENCODE, cross-tissue)
+    # - fm_embeddings                # +8 columns: foundation model embedding features (requires GPU-extracted embeddings)
 
 modality_configs:
   base_scores:
@@ -105,6 +106,17 @@ modality_configs:
     dnase_signal_threshold: 5.0     # read-depth normalized (higher scale than ATAC)
     dnase_peak_threshold: 10.0      # read-depth normalized
     remote_fallback: true
+
+  # ── Foundation Model Embeddings (requires GPU-extracted scalars) ─────
+  # Uncomment fm_embeddings in the modalities list above AND this config
+  # block when scalar features have been extracted on a GPU pod.
+  # Run: examples/features/07_streaming_fm_scalars.py → fm_scalars_{chrom}.parquet
+  # fm_embeddings:
+  #   foundation_model: evo2_7b       # evo2_7b (4096-dim), splicebert (512-dim), etc.
+  #   scalar_dir: data/mane/GRCh38/fm_embeddings/evo2_7b/  # pre-computed scalars (recommended)
+  #   pca_components: 6               # must match what was used in 07_streaming_fm_scalars.py
+  #   include_cosine_centroids: false  # disabled: uses labels, redundant with base scores
+  #   include_gradient: true           # local embedding change rate (splice boundary signal)
 
 sampling:
   enabled: true

@@ -1,6 +1,6 @@
 # Multimodal Feature Catalog
 
-Complete reference for all 9 feature modalities in the agentic-spliceai meta-layer
+Complete reference for all 10 feature modalities in the agentic-spliceai meta-layer
 feature engineering pipeline. Each modality is a registered `Modality` subclass in
 `src/agentic_spliceai/splice_engine/features/modalities/`.
 
@@ -17,8 +17,10 @@ feature engineering pipeline. Each modality is a registered `Modality` subclass 
 | `junction` | 12 | External data | STAR SJ.out.tab / GTEx / recount3 | RNA-seq splice junction read evidence |
 | `rbp_eclip` | 8 | External data | ENCODE eCLIP narrowPeak (K562, HepG2) | RNA-binding protein occupancy at splice sites |
 | `chrom_access` | 12 | External data | ENCODE ATAC-seq (5 cell lines) + DNase-seq (5 primary tissues) | Chromatin accessibility (open vs closed chromatin) |
+| `fm_embeddings` | 8 | Foundation model | Pre-extracted embeddings (Evo2, SpliceBERT, etc.) | Label-agnostic scalar features from foundation model representations |
 
-**Total**: 106 feature columns (default full-stack configuration).
+**Total**: 114 feature columns (full-stack with fm_embeddings enabled).
+**Default full-stack**: 106 columns (fm_embeddings commented out by default — requires GPU-extracted embeddings).
 
 ---
 
@@ -325,6 +327,49 @@ Source file: `modalities/chrom_access.py`
 | `dnase_context_mean` | Derived | Mean signal in a 150bp window around position (averaged across tissues) |
 | `dnase_has_peak` | Derived | Binary: 1.0 if maximum signal > peak threshold (default > 10.0 read-depth), 0.0 otherwise |
 
+#### fm_embeddings (10 columns)
+
+Label-agnostic scalar features derived from pre-computed foundation model
+per-position embeddings. All features are computed without using splice site
+annotations, avoiding any risk of label leakage. This modality is a **reader** —
+embeddings must be pre-extracted on a GPU pod using the `foundation_models`
+sub-project, then PCA-projected into scalar features. Foundation-model-agnostic:
+all columns use the `fm_` prefix regardless of the underlying model (Evo2,
+SpliceBERT, etc.).
+
+Requires pre-extracted per-chromosome embedding parquets and PCA artifacts
+(`.npz` file fit on training chromosomes only). If unavailable, all columns
+are filled with NaN (graceful degradation).
+
+Source file: `modalities/fm_embeddings.py`
+
+**See**: [`examples/features/docs/fm-embeddings-tutorial.md`](../../examples/features/docs/fm-embeddings-tutorial.md) for the extraction workflow, PCA fitting, and feature interpretation.
+
+**PCA components (6 columns, default)**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `fm_pca_1` | Derived | 1st principal component of the embedding vector (captures dominant variation) |
+| `fm_pca_2` | Derived | 2nd principal component |
+| `fm_pca_3` | Derived | 3rd principal component |
+| `fm_pca_4` | Derived | 4th principal component |
+| `fm_pca_5` | Derived | 5th principal component |
+| `fm_pca_6` | Derived | 6th principal component |
+
+**Summary statistics (2 columns)**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `fm_embedding_norm` | Derived | L2 magnitude of the embedding vector; correlates with model confidence and sequence complexity |
+| `fm_local_gradient` | Derived | L2 norm of difference between this position's embedding and the mean of its neighbors within the same gene; detects splice boundary transitions |
+
+**Optional centroid features (disabled by default, `include_cosine_centroids=True`)**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `fm_donor_cosine_sim` | Derived | Cosine similarity to the mean donor site embedding centroid (fit on training chromosomes). Disabled by default: uses ground truth labels for centroid computation, redundant with base model scores |
+| `fm_acceptor_cosine_sim` | Derived | Cosine similarity to the mean acceptor site embedding centroid. Same caveat as above |
+
 ---
 
 ## Data Leakage Reference
@@ -357,7 +402,7 @@ to programmatically enforce these exclusions.
 | Category | Count | Examples |
 |----------|-------|---------|
 | Raw (direct from data source) | ~10 | `donor_score`, `phylop_score`, `phastcons_score`, `sequence`, `junction_is_annotated` |
-| Derived (engineered from raw) | ~90 | `probability_entropy`, `donor_surge_ratio`, `conservation_contrast`, `h3k36me3_tissue_breadth`, `rbp_n_bound`, `atac_has_peak` |
+| Derived (engineered from raw) | ~100 | `probability_entropy`, `donor_surge_ratio`, `conservation_contrast`, `h3k36me3_tissue_breadth`, `rbp_n_bound`, `atac_has_peak`, `fm_pca_1`, `fm_embedding_norm` |
 | Labels (never use as features) | 1 | `splice_type` |
 | Metadata (not for training) | ~11 | `gene_id`, `chrom`, `position`, `window_start`, `transcript_id` |
 
@@ -370,7 +415,8 @@ For detailed biology background, data source descriptions, and interpretation gu
 - [Epigenetic Marks Tutorial](../../examples/features/docs/epigenetic-marks-tutorial.md) — H3K36me3/H3K4me3 ChIP-seq
 - [RBP eCLIP Tutorial](../../examples/features/docs/rbp-eclip-tutorial.md) — ENCODE RBP binding
 - [Chromatin Accessibility Tutorial](../../examples/features/docs/chromatin-accessibility-tutorial.md) — ENCODE ATAC-seq
+- [Foundation Model Embeddings Tutorial](../../examples/features/docs/fm-embeddings-tutorial.md) — Evo2/SpliceBERT scalar features
 
 ---
 
-*Last Updated: March 2026*
+*Last Updated: March 27, 2026*

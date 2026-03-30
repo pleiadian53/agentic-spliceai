@@ -37,6 +37,7 @@ pipeline:
     # - junction                    # +12 columns: RNA-seq junction evidence (requires junctions.tsv)
     - rbp_eclip                     # +8 columns: RBP binding (alternative splicing regulators)
     - chrom_access                  # +6 columns: ATAC-seq accessibility (open chromatin at splice sites)
+    # - fm_embeddings                # +8 columns: foundation model embeddings (requires GPU extraction)
 
 modality_configs:
   base_scores:
@@ -90,6 +91,15 @@ modality_configs:
       - HepG2
     min_neg_log10_pvalue: 2.0
     batch_size: 5000
+
+  # ── Foundation Model Embeddings (requires GPU-extracted scalars) ─────
+  # Run: examples/features/07_streaming_fm_scalars.py → fm_scalars_{chrom}.parquet
+  # fm_embeddings:
+  #   foundation_model: evo2_7b
+  #   scalar_dir: data/mane/GRCh38/fm_embeddings/evo2_7b/
+  #   pca_components: 6
+  #   include_cosine_centroids: false
+  #   include_gradient: true
 
   chrom_access:
     cell_lines:

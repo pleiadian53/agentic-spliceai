@@ -159,6 +159,21 @@ class FeatureSchema:
         'dnase_context_mean',
         'dnase_has_peak',
     ])
+
+    # Foundation model embedding features (pre-extracted, GPU required)
+    # Label-agnostic: PCA (unsupervised) + norm + gradient. No centroid
+    # features by default (they use ground truth labels, redundant with
+    # base scores). Enable via include_cosine_centroids=True in config.
+    FM_EMBEDDINGS_COLS: List[str] = field(default_factory=lambda: [
+        'fm_pca_1',
+        'fm_pca_2',
+        'fm_pca_3',
+        'fm_pca_4',
+        'fm_pca_5',
+        'fm_pca_6',
+        'fm_embedding_norm',
+        'fm_local_gradient',
+    ])
     
     # Label columns (ground truth)
     LABEL_COLS: List[str] = field(default_factory=lambda: [
@@ -203,7 +218,8 @@ class FeatureSchema:
             self.COMPARATIVE_COLS +
             self.JUNCTION_COLS +
             self.RBP_ECLIP_COLS +
-            self.CHROM_ACCESS_COLS
+            self.CHROM_ACCESS_COLS +
+            self.FM_EMBEDDINGS_COLS
         )
     
     def get_minimal_feature_cols(self) -> List[str]:

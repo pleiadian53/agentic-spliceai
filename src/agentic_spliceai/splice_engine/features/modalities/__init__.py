@@ -60,6 +60,12 @@ def _register_chrom_access() -> None:
     FeaturePipeline.register("chrom_access", ChromAccessModality, ChromAccessConfig)
 
 
+def _register_fm_embeddings() -> None:
+    from .fm_embeddings import FMEmbeddingsConfig, FMEmbeddingsModality
+
+    FeaturePipeline.register("fm_embeddings", FMEmbeddingsModality, FMEmbeddingsConfig)
+
+
 # Register modalities that may have heavier dependencies lazily
 _register_annotation()
 _register_sequence()
@@ -69,3 +75,4 @@ _register_epigenetic()
 _register_junction()
 _register_rbp_eclip()
 _register_chrom_access()
+_register_fm_embeddings()
