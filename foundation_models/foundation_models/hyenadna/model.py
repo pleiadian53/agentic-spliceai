@@ -95,6 +95,11 @@ class HyenaDNAModel(BaseEmbeddingModel):
     ) -> torch.Tensor:
         """Encode DNA sequences to per-nucleotide embeddings.
 
+        HyenaDNA uses character-level tokenization (1 token per nucleotide).
+        The tokenizer appends a ``[SEP]`` token by default; we suppress it
+        with ``add_special_tokens=False`` so the output maps 1:1 to input
+        nucleotides — no stripping needed downstream.
+
         Args:
             sequences: DNA sequence(s) to encode.
 
@@ -114,6 +119,7 @@ class HyenaDNAModel(BaseEmbeddingModel):
             padding=True,
             truncation=True,
             max_length=self.config.max_length,
+            add_special_tokens=False,
         ).to(self.device)
 
         with torch.no_grad():

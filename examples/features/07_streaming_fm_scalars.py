@@ -198,6 +198,7 @@ def fit_pca_streaming(
 
             gene_t0 = time.monotonic()
             try:
+                # Extract per-nucleotide embeddings with strand-aware logic
                 gene_emb = _extract_gene_embeddings(
                     model, gene_seq, max_context,
                 )
