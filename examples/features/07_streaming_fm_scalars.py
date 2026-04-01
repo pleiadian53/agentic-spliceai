@@ -96,7 +96,7 @@ def fit_pca_streaming(
     gtf_path: Path,
     max_context: int,
     max_positions_per_gene: int = 500,
-    max_gene_length: int = 1_000_000,
+    max_gene_length: int = 2_000_000,
 ) -> dict:
     """Fit IncrementalPCA on training chromosome embeddings (streaming).
 
@@ -187,7 +187,7 @@ def fit_pca_streaming(
             if positions is None or len(positions) == 0:
                 continue
 
-            # Extract full-gene embedding
+            # Extract embeddings at sampled positions only (memory-efficient)
             fasta_chrom = chrom_chr if chrom_chr in fasta else chrom
             if fasta_chrom not in fasta:
                 continue
@@ -196,31 +196,22 @@ def fit_pca_streaming(
             if len(gene_seq) == 0:
                 continue
 
+            local_indices = positions - gene_start
+            valid_mask = (local_indices >= 0) & (local_indices < len(gene_seq))
+            local_indices = local_indices[valid_mask]
+
+            if len(local_indices) == 0:
+                continue
+
             gene_t0 = time.monotonic()
             try:
-                # Extract per-nucleotide embeddings with strand-aware logic
-                gene_emb = _extract_gene_embeddings(
-                    model, gene_seq, max_context,
+                pos_embeddings = _extract_gene_embeddings(
+                    model, gene_seq, max_context, local_indices,
                 )
             except Exception as e:
                 logger.warning("Failed to extract %s: %s", gene_id, e)
                 continue
             gene_elapsed = time.monotonic() - gene_t0
-
-            # Extract embeddings at sampled positions
-            local_indices = positions - gene_start
-            valid_mask = (local_indices >= 0) & (local_indices < gene_emb.shape[0])
-            local_indices = local_indices[valid_mask]
-
-            if len(local_indices) == 0:
-                del gene_emb
-                continue
-
-            pos_embeddings = gene_emb[local_indices]  # (n_pos, hidden_dim)
-            del gene_emb
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
 
             # Subsample for PCA if too many positions
             if len(pos_embeddings) > max_positions_per_gene:
@@ -291,7 +282,7 @@ def extract_scalars_streaming(
     fasta_path: Path,
     gtf_path: Path,
     max_context: int,
-    max_gene_length: int = 1_000_000,
+    max_gene_length: int = 2_000_000,
 ) -> dict:
     """Compute scalar features for all sampled positions (streaming).
 
@@ -390,29 +381,39 @@ def extract_scalars_streaming(
             if len(gene_seq) == 0:
                 continue
 
+            local_indices = positions - gene_start
+            valid_mask = (local_indices >= 0) & (local_indices < len(gene_seq))
+            valid_positions = positions[valid_mask]
+            local_indices = local_indices[valid_mask]
+
+            if len(local_indices) == 0:
+                continue
+
+            # Expand indices to include ±1 neighbors for gradient computation
+            neighbor_indices = np.unique(np.clip(
+                np.concatenate([local_indices - 1, local_indices, local_indices + 1]),
+                0, len(gene_seq) - 1,
+            ))
+
             gene_t0 = time.monotonic()
             try:
-                gene_emb = _extract_gene_embeddings(
-                    model, gene_seq, max_context,
+                all_emb = _extract_gene_embeddings(
+                    model, gene_seq, max_context, neighbor_indices,
                 )
             except Exception as e:
                 logger.warning("Failed to extract %s: %s", gene_id, e)
                 continue
             gene_elapsed = time.monotonic() - gene_t0
 
-            # Map sampled positions to gene-local indices
-            local_indices = positions - gene_start
-            valid_mask = (local_indices >= 0) & (local_indices < gene_emb.shape[0])
-            valid_positions = positions[valid_mask]
-            local_indices = local_indices[valid_mask]
-
-            if len(local_indices) == 0:
-                del gene_emb
-                continue
+            # Build lookup: gene-local index → row in all_emb
+            idx_to_row = {int(idx): row for row, idx in enumerate(neighbor_indices)}
 
             # Compute features for each sampled position
             for pos, local_idx in zip(valid_positions, local_indices):
-                emb = gene_emb[local_idx].astype(np.float64)
+                row = idx_to_row.get(int(local_idx))
+                if row is None:
+                    continue
+                emb = all_emb[row].astype(np.float64)
 
                 # PCA projection
                 centered = emb - pca_mean
@@ -423,9 +424,11 @@ def extract_scalars_streaming(
 
                 # Local gradient (using true genomic neighbors)
                 grad = float("nan")
-                if 0 < local_idx < gene_emb.shape[0] - 1:
-                    prev_emb = gene_emb[local_idx - 1].astype(np.float64)
-                    next_emb = gene_emb[local_idx + 1].astype(np.float64)
+                prev_row = idx_to_row.get(int(local_idx) - 1)
+                next_row = idx_to_row.get(int(local_idx) + 1)
+                if prev_row is not None and next_row is not None:
+                    prev_emb = all_emb[prev_row].astype(np.float64)
+                    next_emb = all_emb[next_row].astype(np.float64)
                     neighbor_mean = (prev_emb + next_emb) / 2.0
                     grad = float(np.linalg.norm(emb - neighbor_mean))
 
@@ -436,9 +439,7 @@ def extract_scalars_streaming(
                 out_norm.append(norm)
                 out_gradient.append(grad)
 
-            del gene_emb
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            del all_emb
 
             chrom_gene_count += 1
 
@@ -524,44 +525,70 @@ def _reverse_complement(seq: str) -> str:
     return seq.translate(complement)[::-1]
 
 
-def _extract_single_strand(
+def _encode_chunk(model: "BaseEmbeddingModel", sequence: str) -> np.ndarray:
+    """Encode a single chunk and return numpy array (chunk_len, hidden_dim)."""
+    import torch
+
+    with torch.no_grad():
+        emb = model.encode(sequence)
+    if hasattr(emb, "cpu"):
+        emb = emb.detach().cpu().float().numpy()
+    return emb
+
+
+def _extract_at_positions_single_strand(
     model: "BaseEmbeddingModel",
     sequence: str,
     max_context: int,
+    local_indices: np.ndarray,
 ) -> np.ndarray:
-    """Extract per-nucleotide embeddings for a single strand.
+    """Extract embeddings at specific positions only (memory-efficient).
+
+    Processes the sequence in chunks, but instead of stitching the full
+    gene embedding (gene_len × hidden_dim), only keeps embeddings at the
+    requested positions. Peak RAM: one chunk (~512 MB) instead of full
+    gene (potentially 8+ GB).
+
+    Parameters
+    ----------
+    model : BaseEmbeddingModel
+        Foundation model.
+    sequence : str
+        Gene DNA sequence.
+    max_context : int
+        Model's max context window.
+    local_indices : np.ndarray
+        0-based positions within the gene to extract (sorted).
 
     Returns
     -------
     np.ndarray
-        Shape (seq_len, hidden_dim), float32.
+        Shape (len(local_indices), hidden_dim), float32.
     """
     import torch
-    from foundation_models.utils.chunking import chunk_sequence, stitch_embeddings
+    from foundation_models.utils.chunking import chunk_sequence
 
     seq_len = len(sequence)
     hidden_dim = model.metadata().hidden_dim
+    n_pos = len(local_indices)
+    result = np.zeros((n_pos, hidden_dim), dtype=np.float32)
 
     if seq_len <= max_context:
-        with torch.no_grad():
-            emb = model.encode(sequence)
-        if hasattr(emb, "cpu"):
-            emb = emb.detach().cpu().float().numpy()
-        if emb.shape[0] >= seq_len:
-            return emb[:seq_len]
-        padded = np.zeros((seq_len, hidden_dim), dtype=np.float32)
-        padded[: emb.shape[0]] = emb
-        return padded
+        emb = _encode_chunk(model, sequence)
+        valid = local_indices[local_indices < emb.shape[0]]
+        result[: len(valid)] = emb[valid]
+        del emb
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        return result
 
     overlap = max(max_context // 4, 128)
     chunks = chunk_sequence(sequence, chunk_size=max_context, overlap=overlap)
-    chunk_embeddings = []
 
+    # For each chunk, determine which sampled positions fall in its "keep" range
+    # and extract only those embeddings.
     for chunk in chunks:
-        with torch.no_grad():
-            emb = model.encode(chunk.sequence)
-        if hasattr(emb, "cpu"):
-            emb = emb.detach().cpu().float().numpy()
+        emb = _encode_chunk(model, chunk.sequence)
         chunk_len = len(chunk.sequence)
         if emb.shape[0] < chunk_len:
             padded = np.zeros((chunk_len, hidden_dim), dtype=np.float32)
@@ -569,57 +596,103 @@ def _extract_single_strand(
             emb = padded
         elif emb.shape[0] > chunk_len:
             emb = emb[:chunk_len]
-        chunk_embeddings.append(emb)
+
+        # Global range this chunk is authoritative for (after overlap trimming)
+        global_keep_start = chunk.global_start + chunk.keep_start
+        global_keep_end = chunk.global_start + chunk.keep_end
+
+        # Find sampled positions in this chunk's keep range
+        mask = (local_indices >= global_keep_start) & (local_indices < global_keep_end)
+        if not np.any(mask):
+            del emb
+            continue
+
+        # Map global positions to chunk-local offsets
+        pos_in_chunk = local_indices[mask] - chunk.global_start
+        result[mask] = emb[pos_in_chunk]
+        del emb
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    return stitch_embeddings(chunks, chunk_embeddings, seq_len, hidden_dim)
+    return result
 
 
 def _extract_gene_embeddings(
     model: "BaseEmbeddingModel",
     gene_sequence: str,
     max_context: int,
+    local_indices: np.ndarray,
 ) -> np.ndarray:
-    """Extract per-nucleotide embeddings with strand-aware logic.
+    """Extract embeddings at sampled positions with strand-aware logic.
+
+    Memory-efficient: processes chunks sequentially, never holds the full
+    gene embedding. Peak RAM is one chunk (~512 MB) instead of gene_len ×
+    hidden_dim (potentially 8+ GB).
 
     For **causal** models (Evo2, HyenaDNA): dual-strand extraction.
     Position i's forward embedding only sees left context (0..i).
-    We also encode the reverse complement, flip it, and average —
-    giving each position both upstream and downstream context.
+    We also encode the reverse complement, flip position mapping, and
+    average — giving each position both upstream and downstream context.
 
     For **bidirectional** models (SpliceBERT): single-strand is
     sufficient since every position already sees full context.
 
+    Parameters
+    ----------
+    model : BaseEmbeddingModel
+        Foundation model.
+    gene_sequence : str
+        Gene DNA sequence.
+    max_context : int
+        Model's max context window.
+    local_indices : np.ndarray
+        0-based positions within the gene to extract (sorted, int64).
+
     Returns
     -------
     np.ndarray
-        Shape (gene_len, hidden_dim), float32.
+        Shape (len(local_indices), hidden_dim), float32.
     """
     import torch
 
     model_type = model.metadata().model_type
+    gene_len = len(gene_sequence)
 
-    # Forward strand
-    emb_fwd = _extract_single_strand(model, gene_sequence, max_context)
+    # Forward strand — extract at sampled positions only
+    emb_fwd = _extract_at_positions_single_strand(
+        model, gene_sequence, max_context, local_indices,
+    )
 
     if model_type != "causal":
         return emb_fwd
 
     # Reverse complement strand (causal models only)
+    # RC position j maps to forward position (gene_len - 1 - j).
+    # So forward position i maps to RC position (gene_len - 1 - i).
     rc_seq = _reverse_complement(gene_sequence)
-    emb_rc = _extract_single_strand(model, rc_seq, max_context)
+    rc_indices = (gene_len - 1 - local_indices).astype(np.int64)
+    # Sort for sequential chunk access, remember original order
+    rc_sort_order = np.argsort(rc_indices)
+    rc_indices_sorted = rc_indices[rc_sort_order]
 
-    # Flip RC embeddings so position i aligns with forward position i.
-    # RC position 0 corresponds to forward position (gene_len - 1).
-    emb_rc_flipped = emb_rc[::-1].copy()
+    emb_rc_sorted = _extract_at_positions_single_strand(
+        model, rc_seq, max_context, rc_indices_sorted,
+    )
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    # Average forward and reverse-complement embeddings
-    return ((emb_fwd + emb_rc_flipped) / 2.0).astype(np.float32)
+    # Unsort RC embeddings back to original position order
+    emb_rc = np.empty_like(emb_rc_sorted)
+    emb_rc[rc_sort_order] = emb_rc_sorted
+    del emb_rc_sorted
+
+    # Average forward and reverse-complement in-place
+    emb_fwd += emb_rc
+    del emb_rc
+    emb_fwd *= 0.5
+    return emb_fwd
 
 
 def _resolve_data_paths(base_model: str = "openspliceai") -> Tuple[Path, Path]:
@@ -673,7 +746,7 @@ def parse_args() -> argparse.Namespace:
         help="Chromosome split for PCA training. Default: spliceai",
     )
     p.add_argument(
-        "--max-gene-length", type=int, default=1_000_000,
+        "--max-gene-length", type=int, default=2_000_000,
         help="Skip genes longer than this (avoid OOM). Default: 200000",
     )
     p.add_argument(
