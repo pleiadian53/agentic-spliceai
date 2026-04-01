@@ -194,37 +194,34 @@ class MetaLayerDataset(Dataset):
             logger.debug(f"Correlation leakage check failed: {e}")
     
     def _get_feature_columns(self) -> List[str]:
-        """Get list of feature columns to use (excluding leakage and metadata)."""
-        # Define allowed feature categories
-        all_feature_cols = (
-            self.schema.BASE_SCORE_COLS +
-            self.schema.CONTEXT_SCORE_COLS +
-            self.schema.PROBABILITY_FEATURE_COLS +
-            self.schema.CONTEXT_PATTERN_COLS +
-            self.schema.DONOR_PATTERN_COLS +
-            self.schema.ACCEPTOR_PATTERN_COLS +
-            self.schema.COMPARATIVE_COLS
-        )
-        
-        # Get columns to exclude (leakage + metadata + extra)
+        """Get list of feature columns to use (excluding leakage and metadata).
+
+        Uses all numeric columns in the DataFrame that are not in the
+        exclusion list.  This ensures that modalities added after the
+        original schema (conservation, epigenetic, junction, RBP eCLIP,
+        chromatin accessibility, FM embeddings) are automatically picked
+        up without requiring explicit registration here.
+        """
         excluded = set(self.schema.get_excluded_cols() + self.extra_exclude_cols)
-        
-        # Filter to existing columns, excluding leakage/metadata
-        available = []
-        excluded_count = 0
-        for c in all_feature_cols:
-            if c not in self.df.columns:
-                continue
-            if c in excluded:
-                excluded_count += 1
-                logger.debug(f"Excluding column '{c}' (in exclusion list)")
-                continue
-            available.append(c)
-        
-        logger.info(f"Using {len(available)}/{len(all_feature_cols)} feature columns")
-        if excluded_count > 0:
-            logger.info(f"  Excluded {excluded_count} columns (leakage/metadata)")
-        
+        # Also exclude the sequence column (string, not numeric)
+        excluded.add(self.schema.SEQUENCE_COL)
+
+        numeric_types = {
+            pl.Float64, pl.Float32,
+            pl.Int64, pl.Int32, pl.Int16, pl.Int8,
+            pl.UInt32,
+        }
+
+        available = [
+            c for c in self.df.columns
+            if self.df[c].dtype in numeric_types and c not in excluded
+        ]
+
+        logger.info(
+            "Using %d feature columns (%d excluded as leakage/metadata)",
+            len(available),
+            sum(1 for c in self.df.columns if c in excluded),
+        )
         return available
     
     def _compute_normalization_stats(self):

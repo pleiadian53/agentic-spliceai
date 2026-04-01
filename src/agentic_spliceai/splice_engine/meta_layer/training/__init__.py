@@ -1,6 +1,7 @@
 """
 Training components for the meta-layer.
 
+- data_utils.py: Shared data loading, splitting, and feature selection
 - trainer.py: Training loop
 - evaluator.py: Metrics (PR-AUC, top-k, AP, calibration)
 - variant_evaluator.py: Variant effect evaluation (Phase 1 Approach A)

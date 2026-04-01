@@ -5,40 +5,30 @@ Trains an XGBoost classifier on feature-engineered analysis_sequences
 artifacts. Uses chromosome-split validation (train on some chromosomes,
 test on held-out chromosomes) to avoid within-gene leakage.
 
-This establishes the baseline that any neural meta-layer must beat.
+By default, uses the SpliceAI chromosome split (Jaganathan et al., 2019):
+  Train: chr2, 4, 6, 8, 10-22, X, Y
+  Test:  chr1, 3, 5, 7, 9
+
+A 10% random holdout from training genes is used for early stopping
+(validation set), so the test set is never seen during training.
 
 Usage:
-    # Default: train on chr19, test on chr21+chr22
+    # Full genome with SpliceAI split (default)
     python 01_xgboost_baseline.py
 
-    # Custom chromosome split
+    # Custom chromosome split (overrides the default)
     python 01_xgboost_baseline.py \\
-        --train-chroms chr1 chr2 chr3 \\
-        --test-chroms chr21 chr22
+        --train-chroms chr19 --test-chroms chr21 chr22
 
     # Custom input directory
     python 01_xgboost_baseline.py --input-dir /path/to/analysis_sequences/
 
     # With feature importance plot
-    python 01_xgboost_baseline.py --plot
-
-Example output:
-    Train: chr19 (120,432 positions, 1,345 genes)
-    Test:  chr21+chr22 (38,291 positions, 566 genes)
-    Features: 50 tabular columns
-
-    === Classification Report (3-class: donor/acceptor/neither) ===
-    PR-AUC (donor):    0.XX
-    PR-AUC (acceptor): 0.XX
-    Accuracy:          XX.X%
-
-    === Top 20 Feature Importances ===
-    1. donor_prob             0.XXX
-    2. acceptor_prob          0.XXX
-    ...
+    python 01_xgboost_baseline.py --plot --output-dir output/m1_fullgenome
 """
 
 import argparse
+import json
 import logging
 import sys
 import time
@@ -49,152 +39,27 @@ from typing import Optional
 # with PyTorch on macOS. See dev/errors/dyld-library-path-torch-import.md
 import xgboost as xgb  # noqa: E402 (must precede torch-importing packages)
 import numpy as np
-import polars as pl
 
 log = logging.getLogger(__name__)
-
-
-# ── Column categories ────────────────────────────────────────────────
-# Mirror feature_schema.py leakage/metadata definitions.
-
-LABEL_COL = "splice_type"
-
-LEAKAGE_COLS = {
-    "splice_type",
-    "pred_type",
-    "true_position",
-    "predicted_position",
-    "is_correct",
-    "error_type",
-}
-
-METADATA_COLS = {
-    "gene_id",
-    "gene_name",
-    "transcript_id",
-    "gene_type",
-    "chrom",
-    "strand",
-    "position",
-    "absolute_position",
-    "window_start",
-    "window_end",
-    "transcript_count",
-    "gene_start",
-    "gene_end",
-}
-
-# Non-numeric columns that can't be used as features
-NON_NUMERIC_COLS = {
-    "sequence",
-}
-
-EXCLUDE_COLS = LEAKAGE_COLS | METADATA_COLS | NON_NUMERIC_COLS | {LABEL_COL}
-
-LABEL_ENCODING = {"donor": 0, "acceptor": 1, "neither": 2, "": 2}
-
-
-# ── Data loading ─────────────────────────────────────────────────────
-
-
-def load_analysis_sequences(
-    input_dir: Path,
-    chromosomes: list[str],
-) -> pl.DataFrame:
-    """Load analysis_sequences parquets for specified chromosomes."""
-    frames = []
-    for chrom in chromosomes:
-        path = input_dir / f"analysis_sequences_{chrom}.parquet"
-        if not path.exists():
-            # Try TSV fallback
-            path = input_dir / f"analysis_sequences_{chrom}.tsv"
-            if not path.exists():
-                log.warning("No data for %s at %s", chrom, input_dir)
-                continue
-            frames.append(pl.read_csv(path, separator="\t"))
-        else:
-            frames.append(pl.read_parquet(path))
-        log.info("Loaded %s: %d positions", chrom, frames[-1].height)
-
-    if not frames:
-        raise FileNotFoundError(
-            f"No analysis_sequences found in {input_dir} "
-            f"for chromosomes: {chromosomes}"
-        )
-
-    # Align schemas: use column intersection (different chromosomes may have
-    # been generated with different modality configs)
-    if len(frames) > 1:
-        common_cols = set(frames[0].columns)
-        for f in frames[1:]:
-            common_cols &= set(f.columns)
-        max_cols = max(len(f.columns) for f in frames)
-        if len(common_cols) < max_cols:
-            dropped = max_cols - len(common_cols)
-            log.info(
-                "Schema alignment: keeping %d common columns (dropped %d)",
-                len(common_cols),
-                dropped,
-            )
-            # Preserve column order from first frame
-            ordered_cols = [c for c in frames[0].columns if c in common_cols]
-            frames = [f.select(ordered_cols) for f in frames]
-
-    return pl.concat(frames)
-
-
-def prepare_features_and_labels(
-    df: pl.DataFrame,
-) -> tuple[np.ndarray, np.ndarray, list[str]]:
-    """Extract feature matrix X and label vector y from DataFrame.
-
-    Returns
-    -------
-    X : np.ndarray of shape [n_samples, n_features]
-    y : np.ndarray of shape [n_samples] with values in {0, 1, 2}
-    feature_names : list of str
-    """
-    # Select numeric feature columns (exclude leakage, metadata, labels)
-    feature_cols = [
-        c for c in df.columns
-        if c not in EXCLUDE_COLS
-        and df[c].dtype in (pl.Float64, pl.Float32, pl.Int64, pl.Int32, pl.Int8, pl.UInt32)
-    ]
-
-    if not feature_cols:
-        raise ValueError(
-            f"No valid feature columns found. Available: {df.columns}"
-        )
-
-    log.info("Using %d feature columns", len(feature_cols))
-
-    X = df.select(feature_cols).to_numpy().astype(np.float32)
-
-    # Encode labels
-    if LABEL_COL not in df.columns:
-        raise ValueError(f"Label column '{LABEL_COL}' not found in data")
-
-    labels = df[LABEL_COL].to_list()
-    y = np.array([LABEL_ENCODING.get(str(l).lower(), 2) for l in labels])
-
-    return X, y, feature_cols
 
 
 # ── Training ─────────────────────────────────────────────────────────
 
 
+LABEL_DECODING = {0: "donor", 1: "acceptor", 2: "neither"}
+
+
 def train_xgboost(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    X_test: np.ndarray,
-    y_test: np.ndarray,
-    feature_names: list[str],
+    X_val: np.ndarray,
+    y_val: np.ndarray,
     n_estimators: int = 500,
     max_depth: int = 6,
     learning_rate: float = 0.1,
     early_stopping_rounds: int = 20,
 ) -> "xgboost.XGBClassifier":
-    """Train XGBoost classifier with early stopping on test set."""
+    """Train XGBoost classifier with early stopping on validation set."""
     # Compute class weights (inverse frequency)
     classes, counts = np.unique(y_train, return_counts=True)
     total = len(y_train)
@@ -214,7 +79,7 @@ def train_xgboost(
         num_class=3,
         eval_metric="mlogloss",
         early_stopping_rounds=early_stopping_rounds,
-        tree_method="hist",  # fast histogram-based
+        tree_method="hist",
         random_state=42,
         n_jobs=-1,
         verbosity=0,
@@ -224,23 +89,15 @@ def train_xgboost(
         X_train,
         y_train,
         sample_weight=sample_weights,
-        eval_set=[(X_test, y_test)],
+        eval_set=[(X_val, y_val)],
         verbose=False,
     )
 
-    log.info(
-        "Best iteration: %d / %d",
-        model.best_iteration,
-        n_estimators,
-    )
-
+    log.info("Best iteration: %d / %d", model.best_iteration, n_estimators)
     return model
 
 
-LABEL_DECODING = {0: "donor", 1: "acceptor", 2: "neither"}
-
-
-# ── Evaluation ───────────────────────────────────────────────────────
+# ── Evaluation ─────────────────────────────────���─────────────────────
 
 
 def evaluate(
@@ -261,7 +118,6 @@ def evaluate(
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)
 
-    # Classification report
     target_names = ["donor", "acceptor", "neither"]
     report = classification_report(y_test, y_pred, target_names=target_names)
 
@@ -307,9 +163,9 @@ def evaluate(
         print(f"    {rank:2d}. {fname:40s} {imp:.4f}")
 
     return {
-        "accuracy": accuracy,
-        "pr_aucs": pr_aucs,
-        "confusion_matrix": cm,
+        "accuracy": float(accuracy),
+        "pr_aucs": {k: float(v) for k, v in pr_aucs.items()},
+        "confusion_matrix": cm.tolist(),
         "top_features": top_features,
         "classification_report": report,
     }
@@ -352,7 +208,7 @@ def plot_feature_importance(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="XGBoost Meta-Layer Baseline",
+        description="XGBoost Meta-Layer Baseline (M1)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -365,14 +221,21 @@ def main() -> int:
     parser.add_argument(
         "--train-chroms",
         nargs="+",
-        default=["chr19"],
-        help="Training chromosomes (default: chr19)",
+        default=None,
+        help="Training chromosomes (overrides default SpliceAI split). "
+             "Example: --train-chroms chr19 chr20",
     )
     parser.add_argument(
         "--test-chroms",
         nargs="+",
-        default=["chr21", "chr22"],
-        help="Test chromosomes (default: chr21 chr22)",
+        default=None,
+        help="Test chromosomes (overrides default SpliceAI split). "
+             "Example: --test-chroms chr21 chr22",
+    )
+    parser.add_argument(
+        "--val-fraction", type=float, default=0.1,
+        help="Fraction of training genes held out for validation / early "
+             "stopping (default: 0.1)",
     )
     parser.add_argument(
         "--n-estimators", type=int, default=500,
@@ -404,105 +267,155 @@ def main() -> int:
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    # ── Resolve input directory ───────────────────────────────────────
-    if args.input_dir is not None:
-        input_dir = args.input_dir
+    # ── Imports (after xgboost to avoid libomp conflict) ─────────────
+    from agentic_spliceai.splice_engine.meta_layer.training.data_utils import (
+        load_analysis_sequences,
+        resolve_input_dir,
+        get_gene_split,
+        split_dataframe,
+        get_feature_columns,
+        prepare_features_and_labels,
+    )
+    from agentic_spliceai.splice_engine.eval.splitting import (
+        SPLICEAI_TRAIN_CHROMS,
+        SPLICEAI_TEST_CHROMS,
+    )
+
+    # ── Resolve input directory ─────────────────────────���────────────
+    try:
+        input_dir = resolve_input_dir(args.input_dir)
+    except FileNotFoundError as e:
+        print(str(e))
+        return 1
+
+    # ── Determine chromosomes ────────────────────────────────────────
+    # Default: SpliceAI split.  Custom overrides take precedence.
+    using_custom_split = args.train_chroms is not None or args.test_chroms is not None
+    if using_custom_split:
+        if args.train_chroms is None or args.test_chroms is None:
+            print("ERROR: --train-chroms and --test-chroms must both be specified.")
+            return 1
+        train_chroms = args.train_chroms
+        test_chroms = args.test_chroms
+        all_chroms = sorted(set(train_chroms) | set(test_chroms))
+        split_desc = f"Custom: train={train_chroms}, test={test_chroms}"
     else:
-        from agentic_spliceai.splice_engine.resources import get_model_resources
-        resources = get_model_resources("openspliceai")
-        registry = resources.get_registry()
-        input_dir = registry.get_base_model_eval_dir("openspliceai") / "precomputed" / ".." / "analysis_sequences"
-        input_dir = input_dir.resolve()
-        if not input_dir.exists():
-            # Try sibling of precomputed
-            alt = registry.get_base_model_eval_dir("openspliceai") / "analysis_sequences"
-            if alt.exists():
-                input_dir = alt
-            else:
-                print(f"Cannot find analysis_sequences directory.")
-                print(f"Tried: {input_dir}")
-                print(f"Run feature engineering first:")
-                print(f"  python examples/features/06_multimodal_genome_workflow.py "
-                      f"--chromosomes {' '.join(args.train_chroms + args.test_chroms)}")
-                return 1
+        train_chroms = sorted(SPLICEAI_TRAIN_CHROMS)
+        test_chroms = sorted(SPLICEAI_TEST_CHROMS)
+        all_chroms = sorted(SPLICEAI_TRAIN_CHROMS | SPLICEAI_TEST_CHROMS)
+        split_desc = "SpliceAI (Jaganathan et al., 2019)"
 
     print("=" * 70)
-    print("XGBoost Meta-Layer Baseline")
+    print("XGBoost Meta-Layer Baseline (M1)")
     print("=" * 70)
     print(f"  Input:     {input_dir}")
-    print(f"  Train:     {', '.join(args.train_chroms)}")
-    print(f"  Test:      {', '.join(args.test_chroms)}")
+    print(f"  Split:     {split_desc}")
+    print(f"  Train:     {len(train_chroms)} chromosomes")
+    print(f"  Test:      {len(test_chroms)} chromosomes ({', '.join(test_chroms)})")
+    print(f"  Val frac:  {args.val_fraction:.0%} of training genes")
 
-    # ── Load data ─────────────────────────────────────────────────────
+    # ── Load data ─────────────────────────���──────────────────────────
     t0 = time.time()
 
-    print(f"\n  Loading training data...")
-    df_train = load_analysis_sequences(input_dir, args.train_chroms)
-    print(f"    {df_train.height:,} positions, {df_train.width} columns")
+    # Load ALL chromosomes, then split by gene membership.
+    print(f"\n  Loading all {len(all_chroms)} chromosomes...")
+    df_all = load_analysis_sequences(input_dir, all_chroms)
+    print(f"    {df_all.height:,} positions, {df_all.width} columns")
 
-    print(f"  Loading test data...")
-    df_test = load_analysis_sequences(input_dir, args.test_chroms)
-    print(f"    {df_test.height:,} positions, {df_test.width} columns")
-
-    # ── Prepare features ──────────────────────────────────────────────
-    X_train, y_train, feature_names = prepare_features_and_labels(df_train)
-    X_test, y_test, test_feature_names = prepare_features_and_labels(df_test)
-
-    # Align features: use intersection of train and test feature columns
-    if set(feature_names) != set(test_feature_names):
-        common = [f for f in feature_names if f in set(test_feature_names)]
-        train_idx = [feature_names.index(f) for f in common]
-        test_idx = [test_feature_names.index(f) for f in common]
-        X_train = X_train[:, train_idx]
-        X_test = X_test[:, test_idx]
-        log.info(
-            "Feature alignment: %d train, %d test → %d common",
-            len(feature_names), len(test_feature_names), len(common),
+    # Gene-level split: assigns genes to train/val/test by chromosome
+    if using_custom_split:
+        gene_split = get_gene_split(
+            df_all,
+            preset="custom",
+            val_fraction=args.val_fraction,
+            custom_train_chroms=set(train_chroms),
+            custom_test_chroms=set(test_chroms),
         )
-        feature_names = common
+    else:
+        gene_split = get_gene_split(
+            df_all,
+            preset="spliceai",
+            val_fraction=args.val_fraction,
+        )
 
-    # Handle NaN/inf
-    X_train = np.nan_to_num(X_train, nan=0.0, posinf=0.0, neginf=0.0)
-    X_test = np.nan_to_num(X_test, nan=0.0, posinf=0.0, neginf=0.0)
+    print(gene_split.summary())
 
-    n_train_genes = df_train["gene_id"].n_unique() if "gene_id" in df_train.columns else "?"
-    n_test_genes = df_test["gene_id"].n_unique() if "gene_id" in df_test.columns else "?"
+    # Split into train/val/test DataFrames
+    df_train, df_val, df_test = split_dataframe(df_all, gene_split)
+    del df_all
 
-    print(f"\n  Features:  {len(feature_names)}")
-    print(f"  Train:     {X_train.shape[0]:,} positions, {n_train_genes} genes")
-    print(f"  Test:      {X_test.shape[0]:,} positions, {n_test_genes} genes")
+    print(f"    Train: {df_train.height:,} positions ({gene_split.n_train} genes)")
+    print(f"    Val:   {df_val.height:,} positions ({gene_split.n_val} genes)")
+    print(f"    Test:  {df_test.height:,} positions ({gene_split.n_test} genes)")
 
-    # Free DataFrames
-    del df_train, df_test
+    # Determine features from training data
+    feature_cols = get_feature_columns(df_train)
+    print(f"    Features: {len(feature_cols)}")
 
-    # ── Train ─────────────────────────────────────────────────────────
+    # Extract arrays and free DataFrames
+    X_train, y_train, feature_names = prepare_features_and_labels(
+        df_train, feature_cols=feature_cols,
+    )
+    X_val, y_val, _ = prepare_features_and_labels(
+        df_val, feature_cols=feature_cols,
+    )
+    X_test, y_test, _ = prepare_features_and_labels(
+        df_test, feature_cols=feature_cols,
+    )
+    del df_train, df_val, df_test
+
+    # ── Train ─────────────────────────��──────────────────────────────
     print(f"\n  Training XGBoost (max {args.n_estimators} rounds, depth={args.max_depth})...")
+    print(f"  Early stopping on validation set ({X_val.shape[0]:,} positions)")
     model = train_xgboost(
-        X_train, y_train, X_test, y_test,
-        feature_names,
+        X_train, y_train,
+        X_val, y_val,
         n_estimators=args.n_estimators,
         max_depth=args.max_depth,
         learning_rate=args.learning_rate,
     )
 
-    # ── Evaluate ──────────────────────────────────────────────────────
+    # ── Evaluate on held-out test set ───────────────────────────────��
     results = evaluate(model, X_test, y_test, feature_names)
 
     elapsed = time.time() - t0
     print(f"\n  Total time: {elapsed:.1f}s")
 
-    # ── Save outputs ──────────────────────────────────────────────────
+    # ── Save outputs ─────────────────────────���───────────────────────
     output_dir = args.output_dir
     if output_dir is None:
-        output_dir = Path("output/meta_layer_baseline")
+        output_dir = Path("output/meta_layer/m1_baseline")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Save model
-    model_path = output_dir / "xgb_baseline.ubj"
+    model_path = output_dir / "xgb_m1_baseline.ubj"
     model.get_booster().save_model(str(model_path))
     print(f"\n  Model saved: {model_path}")
 
-    # Save feature importance
+    # Save metrics
+    metrics_path = output_dir / "metrics.json"
+    serializable = {
+        "split": split_desc,
+        "n_train": int(X_train.shape[0]),
+        "n_val": int(X_val.shape[0]),
+        "n_test": int(X_test.shape[0]),
+        "n_features": len(feature_names),
+        "best_iteration": int(model.best_iteration),
+        "accuracy": results["accuracy"],
+        "pr_aucs": results["pr_aucs"],
+        "confusion_matrix": results["confusion_matrix"],
+        "top_features": results["top_features"],
+    }
+    with open(metrics_path, "w") as f:
+        json.dump(serializable, f, indent=2)
+    print(f"  Metrics saved: {metrics_path}")
+
+    # Save gene split for reproducibility
+    split_path = output_dir / "gene_split.json"
+    with open(split_path, "w") as f:
+        json.dump(gene_split.to_dict(), f, indent=2)
+    print(f"  Gene split saved: {split_path}")
+
     if args.plot:
         plot_path = output_dir / "feature_importance.png"
         plot_feature_importance(
