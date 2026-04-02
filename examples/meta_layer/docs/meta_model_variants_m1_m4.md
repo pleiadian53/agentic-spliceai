@@ -1,5 +1,50 @@
 # Meta-Layer Model Variants: M1 through M4
 
+## Two Model Lines: Position-Level (-P) vs Sequence-Level (-S)
+
+Each model variant (M1-M4) exists in two forms that differ in how they
+consume input and produce output:
+
+| Suffix | Name | Input | Output | Purpose |
+|--------|------|-------|--------|---------|
+| **-P** | Position-level | Pre-sampled positions + tabular features | `[1, 3]` per position | Proof-of-concept, ablation studies |
+| **-S** | Sequence-level | Arbitrary DNA sequence | `[L, 3]` per nucleotide | Practical splice site prediction |
+
+**Position-level models (M1-P, M2-P, M3-P)** operate on individual
+pre-sampled positions (~1% of the genome). They require base model scores
+to decide which positions to evaluate, and they output a single 3-class
+prediction per position. These are useful for proving that multimodality
+helps (e.g., M1-P showed 62% FN reduction, 68% FP reduction) but are not
+practical splice predictors.
+
+**Sequence-level models (M1-S, M2-S, M3-S, M4-S)** follow the same
+input/output protocol as SpliceAI and OpenSpliceAI: given an arbitrary
+DNA sequence, they produce per-nucleotide splice site scores `[L, 3]`.
+This is the practical form used for genome-scale prediction, variant
+analysis, and novel isoform discovery.
+
+### Why the distinction matters
+
+For M2-M4, you cannot know the "interesting positions" in advance — the
+whole point is to discover positions the base model missed (M2/M3) or
+that appear under perturbation (M4). A position-level model requires
+someone to pre-select query points, which defeats the purpose.
+
+The sequence-level architecture (see *Sequence-Level Architecture* below)
+incorporates multimodal features as dense input channels at every
+position, rather than as pre-computed tabular features at sampled points.
+
+### Implementation
+
+| Model | Position-level (-P) | Sequence-level (-S) |
+|-------|--------------------|--------------------|
+| M1 | `01_xgboost_baseline.py` (XGBoost, 103 features) | `meta_splice_model_v3.py` (3-stream CNN) |
+| M2 | `04_m2a_ensembl_vs_mane.py` (planned) | Same architecture, evaluated on alternative sites |
+| M3 | `05_m3_novel_prediction.py` (planned) | Same architecture, junction as target |
+| M4 | — | `predict_with_delta()` on ref/alt sequences |
+
+---
+
 ## The Problem: Why One Model Isn't Enough
 
 A splice site prediction system faces fundamentally different questions
@@ -410,18 +455,102 @@ The only things that change between variants are:
 
 ---
 
+## Sequence-Level Architecture (M*-S models)
+
+The sequence-level meta-layer is a **two-pass, three-stream refinement
+model** implemented in `meta_splice_model_v3.py` (class: `MetaSpliceModel`,
+config: `MetaSpliceConfig`).
+
+### Two-pass inference
+
+```
+Pass 1 (frozen): DNA sequence → OpenSpliceAI → base_scores [L, 3]
+                  Genomic coords → DenseFeatureExtractor → mm_features [L, C]
+Pass 2 (trainable): sequence + base_scores + mm_features → MetaSpliceModel → refined [L, 3]
+```
+
+The base model runs first to produce raw per-nucleotide scores. The
+meta-layer then refines these using multimodal evidence. A learnable
+residual blend (`α × refined + (1-α) × base`) ensures the meta-layer
+never degrades below the base model.
+
+### Three-stream architecture
+
+```
+Stream A: DNA sequence [B, 4, L]       → dilated 1D CNN (8 blocks) → [B, H, L]
+Stream B: Base model scores [B, L, 3]  → per-position MLP          → [B, H, L]
+Stream C: Multimodal features [B, C, L] → 1D CNN (4 blocks)        → [B, H, L]
+                        |
+                cat → [B, 3H, L] → fusion CNN (4 blocks) → [B, H, L]
+                        |
+                output head → logits [B, L, 3] → residual blend → [B, L, 3]
+```
+
+- **H=32** (hidden dim), **~370K parameters**
+- Dilated convolutions with rates [1,1,1,1,4,4,4,4] → **400 bp receptive field**
+- No transformers — runs on M1 Mac (MPS backend)
+- Window-based training (W=5001), sliding window inference for full genes
+
+### Dense multimodal input channels (C=9)
+
+These features are extracted at **every position** via BigWig/Parquet
+lookups, not at pre-sampled positions:
+
+| Channel | Feature | Source | Signal |
+|---------|---------|--------|--------|
+| 0 | phylop_score | PhyloP BigWig | Dense |
+| 1 | phastcons_score | PhastCons BigWig | Dense |
+| 2 | h3k36me3_max | ENCODE ChIP-seq BigWig | Dense |
+| 3 | h3k4me3_max | ENCODE ChIP-seq BigWig | Dense |
+| 4 | atac_max | ATAC-seq BigWig | Dense |
+| 5 | dnase_max | DNase-seq BigWig | Dense |
+| 6 | junction_log1p | GTEx RNA-seq (0-filled) | Sparse |
+| 7 | junction_has_support | Binary junction indicator | Sparse |
+| 8 | rbp_n_bound | ENCODE eCLIP (0-filled) | Sparse |
+
+For M3-S, channels 6-7 are excluded (junction becomes the prediction
+target), giving C=7.
+
+### Variant support (M4-S)
+
+```python
+ref_probs, alt_probs, delta = model.predict_with_delta(
+    ref_seq, alt_seq, ref_base, alt_base, ref_mm, alt_mm,
+)
+# delta: [B, L, 3] — per-nucleotide splice score changes
+```
+
+---
+
 ## Current Status and Next Steps
+
+### Position-level models (-P)
+
+| Variant | Status | Key results |
+|---------|--------|-------------|
+| M1-P | **Done** (full-genome, SpliceAI split) | 99.74% acc, 103 features, 6.27M positions |
+| M1-P ablation | **Done** | Multimodal reduces FN -62%, FP -68% vs base-only |
+| M2-P | Planned | `04_m2a_ensembl_vs_mane.py` |
+| M3-P | Planned | `05_m3_novel_prediction.py` |
+
+### Sequence-level models (-S)
 
 | Variant | Status | Next milestone |
 |---------|--------|----------------|
-| M1 | Baseline complete (99.78%, XGBoost) | Ablation + SHAP complete; move on |
-| M2 | Feature pipeline ready (full-stack) | Ensembl vs. MANE evaluation (M2a) |
-| M3 | Config ready (`meta_m3_novel.yaml`) | Train on full-genome features, measure junction prediction |
-| M4 | Design documented | Data engineering: wire SpliceVarDB + GTEx sQTLs |
+| M1-S | Model architecture done | Dense data pipeline → training script |
+| M2-S | Same architecture as M1-S | Evaluate on Ensembl-only alternative sites |
+| M3-S | Config ready (7 channels, binary output) | Train with junction as target |
+| M4-S | `predict_with_delta()` implemented | Data engineering: SpliceVarDB + GTEx sQTLs |
 
-The immediate priority is completing full-genome feature generation
-(17 of 24 chromosomes done) so that M2 and M3 can be trained on
-genome-scale data with proper chromosome-level cross-validation.
+### Data pipeline
+
+| Component | Status |
+|-----------|--------|
+| Full-genome feature parquets (9 modalities, 24 chroms) | **Done** (2.88 GB, 116 cols) |
+| FM embeddings (10th modality, Evo2 7B) | Extraction in progress on GPU pod |
+| DenseFeatureExtractor (BigWig → [L, C] arrays) | Planned |
+| SequenceLevelDataset (window-level PyTorch Dataset) | Planned |
+| Dense label arrays (from splice_sites_enhanced.tsv) | Existing infrastructure (`build_splice_labels()`) |
 
 ---
 
@@ -429,13 +558,23 @@ genome-scale data with proper chromosome-level cross-validation.
 
 ### Within the codebase
 
+- **Sequence-level model**:
+  `src/.../meta_layer/models/meta_splice_model_v3.py` (`MetaSpliceModel`, `MetaSpliceConfig`)
+- **Shared training utilities**:
+  `src/.../meta_layer/training/data_utils.py`
+- **M1-P full-genome results**:
+  `examples/meta_layer/docs/m1_fullgenome_results.md`
+- **Ground truth generation**:
+  `examples/data_preparation/04_generate_ground_truth.py`
+- **Dense label builder**:
+  `foundation_models/foundation_models/utils/chunking.py` (`build_splice_labels()`)
 - Alternative splice prediction analysis:
   `docs/meta_layer/predicting_induced_splice_sites/01_alternative_splice_prediction_analysis.md`
 - Virtual transcripts framework:
   `docs/meta_layer/predicting_induced_splice_sites/02_virtual_transcripts.md`
 - Data sources and landscape:
   `docs/meta_layer/predicting_induced_splice_sites/03_data_sources_and_landscape.md`
-- XGBoost baseline:
+- XGBoost baseline (M1-P):
   `examples/meta_layer/01_xgboost_baseline.py`
 - Modality ablation:
   `examples/meta_layer/03_modality_ablation.py`

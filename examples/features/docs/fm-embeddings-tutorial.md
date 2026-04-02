@@ -45,7 +45,30 @@ directly into XGBoost and other tabular meta-layer models:
 |---------|-------------|---------------------|
 | `fm_pca_1` ... `fm_pca_6` | Top-k PCA components (unsupervised) | Dominant variation modes in embedding space correlate with functional categories (exon/intron, splice type, regulatory context) |
 | `fm_embedding_norm` | L2 magnitude of embedding vector | Correlates with model confidence and sequence complexity; unusual sequences have atypical norms |
-| `fm_local_gradient` | L2 norm of embedding change vs neighbors | Detects boundary signals — splice sites are transitions between distinct regulatory contexts |
+| `fm_local_gradient` | L2 norm of embedding deviation from neighbor mean | Detects boundary peaks — positions where the embedding stands out from local context (see note below) |
+
+**Note on `fm_local_gradient`**: Despite the name, this feature is mathematically
+a **Laplacian** (second-order), not a first derivative:
+
+```
+fm_local_gradient = ||emb[i] - mean(emb[i-1], emb[i+1])||
+                  = ||(2·emb[i] - emb[i-1] - emb[i+1])|| / 2
+                  ∝ ||Laplacian(emb[i])||
+```
+
+This detects **peaks/valleys** — positions whose embedding stands out from their
+neighbors. A true first derivative (`||emb[i+1] - emb[i-1]|| / 2`) would instead
+measure the **rate of change** — how fast the embedding is changing, regardless
+of whether the current position is a peak. Both are biologically relevant:
+
+| Derivative | Formula | What it detects | Splice relevance |
+|-----------|---------|-----------------|-----------------|
+| 1st (rate of change) | `\|\|emb[i+1] - emb[i-1]\|\| / 2` | Rapid transitions | High throughout the exon-intron transition zone |
+| 2nd / Laplacian (current) | `\|\|emb[i] - mean(neighbors)\|\|` | Peaks and boundaries | High specifically at the splice site position |
+
+Adding the true first derivative (`fm_local_change_rate`) is on the wishlist.
+Validate the current 8 features first; add if `fm_local_gradient` ranks high
+in SHAP importance.
 
 All features use **strand-aware dual-strand embeddings** for causal models
 (Evo2, HyenaDNA): the gene is encoded on both the forward strand and the

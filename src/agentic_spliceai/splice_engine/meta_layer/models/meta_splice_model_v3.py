@@ -1,0 +1,404 @@
+"""
+Sequence-level multimodal meta-layer for splice site prediction.
+
+Third generation (v3) of the meta-splice model series.  Previous versions:
+  - v1: Position-level classification (``meta_splice_model.py``)
+  - v2: Sequence-to-sequence with base scores only (``meta_splice_model_v2.py``)
+
+This version adds a multimodal feature stream (conservation, epigenetic,
+chromatin, junction, RBP) and operates in a two-pass refinement mode:
+
+    Pass 1 (frozen): base model → base_scores [L, 3]
+    Pass 2 (trainable): sequence + base_scores + multimodal → refined [L, 3]
+
+Architecture::
+
+    Stream A: DNA sequence [B, 4, L]       → dilated 1D CNN  → [B, H, L]
+    Stream B: Base model scores [B, L, 3]  → per-position MLP → [B, H, L]
+    Stream C: Multimodal features [B, C, L] → 1D CNN          → [B, H, L]
+                            |
+                    cat → [B, 3H, L] → fusion CNN → [B, H, L]
+                            |
+                    output head → logits [B, L, 3]
+                            |
+                α × softmax(logits) + (1-α) × softmax(base_scores)
+                            |
+                        output [B, L, 3]
+
+Output follows the same ``[L, 3]`` per-nucleotide protocol as SpliceAI
+and OpenSpliceAI, enabling direct delta computation for variant analysis.
+
+Model naming convention:
+    M1-S / M2-S / M3-S / M4-S  (S = sequence-level, practical)
+    M1-P / M2-P / M3-P         (P = position-level, proof-of-concept)
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from typing import List, Literal, Optional, Tuple
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class MetaSpliceConfig:
+    """Configuration for the sequence-level multimodal meta-splice model.
+
+    Supports M1-S through M4-S variants via ``variant`` and
+    ``mm_channels`` / ``num_classes``.
+    """
+
+    # Model variant
+    variant: Literal["M1-S", "M2-S", "M3-S", "M4-S"] = "M1-S"
+
+    # Architecture
+    hidden_dim: int = 32
+    seq_n_blocks: int = 8
+    seq_dilations: List[int] = field(
+        default_factory=lambda: [1, 1, 1, 1, 4, 4, 4, 4]
+    )
+    mm_n_blocks: int = 4
+    mm_dilations: List[int] = field(
+        default_factory=lambda: [1, 1, 4, 4]
+    )
+    fusion_n_blocks: int = 4
+    fusion_dilations: List[int] = field(
+        default_factory=lambda: [1, 1, 4, 4]
+    )
+    kernel_size: int = 11
+    dropout: float = 0.1
+    use_residual_blend: bool = True
+
+    # Base score handling: if True, base scores (3 channels) are
+    # concatenated into the multimodal stream as additional channels
+    # (2-stream design).  If False, they get a dedicated MLP encoder
+    # (3-stream design, legacy).
+    merge_base_scores: bool = True
+
+    # Multimodal input channels (9 by default, 7 for M3-S).
+    # When merge_base_scores=True, the model internally adds 3 for
+    # the base score channels — callers should NOT include them here.
+    mm_channels: int = 9
+    num_classes: int = 3
+
+    # Training
+    window_size: int = 5001
+    context_padding: int = 400  # dilated CNN receptive field
+
+    @property
+    def total_input_length(self) -> int:
+        """Sequence input length including context padding."""
+        return self.window_size + self.context_padding
+
+    @classmethod
+    def m1(cls, **kwargs) -> MetaSpliceConfig:
+        """M1-S: canonical splice site classification, all modalities."""
+        return cls(variant="M1-S", mm_channels=9, num_classes=3, **kwargs)
+
+    @classmethod
+    def m3(cls, **kwargs) -> MetaSpliceConfig:
+        """M3-S: novel site prediction, junction excluded (7 channels)."""
+        return cls(variant="M3-S", mm_channels=7, num_classes=2, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Building blocks
+# ---------------------------------------------------------------------------
+
+
+class ResidualDilatedBlock(nn.Module):
+    """Residual 1D convolution block with configurable dilation.
+
+    ``BN → ReLU → DilConv → BN → ReLU → DilConv → + residual``
+    """
+
+    def __init__(
+        self,
+        channels: int,
+        kernel_size: int = 11,
+        dilation: int = 1,
+        dropout: float = 0.1,
+    ) -> None:
+        super().__init__()
+
+        padding = (kernel_size - 1) * dilation // 2
+
+        self.bn1 = nn.BatchNorm1d(channels)
+        self.conv1 = nn.Conv1d(
+            channels, channels,
+            kernel_size=kernel_size,
+            padding=padding,
+            dilation=dilation,
+        )
+        self.bn2 = nn.BatchNorm1d(channels)
+        self.conv2 = nn.Conv1d(
+            channels, channels,
+            kernel_size=kernel_size,
+            padding=padding,
+            dilation=dilation,
+        )
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        residual = x
+        out = F.relu(self.bn1(x))
+        out = self.dropout(self.conv1(out))
+        out = F.relu(self.bn2(out))
+        out = self.dropout(self.conv2(out))
+        return out + residual
+
+
+def _build_encoder(
+    in_channels: int,
+    hidden_dim: int,
+    n_blocks: int,
+    dilations: List[int],
+    kernel_size: int,
+    dropout: float,
+) -> nn.Sequential:
+    """Build a 1D CNN encoder: project → N × ResidualDilatedBlock."""
+    layers: List[nn.Module] = [nn.Conv1d(in_channels, hidden_dim, kernel_size=1)]
+    for i in range(n_blocks):
+        d = dilations[i] if i < len(dilations) else 1
+        layers.append(
+            ResidualDilatedBlock(hidden_dim, kernel_size, dilation=d, dropout=dropout)
+        )
+    return nn.Sequential(*layers)
+
+
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+
+
+class MetaSpliceModel(nn.Module):
+    """Sequence-level multimodal meta-layer for splice site prediction.
+
+    Produces ``[B, L, 3]`` per-nucleotide predictions matching the base
+    model protocol, enabling direct delta computation for variant analysis.
+
+    Parameters
+    ----------
+    config : MetaSpliceConfig
+        Model configuration.
+
+    Examples
+    --------
+    >>> cfg = MetaSpliceConfig.m1()
+    >>> model = MetaSpliceModel(cfg)
+    >>> seq = torch.randn(1, 4, 5401)          # one-hot DNA + context
+    >>> base = torch.randn(1, 5001, 3)          # base model scores
+    >>> mm = torch.randn(1, 9, 5001)            # multimodal features
+    >>> out = model(seq, base, mm)
+    >>> print(out.shape)  # [1, 5001, 3]
+    """
+
+    def __init__(self, config: Optional[MetaSpliceConfig] = None) -> None:
+        super().__init__()
+        if config is None:
+            config = MetaSpliceConfig()
+        self.config = config
+        H = config.hidden_dim
+
+        # Stream A: Sequence encoder (dilated 1D CNN)
+        self.seq_encoder = _build_encoder(
+            in_channels=4,
+            hidden_dim=H,
+            n_blocks=config.seq_n_blocks,
+            dilations=config.seq_dilations,
+            kernel_size=config.kernel_size,
+            dropout=config.dropout,
+        )
+
+        # Stream B: Per-position signal encoder (1D CNN)
+        # In merged mode (default): base scores (3 ch) + multimodal (C ch)
+        # In legacy mode: multimodal only (base scores get a separate MLP)
+        if config.merge_base_scores:
+            signal_channels = config.mm_channels + 3
+            self.score_encoder = None
+        else:
+            signal_channels = config.mm_channels
+            self.score_encoder = nn.Sequential(
+                nn.Linear(3, H),
+                nn.ReLU(),
+                nn.Dropout(config.dropout),
+                nn.Linear(H, H),
+            )
+
+        self.signal_encoder = _build_encoder(
+            in_channels=signal_channels,
+            hidden_dim=H,
+            n_blocks=config.mm_n_blocks,
+            dilations=config.mm_dilations,
+            kernel_size=config.kernel_size,
+            dropout=config.dropout,
+        )
+
+        # Fusion: 2 or 3 streams → single representation
+        n_streams = 2 if config.merge_base_scores else 3
+        self.fusion_proj = nn.Conv1d(n_streams * H, H, kernel_size=1)
+        self.fusion_blocks = nn.Sequential(
+            *[
+                ResidualDilatedBlock(
+                    H, config.kernel_size,
+                    dilation=config.fusion_dilations[i]
+                    if i < len(config.fusion_dilations)
+                    else 1,
+                    dropout=config.dropout,
+                )
+                for i in range(config.fusion_n_blocks)
+            ]
+        )
+
+        # Output head
+        self.output_head = nn.Sequential(
+            nn.Linear(H, H),
+            nn.ReLU(),
+            nn.Dropout(config.dropout),
+            nn.Linear(H, config.num_classes),
+        )
+
+        # Learnable residual blend weight (initialized at 0.5)
+        if config.use_residual_blend:
+            self.blend_alpha = nn.Parameter(torch.tensor(0.0))  # sigmoid(0) = 0.5
+
+        self._log_model_info()
+
+    def _log_model_info(self) -> None:
+        n_params = sum(p.numel() for p in self.parameters())
+        logger.info(
+            "MetaSpliceModel (%s): %.1fK params, H=%d, mm_channels=%d",
+            self.config.variant,
+            n_params / 1000,
+            self.config.hidden_dim,
+            self.config.mm_channels,
+        )
+
+    def forward(
+        self,
+        sequence: torch.Tensor,
+        base_scores: torch.Tensor,
+        mm_features: torch.Tensor,
+    ) -> torch.Tensor:
+        """Forward pass.
+
+        Parameters
+        ----------
+        sequence : torch.Tensor
+            One-hot encoded DNA ``[B, 4, L_seq]`` where
+            ``L_seq = window_size + context_padding``.
+        base_scores : torch.Tensor
+            Base model predictions ``[B, L, 3]`` (L = window_size).
+        mm_features : torch.Tensor
+            Dense multimodal features ``[B, C_mm, L]``.
+
+        Returns
+        -------
+        torch.Tensor
+            Refined predictions ``[B, L, 3]`` with softmax constraint.
+        """
+        L = base_scores.shape[1]
+
+        # Stream A: encode sequence (may be longer due to context padding)
+        seq_feat = self.seq_encoder(sequence)  # [B, H, L_seq]
+        # Crop to match output length (center crop)
+        if seq_feat.shape[2] > L:
+            excess = seq_feat.shape[2] - L
+            left = excess // 2
+            seq_feat = seq_feat[:, :, left:left + L]  # [B, H, L]
+
+        # Stream B: per-position signals
+        if self.config.merge_base_scores:
+            # Merge base scores into multimodal stream as 3 extra channels
+            base_ch = base_scores.permute(0, 2, 1).contiguous()  # [B, 3, L]
+            signal_input = torch.cat([base_ch, mm_features], dim=1)  # [B, 3+C, L]
+            signal_feat = self.signal_encoder(signal_input)  # [B, H, L]
+            fused = torch.cat([seq_feat, signal_feat], dim=1)  # [B, 2H, L]
+        else:
+            # Legacy 3-stream: separate MLP for base scores
+            score_feat = self.score_encoder(base_scores)  # [B, L, H]
+            score_feat = score_feat.permute(0, 2, 1).contiguous()  # [B, H, L]
+            mm_feat = self.signal_encoder(mm_features)  # [B, H, L]
+            fused = torch.cat([seq_feat, score_feat, mm_feat], dim=1)  # [B, 3H, L]
+
+        # Fusion
+        fused = self.fusion_proj(fused)  # [B, H, L]
+        fused = self.fusion_blocks(fused)  # [B, H, L]
+
+        # Output head (pointwise)
+        fused = fused.permute(0, 2, 1).contiguous()  # [B, L, H]
+        logits = self.output_head(fused)  # [B, L, num_classes]
+
+        if self.training:
+            # During training: return raw logits for cross-entropy loss.
+            # Avoids log(softmax(...)) chain that causes MPS autograd issues.
+            return logits
+
+        # During inference: apply softmax and optional residual blend
+        if self.config.use_residual_blend and self.config.num_classes == 3:
+            alpha = torch.sigmoid(self.blend_alpha)
+            meta_probs = F.softmax(logits, dim=-1)
+            base_probs = F.softmax(base_scores, dim=-1)
+            return alpha * meta_probs + (1.0 - alpha) * base_probs
+        else:
+            return F.softmax(logits, dim=-1)
+
+    def predict_with_delta(
+        self,
+        ref_sequence: torch.Tensor,
+        alt_sequence: torch.Tensor,
+        ref_base_scores: torch.Tensor,
+        alt_base_scores: torch.Tensor,
+        ref_mm_features: torch.Tensor,
+        alt_mm_features: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Predict and compute delta scores for variant analysis (M4-S).
+
+        Returns
+        -------
+        (ref_probs, alt_probs, delta)
+            Each ``[B, L, 3]``.  ``delta = alt_probs - ref_probs``.
+        """
+        ref_probs = self.forward(ref_sequence, ref_base_scores, ref_mm_features)
+        alt_probs = self.forward(alt_sequence, alt_base_scores, alt_mm_features)
+        return ref_probs, alt_probs, alt_probs - ref_probs
+
+    @property
+    def receptive_field(self) -> int:
+        """Approximate receptive field of the sequence encoder in bp."""
+        k = self.config.kernel_size
+        return 2 * sum(d * (k - 1) for d in self.config.seq_dilations)
+
+
+# ---------------------------------------------------------------------------
+# Factory
+# ---------------------------------------------------------------------------
+
+
+def create_meta_splice_model(
+    config: Optional[MetaSpliceConfig] = None,
+    **kwargs,
+) -> MetaSpliceModel:
+    """Create a MetaSpliceModel instance.
+
+    Parameters
+    ----------
+    config : MetaSpliceConfig, optional
+        Full configuration.  If None, creates default M1-S config.
+    **kwargs
+        Overrides passed to ``MetaSpliceConfig()`` if ``config`` is None.
+    """
+    if config is None:
+        config = MetaSpliceConfig(**kwargs)
+    return MetaSpliceModel(config)
