@@ -200,12 +200,21 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--hidden-dim", type=int, default=32)
+    parser.add_argument(
+        "--activation", choices=["relu", "gelu", "selu"], default="gelu",
+        help="Activation function (default: relu). See meta_layer/docs/architecture_search.md",
+    )
     parser.add_argument("--window-size", type=int, default=5001)
     parser.add_argument("--samples-per-epoch", type=int, default=50_000)
     parser.add_argument("--max-genes", type=int, default=None,
                         help="Limit genes for quick testing")
     parser.add_argument("--accumulation-steps", type=int, default=4)
     parser.add_argument("--patience", type=int, default=10)
+    parser.add_argument(
+        "--bigwig-cache", type=Path, default=None,
+        help="Local directory with cached conservation bigWig files "
+             "(avoids slow remote streaming). E.g., /runpod-volume/bigwig_cache",
+    )
     parser.add_argument("--checkpoint", type=Path, default=None,
                         help="Resume from checkpoint")
     parser.add_argument("--output-dir", type=Path, default=None)
@@ -295,7 +304,11 @@ def main() -> int:
 
     # ── Build gene caches ────────────────────────────────────────────
     exclude_channels = M3_EXCLUDE if args.mode == "m3" else set()
-    feat_config = DenseFeatureConfig(build="GRCh38", exclude_channels=exclude_channels)
+    feat_config = DenseFeatureConfig(
+        build="GRCh38",
+        exclude_channels=exclude_channels,
+        bigwig_cache_dir=args.bigwig_cache,
+    )
     extractor = DenseFeatureExtractor(feat_config)
 
     print(f"\n  Building training gene cache ({len(train_genes)} genes)...")
@@ -339,11 +352,13 @@ def main() -> int:
         cfg = MetaSpliceConfig(
             variant="M1-S", hidden_dim=args.hidden_dim,
             mm_channels=mm_channels, num_classes=3,
+            activation=args.activation,
         )
     else:
         cfg = MetaSpliceConfig(
             variant="M3-S", hidden_dim=args.hidden_dim,
             mm_channels=mm_channels, num_classes=2,
+            activation=args.activation,
         )
 
     model = MetaSpliceModel(cfg).to(device)

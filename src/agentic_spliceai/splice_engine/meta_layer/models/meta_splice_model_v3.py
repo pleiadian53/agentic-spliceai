@@ -78,6 +78,7 @@ class MetaSpliceConfig:
     )
     kernel_size: int = 11
     dropout: float = 0.1
+    activation: Literal["relu", "gelu", "selu"] = "gelu"
     use_residual_blend: bool = True
 
     # Base score handling: if True, base scores (3 channels) are
@@ -117,10 +118,24 @@ class MetaSpliceConfig:
 # ---------------------------------------------------------------------------
 
 
-class ResidualDilatedBlock(nn.Module):
-    """Residual 1D convolution block with configurable dilation.
+def _get_activation(name: str) -> nn.Module:
+    """Return activation module by name."""
+    if name == "relu":
+        return nn.ReLU()
+    elif name == "gelu":
+        return nn.GELU()
+    elif name == "selu":
+        return nn.SELU()
+    raise ValueError(f"Unknown activation: {name!r}. Choose from: relu, gelu, selu")
 
-    ``BN → ReLU → DilConv → BN → ReLU → DilConv → + residual``
+
+class ResidualDilatedBlock(nn.Module):
+    """Residual 1D convolution block with configurable dilation and activation.
+
+    Default layout: ``BN → act → DilConv → BN → act → DilConv → + residual``
+
+    When ``activation="selu"``, BatchNorm is replaced with identity (SELU
+    is self-normalizing) and AlphaDropout is used instead of standard Dropout.
     """
 
     def __init__(
@@ -129,32 +144,46 @@ class ResidualDilatedBlock(nn.Module):
         kernel_size: int = 11,
         dilation: int = 1,
         dropout: float = 0.1,
+        activation: str = "relu",
     ) -> None:
         super().__init__()
 
         padding = (kernel_size - 1) * dilation // 2
+        use_selu = activation == "selu"
 
-        self.bn1 = nn.BatchNorm1d(channels)
+        # SELU is self-normalizing — skip BatchNorm to preserve its properties
+        self.norm1 = nn.Identity() if use_selu else nn.BatchNorm1d(channels)
+        self.norm2 = nn.Identity() if use_selu else nn.BatchNorm1d(channels)
+
+        self.act1 = _get_activation(activation)
+        self.act2 = _get_activation(activation)
+
         self.conv1 = nn.Conv1d(
             channels, channels,
             kernel_size=kernel_size,
             padding=padding,
             dilation=dilation,
         )
-        self.bn2 = nn.BatchNorm1d(channels)
         self.conv2 = nn.Conv1d(
             channels, channels,
             kernel_size=kernel_size,
             padding=padding,
             dilation=dilation,
         )
-        self.dropout = nn.Dropout(dropout)
+
+        # SELU requires AlphaDropout to maintain self-normalizing properties
+        self.dropout = nn.AlphaDropout(dropout) if use_selu else nn.Dropout(dropout)
+
+        # LeCun normal init for SELU (required for self-normalization)
+        if use_selu:
+            nn.init.kaiming_normal_(self.conv1.weight, nonlinearity="linear")
+            nn.init.kaiming_normal_(self.conv2.weight, nonlinearity="linear")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
-        out = F.relu(self.bn1(x))
+        out = self.act1(self.norm1(x))
         out = self.dropout(self.conv1(out))
-        out = F.relu(self.bn2(out))
+        out = self.act2(self.norm2(out))
         out = self.dropout(self.conv2(out))
         return out + residual
 
@@ -166,13 +195,17 @@ def _build_encoder(
     dilations: List[int],
     kernel_size: int,
     dropout: float,
+    activation: str = "relu",
 ) -> nn.Sequential:
     """Build a 1D CNN encoder: project → N × ResidualDilatedBlock."""
     layers: List[nn.Module] = [nn.Conv1d(in_channels, hidden_dim, kernel_size=1)]
     for i in range(n_blocks):
         d = dilations[i] if i < len(dilations) else 1
         layers.append(
-            ResidualDilatedBlock(hidden_dim, kernel_size, dilation=d, dropout=dropout)
+            ResidualDilatedBlock(
+                hidden_dim, kernel_size, dilation=d,
+                dropout=dropout, activation=activation,
+            )
         )
     return nn.Sequential(*layers)
 
@@ -211,6 +244,8 @@ class MetaSpliceModel(nn.Module):
         self.config = config
         H = config.hidden_dim
 
+        act = config.activation
+
         # Stream A: Sequence encoder (dilated 1D CNN)
         self.seq_encoder = _build_encoder(
             in_channels=4,
@@ -219,6 +254,7 @@ class MetaSpliceModel(nn.Module):
             dilations=config.seq_dilations,
             kernel_size=config.kernel_size,
             dropout=config.dropout,
+            activation=act,
         )
 
         # Stream B: Per-position signal encoder (1D CNN)
@@ -231,7 +267,7 @@ class MetaSpliceModel(nn.Module):
             signal_channels = config.mm_channels
             self.score_encoder = nn.Sequential(
                 nn.Linear(3, H),
-                nn.ReLU(),
+                _get_activation(act),
                 nn.Dropout(config.dropout),
                 nn.Linear(H, H),
             )
@@ -243,6 +279,7 @@ class MetaSpliceModel(nn.Module):
             dilations=config.mm_dilations,
             kernel_size=config.kernel_size,
             dropout=config.dropout,
+            activation=act,
         )
 
         # Fusion: 2 or 3 streams → single representation
@@ -256,6 +293,7 @@ class MetaSpliceModel(nn.Module):
                     if i < len(config.fusion_dilations)
                     else 1,
                     dropout=config.dropout,
+                    activation=act,
                 )
                 for i in range(config.fusion_n_blocks)
             ]

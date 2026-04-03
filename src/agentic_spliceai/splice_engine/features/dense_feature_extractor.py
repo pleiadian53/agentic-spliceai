@@ -96,6 +96,35 @@ class DenseFeatureConfig:
     eclip_parquet: Optional[Path] = None
 
 
+def _resolve_default_bigwig_cache() -> Optional[Path]:
+    """Resolve bigwig cache directory from settings.yaml.
+
+    Reads ``cache.bigwig_dir`` from the project's ``settings.yaml``
+    and resolves it relative to the project root.  Returns None if
+    the path doesn't exist (falls back to remote streaming).
+    """
+    try:
+        import yaml
+        from agentic_spliceai.splice_engine.config.genomic_config import get_project_root
+
+        settings_path = Path(__file__).resolve().parents[1] / "config" / "settings.yaml"
+        if not settings_path.exists():
+            return None
+
+        with open(settings_path) as f:
+            settings = yaml.safe_load(f)
+
+        bigwig_dir = (settings.get("cache") or {}).get("bigwig_dir")
+        if bigwig_dir:
+            path = get_project_root() / bigwig_dir
+            if path.exists():
+                logger.debug("Using bigwig cache: %s", path)
+                return path
+    except Exception:
+        pass
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Extractor
 # ---------------------------------------------------------------------------
@@ -117,6 +146,11 @@ class DenseFeatureExtractor:
     def __init__(self, config: Optional[DenseFeatureConfig] = None) -> None:
         if config is None:
             config = DenseFeatureConfig()
+
+        # Auto-resolve bigwig cache from settings.yaml if not explicitly set
+        if config.bigwig_cache_dir is None:
+            config.bigwig_cache_dir = _resolve_default_bigwig_cache()
+
         self.config = config
 
         # Determine active channels
@@ -410,21 +444,30 @@ class DenseFeatureExtractor:
         return out
 
     def _get_junction_index(self) -> Optional[Dict]:
-        """Load and cache junction index from parquet."""
+        """Load and cache junction index from parquet.
+
+        The GTEx junction parquet has per-junction rows with ``start``/``end``
+        (intron boundaries in STAR convention).  We melt each junction into
+        two boundary positions following the same coordinate fix as
+        ``JunctionModality``: ``donor_pos = start - 1``,
+        ``acceptor_pos = end + 1`` (convert intron to exon boundaries).
+        """
         if self._junction_index is not None:
             return self._junction_index
 
         path = self.config.junction_parquet
         if path is None:
-            # Try auto-resolve
+            # Try auto-resolve from registry
             try:
                 from agentic_spliceai.splice_engine.resources import get_model_resources
                 resources = get_model_resources("openspliceai")
                 registry = resources.get_registry()
                 from pathlib import Path as P
-                candidate = P(registry.stash) / "junction_data" / "gtex_junction_summary.parquet"
-                if candidate.exists():
-                    path = candidate
+                for name in ("junctions_gtex_v8.parquet", "gtex_junction_summary.parquet"):
+                    candidate = P(registry.stash) / "junction_data" / name
+                    if candidate.exists():
+                        path = candidate
+                        break
             except Exception:
                 pass
 
@@ -437,23 +480,40 @@ class DenseFeatureExtractor:
         logger.info("Loading junction index from %s", path)
         df = pl.read_parquet(path)
 
-        # Build dict: chrom -> {position -> {log1p, has_support}}
+        # Melt junctions into donor + acceptor positions
+        # STAR convention: start = first intronic base (1-based)
+        #                  end   = last intronic base (1-based)
+        # Exon boundary:   donor_pos = start - 1, acceptor_pos = end + 1
+        reads_col = "sum_reads" if "sum_reads" in df.columns else "unique_reads"
+
         index: Dict[str, Dict[int, Dict[str, float]]] = {}
+
         for row in df.iter_rows(named=True):
-            chrom = row.get("chrom", "")
-            pos = int(row.get("position", row.get("donor_pos", 0)))
-            total_reads = float(row.get("unique_reads", row.get("total_reads", 0)))
+            chrom = row["chrom"]
+            total_reads = float(row.get(reads_col, 0))
+            log1p_val = float(np.log1p(total_reads))
+            has_support = 1.0 if total_reads > 0 else 0.0
 
             if chrom not in index:
                 index[chrom] = {}
-            index[chrom][pos] = {
-                "log1p": float(np.log1p(total_reads)),
-                "has_support": 1.0 if total_reads > 0 else 0.0,
-            }
+
+            # Donor position (last exonic base before intron)
+            donor_pos = int(row["start"]) - 1
+            # Acceptor position (first exonic base after intron)
+            acceptor_pos = int(row["end"]) + 1
+
+            for pos in (donor_pos, acceptor_pos):
+                existing = index[chrom].get(pos)
+                if existing is None or log1p_val > existing["log1p"]:
+                    index[chrom][pos] = {
+                        "log1p": log1p_val,
+                        "has_support": has_support,
+                    }
 
         self._junction_index = index
-        logger.info("Junction index: %d chromosomes, %d positions",
-                     len(index), sum(len(v) for v in index.values()))
+        n_positions = sum(len(v) for v in index.values())
+        logger.info("Junction index: %d chromosomes, %d positions (from %d junctions)",
+                     len(index), n_positions, df.height)
         return self._junction_index
 
     # ------------------------------------------------------------------

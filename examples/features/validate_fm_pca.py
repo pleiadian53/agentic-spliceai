@@ -122,8 +122,12 @@ def validate_scalars(scalar_path: Path, pca_path: Path) -> None:
             print(f"  {col:<22} {'ALL NULL':>10}")
             continue
         arr = valid.to_numpy()
-        print(f"  {col:<22} {arr.mean():>10.4f} {arr.std():>10.4f} "
-              f"{arr.min():>10.4f} {arr.max():>10.4f} {nulls:>8}")
+        # Use nan-safe stats: gradient values are stored as float NaN
+        # (from Python's float('nan') at gene boundaries), not Polars
+        # nulls — so drop_nulls() doesn't filter them.
+        n_nan = int(np.isnan(arr).sum())
+        print(f"  {col:<22} {np.nanmean(arr):>10.4f} {np.nanstd(arr):>10.4f} "
+              f"{np.nanmin(arr):>10.4f} {np.nanmax(arr):>10.4f} {nulls + n_nan:>8}")
 
     # ── PCA component correlations ───────────────────────────────
     if len(pca_cols) >= 2:
@@ -140,11 +144,14 @@ def validate_scalars(scalar_path: Path, pca_path: Path) -> None:
 
     # ── Gradient distribution ────────────────────────────────────
     if "fm_local_gradient" in df.columns:
-        grad = df["fm_local_gradient"].drop_nulls().to_numpy()
-        n_null = df["fm_local_gradient"].null_count()
+        raw = df["fm_local_gradient"].to_numpy()
+        # Gradient uses float NaN for gene boundaries (not Polars null),
+        # so filter with np.isnan rather than drop_nulls().
+        n_nan = int(np.isnan(raw).sum())
+        grad = raw[~np.isnan(raw)]
         print(f"\n  Gradient analysis:")
-        print(f"    Non-null: {len(grad):,} ({len(grad)/n*100:.1f}%)")
-        print(f"    Null (gene boundaries): {n_null:,} ({n_null/n*100:.1f}%)")
+        print(f"    Valid: {len(grad):,} ({len(grad)/n*100:.1f}%)")
+        print(f"    NaN (gene boundaries): {n_nan:,} ({n_nan/n*100:.1f}%)")
         if len(grad) > 0:
             pcts = np.percentile(grad, [25, 50, 75, 90, 99])
             print(f"    Percentiles [25/50/75/90/99]: "

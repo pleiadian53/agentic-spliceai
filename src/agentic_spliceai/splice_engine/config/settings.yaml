@@ -4,6 +4,12 @@ default_release: "112"
 default_annotation_source: ensembl
 data_root: data
 
+# Cache directories for large remote files (bigWig, etc.)
+# Paths are relative to the project root.  If a file exists in the cache,
+# it is used instead of streaming from the remote URL.
+cache:
+  bigwig_dir: data/cache/bigwig  # PhyloP, PhastCons, ENCODE ChIP-seq / ATAC / DNase
+
 # Derived datasets configuration
 derived_datasets:
   splice_sites: "splice_sites_enhanced.tsv"
