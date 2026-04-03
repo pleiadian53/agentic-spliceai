@@ -383,11 +383,24 @@ class DenseFeatureExtractor:
         start: int,
         end: int,
     ) -> np.ndarray:
-        """Query a bigWig by URL with handle caching."""
+        """Query a bigWig by URL with handle caching.
+
+        If ``bigwig_cache_dir`` is set, checks for a local copy by filename
+        before streaming from the remote URL.
+        """
         if cache_key not in self._bigwig_handles:
             import pyBigWig
-            logger.debug("Opening bigWig: %s", url)
-            self._bigwig_handles[cache_key] = pyBigWig.open(url)
+
+            source = url
+            # Prefer local cache if available
+            if self.config.bigwig_cache_dir:
+                fname = url.rsplit("/", 1)[-1]
+                local = self.config.bigwig_cache_dir / fname
+                if local.exists():
+                    source = str(local)
+
+            logger.debug("Opening bigWig: %s", source)
+            self._bigwig_handles[cache_key] = pyBigWig.open(source)
 
         bw = self._bigwig_handles[cache_key]
         bw_chrom = self._resolve_bigwig_chrom(bw, chrom)
