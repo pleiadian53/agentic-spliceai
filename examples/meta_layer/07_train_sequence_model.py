@@ -208,6 +208,11 @@ def main() -> int:
     parser.add_argument("--samples-per-epoch", type=int, default=50_000)
     parser.add_argument("--max-genes", type=int, default=None,
                         help="Limit genes for quick testing")
+    parser.add_argument(
+        "--cache-dir", type=Path, default=None,
+        help="Directory for disk-backed gene cache (.npz per gene). "
+             "Default: <output-dir>/gene_cache/",
+    )
     parser.add_argument("--accumulation-steps", type=int, default=4)
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument(
@@ -249,7 +254,7 @@ def main() -> int:
         MetaSpliceModel, MetaSpliceConfig,
     )
     from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset import (
-        SequenceLevelDataset, GeneCacheEntry, build_gene_cache,
+        SequenceLevelDataset, build_gene_cache,
     )
     from agentic_spliceai.splice_engine.features.dense_feature_extractor import (
         DenseFeatureExtractor, DenseFeatureConfig, M3_EXCLUDE,
@@ -311,33 +316,40 @@ def main() -> int:
     )
     extractor = DenseFeatureExtractor(feat_config)
 
+    # Resolve cache directory (disk-backed to avoid OOM)
+    output_dir = args.output_dir or Path(f"output/meta_layer/{args.mode}s")
+    cache_dir = args.cache_dir or output_dir / "gene_cache"
+
     print(f"\n  Building training gene cache ({len(train_genes)} genes)...")
+    print(f"    Cache dir: {cache_dir}")
     t0 = time.time()
-    train_cache = build_gene_cache(
+    train_index = build_gene_cache(
         train_genes, splice_sites_df, fasta_path,
         base_scores_dir, extractor, gene_annotations,
+        cache_dir=cache_dir / "train",
     )
-    print(f"    Cached {len(train_cache)} genes in {time.time() - t0:.1f}s")
+    print(f"    Cached {len(train_index)} genes in {time.time() - t0:.1f}s")
 
     print(f"  Building validation gene cache ({len(val_genes)} genes)...")
-    val_cache = build_gene_cache(
+    val_index = build_gene_cache(
         val_genes, splice_sites_df, fasta_path,
         base_scores_dir, extractor, gene_annotations,
+        cache_dir=cache_dir / "val",
     )
-    print(f"    Cached {len(val_cache)} genes")
+    print(f"    Cached {len(val_index)} genes")
 
     extractor.close()
 
     # ── Datasets + loaders ───────────────────────────────────────────
     mm_channels = extractor.num_channels
     train_ds = SequenceLevelDataset(
-        train_cache,
+        train_index,
         window_size=args.window_size,
         context_padding=400,
         samples_per_epoch=args.samples_per_epoch,
     )
     val_ds = SequenceLevelDataset(
-        val_cache,
+        val_index,
         window_size=args.window_size,
         context_padding=400,
         samples_per_epoch=min(5000, args.samples_per_epoch // 10),
@@ -384,7 +396,6 @@ def main() -> int:
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     # ── Output directory ─────────────────────────────────────────────
-    output_dir = args.output_dir or Path(f"output/meta_layer/{args.mode}s")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Training loop ────────────────────────────────────────────────

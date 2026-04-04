@@ -46,6 +46,7 @@ python -u examples/meta_layer/07_train_sequence_model.py \
     --samples-per-epoch 100000 \
     --patience 10 \
     --bigwig-cache "$BIGWIG_CACHE" \
+    --cache-dir /runpod-volume/output/meta_layer/gene_cache \
     --output-dir "$OUTPUT_DIR"
 
 echo "============================================================"

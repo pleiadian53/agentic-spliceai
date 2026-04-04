@@ -7,24 +7,23 @@ Provides windowed training samples with:
     - Dense multimodal features ``[C, W]``
     - Per-position labels ``[W]``
 
-Each sample is a genomic window extracted from a pre-cached gene.
-Windows are sampled with bias toward splice sites to mitigate the
-extreme class imbalance (~99.4% "neither").
+Gene data is stored on disk as ``.npz`` files (one per gene) and loaded
+on-the-fly during training.  This bounds peak memory to ~1 gene at a
+time, regardless of the total number of training genes.
 
 Label encoding follows the meta-layer convention:
     0 = donor, 1 = acceptor, 2 = neither
 
 Note: ``build_splice_labels()`` in ``foundation_models/utils/chunking.py``
 uses a different encoding (0=none, 1=acceptor, 2=donor).  The mapping
-is applied once during cache construction.  If we later unify the
-conventions across the codebase, the ``_CHUNKING_TO_META`` map can be
-replaced with an identity.
+is applied once during cache construction.
 """
 
 from __future__ import annotations
 
+import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -47,36 +46,38 @@ _ONEHOT_MAP = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Gene index (lightweight metadata, held in RAM)
+# ---------------------------------------------------------------------------
+
+
 @dataclass
-class GeneCacheEntry:
-    """Pre-computed data for a single gene."""
+class GeneIndexEntry:
+    """Lightweight metadata for one cached gene (no arrays in RAM)."""
     gene_id: str
-    chrom: str
-    start: int
-    end: int
-    strand: str
-    sequence: str
-    base_scores: np.ndarray   # [L, 3] float32
-    mm_features: np.ndarray   # [L, C] float32
-    labels: np.ndarray        # [L] int64
+    npz_path: Path
+    length: int
+    n_splice_sites: int
+    splice_positions: np.ndarray  # small int array (typically <100 positions)
 
-    @property
-    def length(self) -> int:
-        return len(self.sequence)
 
-    @property
-    def splice_positions(self) -> np.ndarray:
-        """Indices where labels != 2 (donor or acceptor)."""
-        return np.where(self.labels != 2)[0]
+# ---------------------------------------------------------------------------
+# Dataset
+# ---------------------------------------------------------------------------
 
 
 class SequenceLevelDataset(Dataset):
-    """Window-level dataset for training sequence-level meta models.
+    """Window-level dataset with disk-backed gene cache.
+
+    Gene data (sequence, base scores, features, labels) is stored on disk
+    as ``.npz`` files.  Only one gene is loaded into memory at a time
+    during ``__getitem__``, bounding peak RAM to ~1 gene regardless of
+    the total training set size.
 
     Parameters
     ----------
-    gene_cache : list of GeneCacheEntry
-        Pre-computed gene data.
+    gene_index : list of GeneIndexEntry
+        Lightweight index of cached genes (from ``build_gene_cache``).
     window_size : int
         Output window length (default 5001).
     context_padding : int
@@ -91,14 +92,14 @@ class SequenceLevelDataset(Dataset):
 
     def __init__(
         self,
-        gene_cache: List[GeneCacheEntry],
+        gene_index: List[GeneIndexEntry],
         window_size: int = 5001,
         context_padding: int = 400,
         splice_bias: float = 0.5,
         samples_per_epoch: int = 50_000,
         seed: int = 42,
     ) -> None:
-        self.gene_cache = gene_cache
+        self.gene_index = gene_index
         self.window_size = window_size
         self.context_padding = context_padding
         self.splice_bias = splice_bias
@@ -107,17 +108,14 @@ class SequenceLevelDataset(Dataset):
 
         min_length = window_size + context_padding
         self._genes_with_splices: List[int] = []
-        self._splice_positions_by_gene: Dict[int, np.ndarray] = {}
         self._valid_genes: List[int] = []
 
-        for i, gene in enumerate(gene_cache):
-            if gene.length < min_length:
+        for i, entry in enumerate(gene_index):
+            if entry.length < min_length:
                 continue
             self._valid_genes.append(i)
-            sp = gene.splice_positions
-            if len(sp) > 0:
+            if entry.n_splice_sites > 0:
                 self._genes_with_splices.append(i)
-                self._splice_positions_by_gene[i] = sp
 
         logger.info(
             "SequenceLevelDataset: %d genes (%d with splice sites), "
@@ -143,23 +141,26 @@ class SequenceLevelDataset(Dataset):
 
         if use_splice:
             gene_idx = self._rng.choice(self._genes_with_splices)
-            gene = self.gene_cache[gene_idx]
-            sp = self._splice_positions_by_gene[gene_idx]
+            entry = self.gene_index[gene_idx]
+            # Load gene data from disk
+            gene = _load_gene_npz(entry.npz_path)
+            sp = entry.splice_positions
             center = self._rng.choice(sp)
             jitter = self._rng.randint(-W // 4, W // 4 + 1)
             out_start = max(0, center - W // 2 + jitter)
         else:
             gene_idx = self._rng.choice(self._valid_genes)
-            gene = self.gene_cache[gene_idx]
-            out_start = self._rng.randint(0, max(1, gene.length - W))
+            entry = self.gene_index[gene_idx]
+            gene = _load_gene_npz(entry.npz_path)
+            out_start = self._rng.randint(0, max(1, entry.length - W))
 
-        out_start = max(0, min(out_start, gene.length - W))
+        out_start = max(0, min(out_start, entry.length - W))
         out_end = out_start + W
 
         # Sequence with context padding
         seq_start = max(0, out_start - ctx // 2)
-        seq_end = min(gene.length, out_end + (ctx - ctx // 2))
-        seq_onehot = _one_hot_encode(gene.sequence[seq_start:seq_end])
+        seq_end = min(entry.length, out_end + (ctx - ctx // 2))
+        seq_onehot = _one_hot_encode(gene["sequence"][seq_start:seq_end])
 
         total_len = W + ctx
         if seq_onehot.shape[1] < total_len:
@@ -168,9 +169,9 @@ class SequenceLevelDataset(Dataset):
             padded[:, offset:offset + seq_onehot.shape[1]] = seq_onehot
             seq_onehot = padded
 
-        base_scores = gene.base_scores[out_start:out_end]
-        mm_features = gene.mm_features[out_start:out_end]
-        labels = gene.labels[out_start:out_end]
+        base_scores = gene["base_scores"][out_start:out_end]
+        mm_features = gene["mm_features"][out_start:out_end]
+        labels = gene["labels"][out_start:out_end]
 
         return {
             "sequence": torch.from_numpy(seq_onehot),
@@ -178,6 +179,17 @@ class SequenceLevelDataset(Dataset):
             "mm_features": torch.from_numpy(mm_features.T.copy()),  # [C, W]
             "labels": torch.from_numpy(labels),
         }
+
+
+def _load_gene_npz(path: Path) -> Dict[str, np.ndarray]:
+    """Load one gene's data from a .npz file."""
+    data = np.load(path, allow_pickle=True)
+    return {
+        "sequence": str(data["sequence"]),
+        "base_scores": data["base_scores"],
+        "mm_features": data["mm_features"],
+        "labels": data["labels"],
+    }
 
 
 def _one_hot_encode(seq: str) -> np.ndarray:
@@ -194,7 +206,7 @@ def _one_hot_encode(seq: str) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Cache building
+# Cache building (disk-backed)
 # ---------------------------------------------------------------------------
 
 
@@ -205,8 +217,16 @@ def build_gene_cache(
     base_scores_dir: Path,
     feature_extractor: "DenseFeatureExtractor",
     gene_annotations: "polars.DataFrame",
-) -> List[GeneCacheEntry]:
-    """Build pre-computed gene cache for training.
+    cache_dir: Path = Path("/tmp/gene_cache"),
+) -> List[GeneIndexEntry]:
+    """Build disk-backed gene cache for training.
+
+    Each gene is saved as a ``.npz`` file containing sequence, base
+    scores, multimodal features, and labels.  Returns a lightweight
+    index (gene_id, path, length, splice positions) that fits easily
+    in RAM even for 20K+ genes.
+
+    Peak memory: ~1 gene at a time (the current gene being processed).
 
     Parameters
     ----------
@@ -222,15 +242,43 @@ def build_gene_cache(
         Initialized ``DenseFeatureExtractor``.
     gene_annotations:
         Polars DataFrame with gene_id, chrom, start, end, strand.
+    cache_dir:
+        Directory for ``.npz`` files.  Existing files are reused
+        (resume-safe).
+
+    Returns
+    -------
+    List of ``GeneIndexEntry`` (lightweight, ~1 KB per gene in RAM).
     """
     import pyfaidx
     import polars as pl
     from foundation_models.utils.chunking import build_splice_labels
 
+    cache_dir.mkdir(parents=True, exist_ok=True)
     fasta = pyfaidx.Fasta(fasta_path)
-    cache: List[GeneCacheEntry] = []
+    index: List[GeneIndexEntry] = []
 
-    for gene_id in gene_ids:
+    for i, gene_id in enumerate(gene_ids):
+        npz_path = cache_dir / f"{gene_id}.npz"
+
+        # Resume: skip if already cached
+        if npz_path.exists():
+            try:
+                data = np.load(npz_path, allow_pickle=True)
+                labels = data["labels"]
+                sp = np.where(labels != 2)[0]
+                index.append(GeneIndexEntry(
+                    gene_id=gene_id,
+                    npz_path=npz_path,
+                    length=int(data["length"]),
+                    n_splice_sites=len(sp),
+                    splice_positions=sp,
+                ))
+                continue
+            except Exception:
+                pass  # Corrupted file, regenerate
+
+        # Look up gene coordinates
         gene_row = gene_annotations.filter(pl.col("gene_id") == gene_id)
         if gene_row.height == 0:
             gene_row = gene_annotations.filter(pl.col("gene_name") == gene_id)
@@ -241,8 +289,8 @@ def build_gene_cache(
         row = gene_row.row(0, named=True)
         chrom = row["chrom"]
         start, end = int(row["start"]), int(row["end"])
-        strand = row.get("strand", "+")
 
+        # Extract sequence
         try:
             fasta_chrom = chrom.replace("chr", "") if chrom not in fasta.keys() else chrom
             sequence = str(fasta[fasta_chrom][start:end]).upper()
@@ -252,7 +300,7 @@ def build_gene_cache(
 
         gene_len = len(sequence)
 
-        # Labels (convert from chunking encoding to meta-layer encoding)
+        # Labels
         raw_labels = build_splice_labels(gene_id, start, gene_len, splice_sites_df)
         labels = _CHUNKING_TO_META[raw_labels].astype(np.int64)
 
@@ -262,17 +310,34 @@ def build_gene_cache(
         # Dense multimodal features
         mm_features = feature_extractor.extract_window(chrom, start, end)
 
-        cache.append(GeneCacheEntry(
-            gene_id=gene_id, chrom=chrom, start=start, end=end,
-            strand=strand, sequence=sequence,
-            base_scores=base_scores, mm_features=mm_features, labels=labels,
+        # Save to disk
+        np.savez_compressed(
+            npz_path,
+            sequence=np.array(sequence, dtype=object),
+            base_scores=base_scores,
+            mm_features=mm_features,
+            labels=labels,
+            length=np.array(gene_len),
+        )
+
+        # Add to index (only metadata in RAM)
+        sp = np.where(labels != 2)[0]
+        index.append(GeneIndexEntry(
+            gene_id=gene_id,
+            npz_path=npz_path,
+            length=gene_len,
+            n_splice_sites=len(sp),
+            splice_positions=sp,
         ))
 
-        if len(cache) % 100 == 0:
-            logger.info("Cached %d / %d genes", len(cache), len(gene_ids))
+        # Free arrays immediately
+        del sequence, base_scores, mm_features, labels, raw_labels
 
-    logger.info("Gene cache complete: %d genes", len(cache))
-    return cache
+        if (i + 1) % 100 == 0:
+            logger.info("Cached %d / %d genes", i + 1, len(gene_ids))
+
+    logger.info("Gene cache complete: %d genes in %s", len(index), cache_dir)
+    return index
 
 
 def _load_base_scores(
