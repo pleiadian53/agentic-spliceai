@@ -198,6 +198,13 @@ class WorkflowConfig(BaseModelConfig):
         Persist per-chunk classified positions (TP/FP/FN) for evaluation
     """
 
+    # Annotation source override.  When set, the workflow loads gene
+    # annotations from this source instead of the model's default.
+    # For example, ``override_annotation_source="ensembl"`` with
+    # ``base_model="openspliceai"`` runs OpenSpliceAI on Ensembl genes
+    # (instead of MANE), enabling M2a evaluation.
+    override_annotation_source: Optional[str] = None
+
     # Chunking
     chunk_size: int = 500
 
@@ -216,13 +223,29 @@ class WorkflowConfig(BaseModelConfig):
 
         Resolution order:
         1. Explicit ``output_dir`` — always wins.
-        2. ``mode='production'`` — ``{eval_dir}/precomputed/``.
-        3. ``mode='test'`` — left as ``None``; ``PredictionWorkflow``
+        2. ``mode='production'`` with ``override_annotation_source`` —
+           resolves via the overridden annotation source's registry.
+        3. ``mode='production'`` — ``{eval_dir}/precomputed/``.
+        4. ``mode='test'`` — left as ``None``; ``PredictionWorkflow``
            generates a timestamped path under ``output/``.
         """
         super().__post_init__()
         if self.output_dir is not None:
             self.output_dir = Path(self.output_dir)
+        elif self.mode == "production" and self.override_annotation_source:
+            # Resolve output dir from the overridden annotation source
+            from agentic_spliceai.splice_engine.resources import get_genomic_registry
+            build = self.genomic_build
+            src = self.override_annotation_source.lower()
+            if src == "ensembl":
+                reg = get_genomic_registry(build=build, release="112")
+            elif src == "mane":
+                reg = get_genomic_registry(build=f"{build}_MANE", release="1.3")
+            else:
+                reg = get_genomic_registry(build=build, release="87")
+            self.output_dir = reg.get_base_model_eval_dir(
+                self.base_model, create=True,
+            ) / "precomputed"
         elif self.mode == "production":
             self.output_dir = Path(self.eval_dir) / "precomputed"
 

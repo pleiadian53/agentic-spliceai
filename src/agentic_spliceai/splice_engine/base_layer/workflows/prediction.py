@@ -350,16 +350,34 @@ class PredictionWorkflow:
         cfg = self.config
         model_resources = get_model_resources(cfg.base_model)
         build = model_resources.build
-        annotation_source = model_resources.annotation_source
+
+        # Allow annotation source override (e.g., run OpenSpliceAI on
+        # Ensembl genes for M2a evaluation).  Falls back to the model's
+        # default annotation source when not overridden.
+        annotation_source = (
+            getattr(cfg, "override_annotation_source", None)
+            or model_resources.annotation_source
+        )
 
         # Registry resolution
         if annotation_source.lower() == "mane":
             registry_build = build if "_MANE" in build else f"{build}_MANE"
             registry = get_genomic_registry(build=registry_build, release="1.3")
+        elif annotation_source.lower() == "ensembl":
+            # Ensembl on same genome build as the model
+            registry = get_genomic_registry(build=build, release="112")
         else:
             registry = get_genomic_registry(build=build, release="87")
 
-        gtf_path = registry.get_gtf_path(validate=True)
+        # GTF resolution: when annotation source is overridden, always use
+        # the overridden registry's GTF (not the auto-resolved cfg.gtf_file
+        # which points to the model's default annotation source).
+        override_active = getattr(cfg, "override_annotation_source", None)
+        if not override_active and cfg.gtf_file and Path(cfg.gtf_file).exists():
+            gtf_path = Path(cfg.gtf_file)
+        else:
+            gtf_path = registry.get_gtf_path(validate=True)
+
         fasta_path = registry.get_fasta_path(validate=True)
 
         if cfg.verbosity >= 1:
