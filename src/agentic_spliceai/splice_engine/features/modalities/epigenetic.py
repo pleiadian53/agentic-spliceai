@@ -83,12 +83,12 @@ EPIGENETIC_TRACK_REGISTRY: dict[str, dict[str, dict[str, dict[str, str]]]] = {
         "H1": {
             "h3k36me3": {
                 "url": (
-                    "https://encode-public.s3.amazonaws.com/2017/02/15/"
-                    "4564f196-6174-4578-8ca2-c6d9deec4f96/ENCFF141YAA.bigWig"
+                    "https://encode-public.s3.amazonaws.com/2020/11/19/"
+                    "89e1cb7b-0019-46c0-86d7-ed7b7910a445/ENCFF488THD.bigWig"
                 ),
-                "accession": "ENCFF141YAA",
+                "accession": "ENCFF488THD",
                 "experiment": "ENCSR476KTK",
-                "filename": "ENCFF141YAA.bigWig",
+                "filename": "ENCFF488THD.bigWig",
             },
             "h3k4me3": {
                 "url": (
@@ -103,12 +103,12 @@ EPIGENETIC_TRACK_REGISTRY: dict[str, dict[str, dict[str, dict[str, str]]]] = {
         "HepG2": {
             "h3k36me3": {
                 "url": (
-                    "https://encode-public.s3.amazonaws.com/2020/10/29/"
-                    "9a9c2868-0d43-4f3d-bedd-81517a49dad8/ENCFF414GNH.bigWig"
+                    "https://encode-public.s3.amazonaws.com/2022/06/14/"
+                    "cbf630ce-5691-4d19-8649-15accfd22fd7/ENCFF247LOP.bigWig"
                 ),
-                "accession": "ENCFF414GNH",
+                "accession": "ENCFF247LOP",
                 "experiment": "ENCSR000AMB",
-                "filename": "ENCFF414GNH.bigWig",
+                "filename": "ENCFF247LOP.bigWig",
             },
             "h3k4me3": {
                 "url": (

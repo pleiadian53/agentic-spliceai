@@ -133,11 +133,11 @@ DNASE_TRACK_REGISTRY: dict[str, dict[str, dict[str, str]]] = {
         "heart": {
             "url": (
                 "https://encode-public.s3.amazonaws.com/2025/08/21/"
-                "2221005d-7829-495b-8e59-2f99e6f91148/ENCFF885WJZ.bigWig"
+                "8bdf58c3-fe1f-4c6b-984d-3cc854907be7/ENCFF534MZU.bigWig"
             ),
-            "accession": "ENCFF885WJZ",
+            "accession": "ENCFF534MZU",
             "experiment": "ENCSR989YAW",
-            "filename": "ENCFF885WJZ.bigWig",
+            "filename": "ENCFF534MZU.bigWig",
         },
         "lung": {
             "url": (
@@ -160,11 +160,11 @@ DNASE_TRACK_REGISTRY: dict[str, dict[str, dict[str, str]]] = {
         "liver": {
             "url": (
                 "https://encode-public.s3.amazonaws.com/2025/08/14/"
-                "caacdb4d-3c4e-41ef-b355-001984b7f0f3/ENCFF017TVV.bigWig"
+                "5940c739-e7f5-4d12-80a9-6eba2c4bc169/ENCFF008VTZ.bigWig"
             ),
-            "accession": "ENCFF017TVV",
+            "accession": "ENCFF008VTZ",
             "experiment": "ENCSR562FNN",
-            "filename": "ENCFF017TVV.bigWig",
+            "filename": "ENCFF008VTZ.bigWig",
         },
     },
     # GRCh37: No ENCODE DNase-seq signal tracks aligned to hg19.
