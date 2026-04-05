@@ -1,112 +1,81 @@
 # Meta-Layer Documentation
 
-**Last Updated**: December 2025  
-**Status**: Active Development
+**Last Updated**: April 2026
+**Status**: Active Development (Phase 6 — M1-S training, M2 series design)
 
 ---
 
 ## Overview
 
-This directory contains documentation for the **meta-learning layer** that recalibrates base model splice site predictions to improve variant effect detection.
+The meta-layer is a multimodal refinement system that takes frozen base
+model predictions (OpenSpliceAI, SpliceAI) and improves them using
+conservation, epigenetic, chromatin, junction, and RBP evidence. It
+follows the universal `[L, 3]` protocol: given an L-nucleotide sequence,
+output per-position (donor, acceptor, neither) scores.
+
+Four model variants (M1-M4) address progressively harder prediction
+tasks, from canonical site recalibration to perturbation-induced splice
+site discovery.
 
 ---
 
-## Document Index
+## Methods (read in order)
 
-### Core Architecture
+| # | Document | Topic |
+|---|----------|-------|
+| 00 | [Model Variants M1-M4](methods/00_model_variants_m1_m4.md) | Variant definitions, architecture, results, status |
+| 01 | [Label Hierarchy & Weak Supervision](methods/01_label_hierarchy_and_weak_supervision.md) | Label levels (L0-L4), weak-supervision framing, SpliceVarDB |
+| 02 | [Annotation-Driven Splice Prediction](methods/02_annotation_driven_splice_prediction.md) | Annotation as latent variable, GENCODE \ MANE, tier-based confidence |
+| 03 | [Virtual Transcripts & Junction Pairing](methods/03_virtual_transcripts_and_junction_pairing.md) | Representation gap, donor-acceptor pairing, Level 3.5 |
+| 04 | [Data Sources & Landscape](methods/04_data_sources_and_landscape.md) | GTEx, SpliceVault, ENCODE data + ML landscape analysis |
+| 05 | [M2 Variant Formulations](methods/05_m2_variant_formulations.md) | M2a-f training/evaluation protocols |
 
-| Document | Description | Status |
-|----------|-------------|--------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture and design | ✅ |
-| [LABELING_STRATEGY.md](LABELING_STRATEGY.md) | Label derivation from SpliceVarDB | ✅ |
-| [DATA_FORMAT_AND_LEAKAGE.md](DATA_FORMAT_AND_LEAKAGE.md) | Data format and avoiding leakage | ✅ |
-| [TRAINING_GUIDE.md](TRAINING_GUIDE.md) | Step-by-step training instructions | ✅ |
+### Reading guide
 
-### Methodology
-
-| Document | Description | Status |
-|----------|-------------|--------|
-| [methods/README.md](methods/README.md) | Method taxonomy overview | ✅ |
-| [methods/ROADMAP.md](methods/ROADMAP.md) | Development roadmap | ✅ |
-| [methods/PAIRED_DELTA_PREDICTION.md](methods/PAIRED_DELTA_PREDICTION.md) | Siamese/paired prediction | ✅ |
-| [methods/VALIDATED_DELTA_PREDICTION.md](methods/VALIDATED_DELTA_PREDICTION.md) | Single-pass with ground truth (BEST) | ✅ |
-| [MULTI_STEP_FRAMEWORK.md](MULTI_STEP_FRAMEWORK.md) | Decomposed classification | ✅ |
-
-### Experiments
-
-| ID | Experiment | Outcome | Details |
-|----|------------|---------|---------|
-| 001 | Canonical Classification | Partial Success | [docs](experiments/001_canonical_classification/) |
-| 002 | Paired Delta Prediction | r=0.38 | [docs](experiments/002_delta_prediction/) |
-| 003 | Binary Classification | AUC=0.61 | [docs](experiments/003_binary_classification/) |
-| 004 | **Validated Delta (BEST)** | **r=0.41** | [docs](experiments/004_validated_delta/) |
+- **Start here**: 00 (model overview) — defines M1-M4 and current results
+- **Understand the problem**: 01 (label hierarchy) — why this isn't standard supervised learning
+- **Understand M2**: 02 (annotation strategy) + 05 (M2a-f protocols) — the current research frontier
+- **Deeper context**: 03 (junction pairing) + 04 (data landscape) — for M3/M4 planning
 
 ---
 
-## Quick Links
+## Architecture
 
-### Getting Started
-1. Read [ARCHITECTURE.md](ARCHITECTURE.md) for system overview
-2. Review [methods/ROADMAP.md](methods/ROADMAP.md) for methodology context
-3. Check [experiments/004_validated_delta/](experiments/004_validated_delta/) for best approach
-
-### For Training
-1. Read [TRAINING_GUIDE.md](TRAINING_GUIDE.md)
-2. Use [methods/VALIDATED_DELTA_PREDICTION.md](methods/VALIDATED_DELTA_PREDICTION.md) approach
-
-### For Understanding Results
-1. Check [experiments/README.md](experiments/README.md) for experiment index
-2. Review individual experiment docs for details
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture and design principles |
 
 ---
 
-## Package Documentation vs Project Documentation
+## Meta-SpliceAI Archive
 
-This documentation is **package-level** (inside `src/agentic_spliceai/docs/`), focusing on:
-- Implementation details and R&D insights
-- Experiment logs and methodology development
-- Technical deep-dives
+The predecessor project (Meta-SpliceAI) ran four experiments on
+variant-level splice prediction using SpliceVarDB:
 
-For **project-level** documentation (user-facing guides), see:
-- `/docs/` - High-level project documentation
-- `/README.md` - Project overview
+| ID | Experiment | Result |
+|----|------------|--------|
+| 001 | Canonical Classification | 99.1% acc, 17% variant detection |
+| 002 | Paired Delta Prediction | r=0.38 |
+| 003 | Binary Classification | AUC=0.61, F1=0.53 |
+| 004 | Validated Delta Prediction | **r=0.41 (best)** |
+
+Key finding: the bottleneck is label quality (binary variant-level labels),
+not model capacity. This motivated the shift to annotation-tier and
+junction-weighted labeling in the M2 series.
+
+Full archive: [meta-spliceai-archive/](meta-spliceai-archive/)
 
 ---
 
 ## Related Code
 
-| Package | Path | Description |
-|---------|------|-------------|
-| `meta_layer.core` | `splice_engine/meta_layer/core/` | Configuration, artifact loading |
-| `meta_layer.models` | `splice_engine/meta_layer/models/` | Model implementations |
-| `meta_layer.training` | `splice_engine/meta_layer/training/` | Training pipelines |
-| `meta_layer.workflows` | `splice_engine/meta_layer/workflows/` | High-level workflows |
-
----
-
-## Naming Conventions
-
-We avoid cryptic names like "Phase 1", "Approach A", "Approach B" in favor of descriptive names:
-
-| Old Name | New Name | Rationale |
-|----------|----------|-----------|
-| Phase 1 | Canonical Classification | Describes training data |
-| Approach A | Paired Delta Prediction | Describes input format |
-| Approach B | Validated Delta Prediction | Describes target source |
-| Phase 1 Workflow | CanonicalTrainingWorkflow | Self-explanatory |
-
----
-
-*Ported from meta_spliceai with improved naming conventions.*
-
-
-
-
-
-
-
-
-
-
-
-
+| Component | Path |
+|-----------|------|
+| MetaSpliceModel | `src/.../meta_layer/models/meta_splice_model_v3.py` |
+| DenseFeatureExtractor | `src/.../features/dense_feature_extractor.py` |
+| SequenceLevelDataset | `src/.../meta_layer/data/sequence_level_dataset.py` |
+| Shard packing | `src/.../meta_layer/data/shard_packing.py` |
+| Training script | `examples/meta_layer/07_train_sequence_model.py` |
+| XGBoost baseline (M1-P) | `examples/meta_layer/01_xgboost_baseline.py` |
+| M1-P full-genome results | `examples/meta_layer/docs/m1_fullgenome_results.md` |
+| Feature configs | `examples/features/configs/` |
