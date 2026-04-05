@@ -82,8 +82,10 @@ def main():
         help="Explicit GTF path (overrides --annotation-source resolution)",
     )
     parser.add_argument(
-        "--chunk-size", type=int, default=500,
-        help="Genes per chunk (default: 500)",
+        "--chunk-size", type=int, default=None,
+        help="Genes per chunk.  Default: 500 for MANE (~19K genes), "
+             "100 for Ensembl (~57K genes with larger gene spans).  "
+             "Smaller chunks use less memory per iteration.",
     )
     parser.add_argument(
         "--resume", action="store_true",
@@ -106,10 +108,19 @@ def main():
             c if c.startswith("chr") else f"chr{c}" for c in args.chromosomes
         ]
 
+    # Auto-select chunk size based on annotation source.
+    # Ensembl genes are larger on average (alternative transcripts extend
+    # gene boundaries), so per-chunk memory is higher.
+    chunk_size = args.chunk_size
+    if chunk_size is None:
+        effective_source = (args.annotation_source or "mane").lower()
+        chunk_size = 100 if effective_source == "ensembl" else 500
+        print(f"  Auto chunk size: {chunk_size} (for {effective_source})")
+
     # Build config
     config_kwargs = dict(
         base_model=args.model,
-        chunk_size=args.chunk_size,
+        chunk_size=chunk_size,
         mode="production",
         resume=args.resume,
     )
@@ -157,27 +168,117 @@ def main():
     print(f"  Resume:      {args.resume}")
     print(f"  Output:      {config.output_dir}")
 
-    # Run workflow
-    workflow = PredictionWorkflow(config)
-    result = workflow.run(chromosomes=chromosomes)
+    # Run workflow — per-chromosome with incremental parquet saves.
+    #
+    # Each chromosome's predictions are saved as a separate parquet file
+    # (e.g., predictions_chr1.parquet) immediately after processing.
+    # This provides:
+    # 1. Memory bounding — only one chromosome in RAM at a time
+    # 2. Crash recovery — completed chromosomes are preserved on disk
+    # 3. Resume support — existing parquets are skipped on restart
+    import gc
+    import time as _time
+    import polars as pl
+    from agentic_spliceai.splice_engine.utils.memory_monitor import get_rss_bytes_precise
 
-    # Display results
-    print("\n" + "=" * 70)
-    if result.success:
+    def _log_mem(label: str) -> None:
+        rss_gb = get_rss_bytes_precise() / (1024 ** 3)
+        print(f"  [MEM] {label}: {rss_gb:.1f} GB RSS", flush=True)
+
+    output_dir = Path(config.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    total_start = _time.time()
+    total_positions = 0
+    total_processed = 0
+    total_failed = 0
+    skipped_chroms = 0
+
+    _log_mem("start")
+
+    for chrom in chromosomes:
+        # Resume: skip chromosomes with existing parquet
+        parquet_path = output_dir / f"predictions_{chrom}.parquet"
+        if args.resume and parquet_path.exists():
+            try:
+                existing = pl.scan_parquet(parquet_path).select(
+                    pl.len()
+                ).collect().item()
+                print(f"  {chrom}: skipped (resumed, {existing:,} positions)")
+                total_positions += existing
+                skipped_chroms += 1
+                continue
+            except Exception:
+                pass  # Corrupted parquet, reprocess
+
+        chrom_start = _time.time()
+        print(f"\n{'─'*70}")
+        print(f"  Chromosome: {chrom}")
+        print(f"{'─'*70}")
+        _log_mem(f"{chrom} before workflow")
+
+        workflow = PredictionWorkflow(config)
+        result = workflow.run(chromosomes=[chrom])
+        _log_mem(f"{chrom} after workflow")
+
+        if not result.success:
+            print(f"  {chrom}: FAILED — {result.error}")
+            total_failed += 1
+            del workflow, result
+            gc.collect()
+            continue
+
         summary = result.manifest.get_summary()
-        print("Precomputation completed successfully!")
-        print(f"  Predictions: {result.predictions.height:,} positions")
-        print(f"  Chunks:      {result.chunks_processed} processed, "
-              f"{result.chunks_skipped} resumed")
-        print(f"  Runtime:     {result.runtime_seconds:.1f}s")
-        print(f"  Processed:   {summary['processed_genes']} genes")
-        print(f"  Failed:      {summary['failed_genes']} genes")
-        print(f"  Output:      {result.output_dir}")
-    else:
-        print(f"Workflow failed: {result.error}")
-        return 1
+        elapsed = _time.time() - chrom_start
 
-    print("=" * 70)
+        # In streaming mode, predictions are saved as chunk TSV files
+        # but not accumulated in result.predictions.  Aggregate from
+        # chunk files into per-chromosome parquet.
+        if result.predictions.height > 0:
+            result.predictions.write_parquet(parquet_path)
+            n_pos = result.predictions.height
+        else:
+            # Streaming mode: concat chunk files from disk
+            chunk_dir = Path(config.output_dir)
+            chunk_files = sorted(chunk_dir.glob("predictions_chunk_*.tsv"))
+            if chunk_files:
+                chunk_dfs = [pl.read_csv(f, separator="\t") for f in chunk_files]
+                combined = pl.concat(chunk_dfs)
+                combined.write_parquet(parquet_path)
+                n_pos = combined.height
+                del chunk_dfs, combined
+                # Clean up chunk TSVs now that parquet is written
+                for f in chunk_files:
+                    f.unlink()
+            else:
+                n_pos = 0
+
+        if n_pos > 0:
+            print(f"  {chrom}: {n_pos:,} positions, "
+                  f"{summary['processed_genes']} genes ({elapsed:.0f}s)")
+            print(f"    Saved: {parquet_path}")
+            total_positions += n_pos
+            total_processed += summary["processed_genes"]
+            total_failed += summary["failed_genes"]
+        else:
+            print(f"  {chrom}: 0 positions (no genes?)")
+
+        # Aggressively free memory before next chromosome
+        del workflow, result
+        gc.collect()
+        _log_mem(f"{chrom} after gc")
+
+    total_elapsed = _time.time() - total_start
+
+    print(f"\n{'='*70}")
+    print("Precomputation complete!")
+    print(f"  Total positions: {total_positions:,}")
+    print(f"  Processed:       {total_processed} genes")
+    print(f"  Failed:          {total_failed} genes")
+    print(f"  Skipped (resume):{skipped_chroms} chromosomes")
+    print(f"  Runtime:         {total_elapsed:.0f}s")
+    print(f"  Output:          {output_dir}")
+    print(f"{'='*70}")
     return 0
 
 
