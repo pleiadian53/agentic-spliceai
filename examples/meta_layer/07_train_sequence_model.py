@@ -117,6 +117,10 @@ def train_one_epoch(
         total_loss += loss.item() * accumulation_steps
         n_batches += 1
 
+        if n_batches % 1000 == 0:
+            avg = total_loss / n_batches
+            print(f"    batch {n_batches}/{len(loader)} loss={avg:.4f}", flush=True)
+
     # Final step if batches don't divide evenly
     if n_batches % accumulation_steps != 0:
         nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
@@ -193,8 +197,18 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--mode", choices=["m1", "m3"], default="m1",
-        help="Model variant: m1 (canonical, all modalities) or m3 (novel, no junction)",
+        "--mode", choices=["m1", "m2", "m3"], default="m1",
+        help="Model variant: "
+             "m1 (canonical, MANE, all modalities), "
+             "m2 (alternative sites, Ensembl, all modalities), "
+             "m3 (novel sites, no junction features). "
+             "m2 defaults to --annotation-source=ensembl.",
+    )
+    parser.add_argument(
+        "--annotation-source", choices=["mane", "ensembl"], default=None,
+        help="Annotation source for gene definitions and splice sites. "
+             "Default: mane for m1/m3, ensembl for m2. "
+             "Override to mix (e.g., m1 on ensembl for M2a evaluation).",
     )
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=4)
@@ -216,9 +230,20 @@ def main() -> int:
     parser.add_argument("--accumulation-steps", type=int, default=4)
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument(
+        "--base-scores-dir", type=Path, default=None,
+        help="Override base model predictions directory. By default, uses "
+             "OpenSpliceAI MANE precomputed predictions. Set this to use "
+             "Ensembl precomputed predictions for Option A M2a evaluation.",
+    )
+    parser.add_argument(
         "--bigwig-cache", type=Path, default=None,
         help="Local directory with cached conservation bigWig files "
              "(avoids slow remote streaming). E.g., /runpod-volume/bigwig_cache",
+    )
+    parser.add_argument(
+        "--use-shards", action="store_true",
+        help="Pack .npz gene cache into per-chromosome HDF5 shards for "
+             "faster training I/O (HDF5 slice reads instead of full .npz loads).",
     )
     parser.add_argument("--checkpoint", type=Path, default=None,
                         help="Resume from checkpoint")
@@ -254,7 +279,10 @@ def main() -> int:
         MetaSpliceModel, MetaSpliceConfig,
     )
     from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset import (
-        SequenceLevelDataset, build_gene_cache,
+        SequenceLevelDataset, ShardedSequenceLevelDataset, build_gene_cache,
+    )
+    from agentic_spliceai.splice_engine.meta_layer.data.shard_packing import (
+        pack_gene_cache_to_shards, verify_shard_integrity,
     )
     from agentic_spliceai.splice_engine.features.dense_feature_extractor import (
         DenseFeatureExtractor, DenseFeatureConfig, M3_EXCLUDE,
@@ -262,19 +290,40 @@ def main() -> int:
     from agentic_spliceai.splice_engine.eval.splitting import (
         build_gene_split, gene_chromosomes_from_dataframe,
     )
-    from agentic_spliceai.splice_engine.resources import get_model_resources
+    from agentic_spliceai.splice_engine.resources import (
+        get_model_resources, get_genomic_registry,
+    )
 
     # ── Resolve paths ────────────────────────────────────────────────
+    # Base model resources (OpenSpliceAI) — always used for base scores
     resources = get_model_resources("openspliceai")
-    registry = resources.get_registry()
 
+    # Annotation source: m2 defaults to ensembl, others to mane
+    ann_src = args.annotation_source or ("ensembl" if args.mode == "m2" else "mane")
+    if ann_src == "ensembl":
+        ann_registry = get_genomic_registry(build="GRCh38", release="112")
+        print(f"  Annotation source: Ensembl (GRCh38 release 112)")
+    else:
+        ann_registry = resources.get_registry()
+        print(f"  Annotation source: MANE")
+
+    # FASTA is shared across annotation sources (same genome build)
     fasta_path = str(resources.get_fasta_path())
-    splice_sites_path = Path(registry.stash) / "splice_sites_enhanced.tsv"
-    base_scores_dir = registry.get_base_model_eval_dir("openspliceai") / "precomputed"
+    # Splice sites and GTF come from the annotation source
+    splice_sites_path = Path(ann_registry.stash) / "splice_sites_enhanced.tsv"
+    # Base scores: explicit override > Ensembl precomputed > MANE precomputed.
+    # For Ensembl-only regions without precomputed scores, the model falls
+    # back to a uniform 1/3 prior (Option B for M2a evaluation).
+    if args.base_scores_dir:
+        base_scores_dir = args.base_scores_dir
+    else:
+        base_scores_dir = resources.get_registry().get_base_model_eval_dir(
+            "openspliceai"
+        ) / "precomputed"
 
-    print(f"FASTA:        {fasta_path}")
-    print(f"Splice sites: {splice_sites_path}")
-    print(f"Base scores:  {base_scores_dir}")
+    print(f"  FASTA:        {fasta_path}")
+    print(f"  Splice sites: {splice_sites_path}")
+    print(f"  Base scores:  {base_scores_dir}")
 
     # ── Load gene annotations + splice sites ─────────────────────────
     import pandas as pd
@@ -290,9 +339,9 @@ def main() -> int:
     from agentic_spliceai.splice_engine.base_layer.data.genomic_extraction import (
         extract_gene_annotations,
     )
-    gtf_path = str(resources.get_gtf_path())
+    gtf_path = str(ann_registry.get_gtf_path())
     gene_annotations = extract_gene_annotations(gtf_path, verbosity=0)
-    log.info("Gene annotations: %d genes", gene_annotations.height)
+    log.info("Gene annotations: %d genes (%s)", gene_annotations.height, ann_src)
 
     # ── Gene split ───────────────────────────────────────────────────
     gene_chroms = gene_chromosomes_from_dataframe(gene_annotations)
@@ -342,27 +391,74 @@ def main() -> int:
 
     # ── Datasets + loaders ───────────────────────────────────────────
     mm_channels = extractor.num_channels
-    train_ds = SequenceLevelDataset(
-        train_index,
-        window_size=args.window_size,
-        context_padding=400,
-        samples_per_epoch=args.samples_per_epoch,
-    )
-    val_ds = SequenceLevelDataset(
-        val_index,
-        window_size=args.window_size,
-        context_padding=400,
-        samples_per_epoch=min(5000, args.samples_per_epoch // 10),
-        splice_bias=0.5,
-    )
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=False, num_workers=0)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=0)
+    if args.use_shards:
+        # Pack .npz → per-chromosome HDF5 shards for faster I/O
+        print("  Packing training shards...")
+        train_shard_dir = cache_dir / "train_shards"
+        train_index_path = pack_gene_cache_to_shards(
+            train_index, gene_annotations, train_shard_dir,
+        )
+        print("  Packing validation shards...")
+        val_shard_dir = cache_dir / "val_shards"
+        val_index_path = pack_gene_cache_to_shards(
+            val_index, gene_annotations, val_shard_dir,
+        )
+        train_ds = ShardedSequenceLevelDataset(
+            train_index_path,
+            window_size=args.window_size,
+            context_padding=400,
+            samples_per_epoch=args.samples_per_epoch,
+        )
+        val_ds = ShardedSequenceLevelDataset(
+            val_index_path,
+            window_size=args.window_size,
+            context_padding=400,
+            samples_per_epoch=min(5000, args.samples_per_epoch // 10),
+            splice_bias=0.5,
+        )
+    else:
+        train_ds = SequenceLevelDataset(
+            train_index,
+            window_size=args.window_size,
+            context_padding=400,
+            samples_per_epoch=args.samples_per_epoch,
+        )
+        val_ds = SequenceLevelDataset(
+            val_index,
+            window_size=args.window_size,
+            context_padding=400,
+            samples_per_epoch=min(5000, args.samples_per_epoch // 10),
+            splice_bias=0.5,
+        )
+
+    # DataLoader tuning for disk-backed .npz gene cache.
+    # See docs/ml_engineering/data_pipeline/io_bottlenecks_dataloader.md
+    # - num_workers > 0: parallelize I/O with GPU compute
+    # - spawn context: Polars imported in parent → fork() would deadlock
+    # - pin_memory: async DMA CPU→GPU transfers
+    # - persistent_workers: avoid respawn overhead between epochs
+    _cuda = device.type == "cuda"
+    _nw = 4 if _cuda else 0
+    _mp_ctx = "spawn" if _nw > 0 else None
+    train_loader = DataLoader(
+        train_ds, batch_size=args.batch_size, shuffle=False,
+        num_workers=_nw, persistent_workers=(_nw > 0),
+        pin_memory=_cuda, prefetch_factor=2 if _nw > 0 else None,
+        multiprocessing_context=_mp_ctx,
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=args.batch_size, shuffle=False,
+        num_workers=min(2, _nw), persistent_workers=(_nw > 0),
+        pin_memory=_cuda, prefetch_factor=2 if _nw > 0 else None,
+        multiprocessing_context=_mp_ctx,
+    )
 
     # ── Model ────────────────────────────────────────────────────────
-    if args.mode == "m1":
+    if args.mode in ("m1", "m2"):
+        variant = "M1-S" if args.mode == "m1" else "M2-S"
         cfg = MetaSpliceConfig(
-            variant="M1-S", hidden_dim=args.hidden_dim,
+            variant=variant, hidden_dim=args.hidden_dim,
             mm_channels=mm_channels, num_classes=3,
             activation=args.activation,
         )

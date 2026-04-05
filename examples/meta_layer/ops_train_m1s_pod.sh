@@ -9,7 +9,8 @@
 # Usage:
 #   ssh sky-cb9e-pleiadian53
 #   cd ~/sky_workdir
-#   nohup bash examples/meta_layer/ops_train_m1s_pod.sh > /runpod-volume/m1s_train.log 2>&1 &
+#   mkdir -p /runpod-volume/output/meta_layer
+#   nohup bash examples/meta_layer/ops_train_m1s_pod.sh > /runpod-volume/output/meta_layer/m1s_train.log 2>&1 &
 
 set -e
 
@@ -47,6 +48,7 @@ python -u examples/meta_layer/07_train_sequence_model.py \
     --patience 10 \
     --bigwig-cache "$BIGWIG_CACHE" \
     --cache-dir /runpod-volume/output/meta_layer/gene_cache \
+    --use-shards \
     --output-dir "$OUTPUT_DIR"
 
 echo "============================================================"
