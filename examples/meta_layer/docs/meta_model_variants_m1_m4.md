@@ -215,7 +215,7 @@ Ablation:           Which modalities contribute most to the rescue?
 ```
 
 This is conceptually related to the "virtual transcripts" framework from
-`docs/meta_layer/predicting_induced_splice_sites/02_virtual_transcripts.md`
+`docs/meta_layer/methods/03_virtual_transcripts_and_junction_pairing.md`
 — except instead of variant-induced splice sites, these are
 isoform-diversity-induced sites that already exist in reference annotations.
 No perturbation required; the alternative sites are readily available as
@@ -568,12 +568,12 @@ ref_probs, alt_probs, delta = model.predict_with_delta(
   `examples/data_preparation/04_generate_ground_truth.py`
 - **Dense label builder**:
   `foundation_models/foundation_models/utils/chunking.py` (`build_splice_labels()`)
-- Alternative splice prediction analysis:
-  `docs/meta_layer/predicting_induced_splice_sites/01_alternative_splice_prediction_analysis.md`
-- Virtual transcripts framework:
-  `docs/meta_layer/predicting_induced_splice_sites/02_virtual_transcripts.md`
+- Label hierarchy and weak supervision:
+  `docs/meta_layer/methods/01_label_hierarchy_and_weak_supervision.md`
+- Virtual transcripts and junction pairing:
+  `docs/meta_layer/methods/03_virtual_transcripts_and_junction_pairing.md`
 - Data sources and landscape:
-  `docs/meta_layer/predicting_induced_splice_sites/03_data_sources_and_landscape.md`
+  `docs/meta_layer/methods/04_data_sources_and_landscape.md`
 - XGBoost baseline (M1-P):
   `examples/meta_layer/01_xgboost_baseline.py`
 - Modality ablation:

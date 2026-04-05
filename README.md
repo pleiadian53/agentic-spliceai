@@ -5,7 +5,7 @@
 **Agentic-SpliceAI** is an **agentic AI system with hierarchical multi-task prediction** for discovering novel RNA isoforms — disease-specific, variant-induced, and tissue-specific splice variants that go beyond canonical annotations. Originally refactored from [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai), it has evolved into a self-sustained **compound AI system** with extensible foundation model predictors, multimodal evidence fusion, agentic AI validation, and a meta-learning framework (M1-M4) targeting progressively harder splice prediction problems.
 
 The system combines three key architectural ideas:
-- **Multi-task learning**: Shared multimodal representation (9 modalities, 106 features) with task-specific model heads (M1-M4)
+- **Multi-task learning**: Shared multimodal representation (10 modalities, 116 features) with task-specific model heads (M1-M4)
 - **Hierarchical prediction**: M1 (canonical) → M2/M2a (alternative) → M3 (novel discovery) → M4 (perturbation-induced) — each level tackles a harder problem with different label regimes
 - **Agentic validation**: LLM-powered agents for literature mining, expression evidence, clinical interpretation, and recursive self-improvement
 
@@ -135,7 +135,7 @@ graph TD
 graph LR
     A["<b>📊 Annotations</b><br/>MANE/RefSeq<br/><i>~10% of sites</i>"]:::canonical
     B["<b>🧬 Base Layer</b><br/>SpliceAI • OpenSpliceAI<br/>Evo2 • SpliceBERT"]:::foundation
-    C["<b>🎯 Meta Layer</b><br/>9-Modality Fusion<br/>M1-M4 Models"]:::metalayer
+    C["<b>🎯 Meta Layer</b><br/>10-Modality Fusion<br/>M1-M4 Models"]:::metalayer
     D["<b>🔍 Discovery</b><br/>Delta Scoring<br/>Isoform Assembly"]:::discovery
     E["<b>🤖 Agentic Layer</b><br/>Literature • RNA-seq<br/>Clinical Validation"]:::agentic
     F["<b>💊 Novel Isoform<br/>Catalog</b><br/>Drug Targets<br/>Precision Medicine"]:::output
@@ -210,17 +210,18 @@ graph LR
 |-----------|-------------|
 | **Classical Models** | SpliceAI (GRCh37), OpenSpliceAI (GRCh38/MANE) with standardized I/O |
 | **Foundation Model Predictors** | Splice site classifiers trained on Evo2, SpliceBERT, and other DNA foundation model embeddings — frozen-head and end-to-end fine-tuning pipelines |
-| **9-Modality Feature Fusion** | 100 features across base scores, conservation, epigenetics, chromatin accessibility, junction reads, RBP binding, DNA sequence, genomic context, annotations |
+| **10-Modality Feature Fusion** | 116 features across base scores, conservation, epigenetics, chromatin accessibility (ATAC-seq + DNase-seq), junction reads, RBP binding, DNA sequence, genomic context, annotations, and optional foundation model embeddings (Evo2, SpliceBERT) — see [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md) |
 | **YAML-Driven Configs** | 4 profiles (default, full_stack, isoform_discovery, meta_m3_novel) — add/drop modalities per modeling objective |
 
 ### 🧠 Meta Layer — Context-Aware Adaptive Prediction
 
 | Component | Description |
 |-----------|-------------|
-| **M1-M4 Model Variants** | Four progressively harder tasks: canonical (M1), alternative (M2), novel discovery (M3), perturbation-induced (M4) |
-| **Tabular Meta-Models** | XGBoost baseline with Tree SHAP interpretability (99.78% accuracy, PR-AUC 0.999) |
-| **Deep Meta-Models** | Neural network fusion of multimodal features + contextual DNA sequences + complex data types (RNA secondary structure, protein domains) — capturing cross-modal interactions that tabular models miss (planned) |
-| **Smart Checkpointing** | Chunk-level resumption and `--augment` for incremental modality addition |
+| **M1-M4 Model Variants** | Four progressively harder tasks: canonical (M1), alternative (M2/M2a-f), novel discovery (M3), perturbation-induced (M4) — see [Model Variants](docs/meta_layer/methods/00_model_variants_m1_m4.md) |
+| **Position-Level (M*-P)** | XGBoost baseline with Tree SHAP (M1-P: 99.74% accuracy, PR-AUC 0.999, FN -62% / FP -68% vs base-only) |
+| **Sequence-Level (M*-S)** | 2-stream dilated CNN (367K params) producing per-nucleotide `[L, 3]` predictions (M1-S: 99.99% accuracy, PR-AUC 0.9899) — same I/O protocol as base models |
+| **M2 Series** | Six training/evaluation protocols (M2a-f) for alternative splice site detection with annotation-tier weighting and junction-informed soft labels — see [M2 Formulations](docs/meta_layer/methods/05_m2_variant_formulations.md) |
+| **Smart Checkpointing** | Per-chromosome parquet saves, disk-backed gene cache, HDF5 shard packing, `--resume` support |
 
 ### 🤖 NEW: Agentic Workflow Enhancements
 
@@ -255,7 +256,7 @@ graph LR
 | Layer | Purpose | Output | Status |
 |-------|---------|--------|--------|
 | **Base Layer** | Canonical splice prediction (MANE) | Baseline scores for ~10% of sites | ✅ Complete |
-| **Feature Engineering** | Multimodal evidence fusion | 100+ enriched feature columns | ✅ Complete |
+| **Feature Engineering** | Multimodal evidence fusion | 116 feature columns (10 modalities) | ✅ Complete |
 | **Foundation Models** | Evo2/SpliceBERT classification | Per-nucleotide embeddings | 🔬 Experimental |
 | **Meta Layer** | Context-aware prediction (M1-M4) | Novel sites (90% beyond MANE) | 🔄 Active |
 | **Agentic Layer** | Multi-source validation + reports | Validated isoforms + drug targets | 📋 Planned |
@@ -491,7 +492,7 @@ cp .env.example .env
 
 ### Documentation
 - [Splice Prediction Guide](docs/tutorials/SPLICE_PREDICTION_GUIDE.md) - Complete prediction walkthrough
-- [Meta Layer Formulations](docs/meta_layer/predicting_induced_splice_sites/) - Alternative splice site prediction analysis
+- [Meta Layer Methods](docs/meta_layer/methods/) - Model variants (M1-M4), label hierarchy, annotation-driven prediction
 - [Base Layer Architecture](docs/base_layer/) - Architecture, coordinates, data preparation
 - [System Design](docs/system_design/) - Architectural design documents
 
@@ -552,9 +553,9 @@ MIT License - see LICENSE file for details
 |-------|-------------|--------|
 | 1-3 | Base Layer + Data Prep + Workflows | ✅ Complete |
 | 2.5 | Bioinformatics Lab UI | ✅ Complete |
-| 4 | Feature Engineering (9 modalities, 100 columns) | ✅ Complete |
+| 4 | Feature Engineering (10 modalities, 116 columns) | ✅ Complete |
 | 5 | Foundation Models (Evo2, SpliceBERT) | 🔬 Experimental |
-| 6 | Meta Layer Training (M1-M4 variants) | 🔄 Active |
+| 6 | Meta Layer Training — M1-S done (PR-AUC 0.9899), M2 series next | 🔄 Active |
 | 7 | Agentic Validation Layer | 📋 Planned |
 | 8 | Variant Analysis (ClinVar, VCF) | 📋 Planned |
 | 9 | Isoform Discovery | 🎯 Ultimate Goal |
