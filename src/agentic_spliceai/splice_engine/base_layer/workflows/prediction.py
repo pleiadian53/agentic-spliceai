@@ -202,9 +202,17 @@ class PredictionWorkflow:
                 print(f"  Genes: {gene_df.height} | Chunks: {total_chunks}")
 
             # 4. Process each chunk
+            #
+            # In streaming mode (production), chunks are saved to disk
+            # individually and NOT accumulated in memory.  This bounds
+            # peak RAM to one chunk regardless of total gene count.
+            # The caller is responsible for aggregation (e.g., writing
+            # a per-chromosome parquet from the chunk files).
+            streaming = cfg.mode == "production" and cfg.save_predictions
             chunk_frames: List[pl.DataFrame] = []
             chunks_processed = 0
             chunks_skipped = 0
+            total_positions = 0
 
             for chunk_idx, chunk_gene_df in enumerate(chunks):
                 chunk_genes = chunk_gene_df["gene_name"].to_list()
@@ -219,8 +227,18 @@ class PredictionWorkflow:
                               f"skipped (checkpoint exists, {len(chunk_genes)} genes)")
                     logger.info("Chunk %d [%s]: skipping (checkpoint exists)", chunk_idx, chrom_label)
 
-                    loaded = self._artifact_manager.load_chunk(chunk_idx, "predictions")
-                    chunk_frames.append(loaded)
+                    if not streaming:
+                        loaded = self._artifact_manager.load_chunk(chunk_idx, "predictions")
+                        chunk_frames.append(loaded)
+                        total_positions += loaded.height
+                    else:
+                        # Count positions without loading into memory
+                        chunk_path = self._artifact_manager.get_chunk_path(chunk_idx, "predictions")
+                        try:
+                            n = sum(1 for _ in open(chunk_path)) - 1  # minus header
+                            total_positions += max(n, 0)
+                        except Exception:
+                            pass
                     chunks_skipped += 1
 
                     # Mark genes from loaded chunk as processed in manifest
@@ -264,20 +282,26 @@ class PredictionWorkflow:
                         chunk_predictions_df, chunk_idx, "predictions"
                     )
 
-                chunk_frames.append(chunk_predictions_df)
+                total_positions += chunk_predictions_df.height
+
+                if not streaming:
+                    chunk_frames.append(chunk_predictions_df)
+                else:
+                    del chunk_predictions_df  # free immediately in streaming mode
+
                 chunks_processed += 1
 
                 if cfg.verbosity >= 1:
-                    print(f"    {chunk_predictions_df.height:,} positions ({chunk_elapsed:.1f}s)")
+                    print(f"    {total_positions:,} positions ({chunk_elapsed:.1f}s)")
 
-            # 5. Aggregate all chunks
+            # 5. Aggregate all chunks (non-streaming only)
             if chunk_frames:
                 all_predictions = pl.concat(chunk_frames)
             else:
                 all_predictions = pl.DataFrame()
 
             # 6. Save final artifacts
-            if cfg.save_predictions and all_predictions.height > 0:
+            if not streaming and cfg.save_predictions and all_predictions.height > 0:
                 self._artifact_manager.save_aggregated(all_predictions, "predictions")
 
             manifest_df = self._manifest.to_dataframe()
@@ -289,7 +313,7 @@ class PredictionWorkflow:
                 "genomic_build": cfg.genomic_build,
                 "chunk_size": cfg.chunk_size,
                 "total_genes": gene_df.height,
-                "total_predictions": all_predictions.height,
+                "total_predictions": total_positions,
                 "total_chunks": total_chunks,
                 "chunks_processed": chunks_processed,
                 "chunks_skipped": chunks_skipped,
@@ -304,7 +328,9 @@ class PredictionWorkflow:
                 print(f"\n{'='*70}")
                 print(f"  Workflow complete!")
                 print(f"  Genes: {ms['processed_genes']} processed, {ms['failed_genes']} failed")
-                print(f"  Predictions: {all_predictions.height:,} total positions")
+                print(f"  Predictions: {total_positions:,} total positions")
+                if streaming:
+                    print(f"  Mode: streaming (chunks saved to disk, not accumulated)")
                 print(f"  Chunks: {chunks_processed} processed, {chunks_skipped} resumed")
                 print(f"  Runtime: {elapsed:.1f}s")
                 print(f"  Output: {self._output_dir}")
