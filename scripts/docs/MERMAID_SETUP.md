@@ -87,10 +87,10 @@ pip install pypandoc
 
 ```bash
 # Convert markdown to PDF (Mermaid diagrams are auto-detected)
-python scripts/md_to_pdf.py docs/example.md
+python scripts/docs/md_to_pdf.py docs/example.md
 
 # Specify output path
-python scripts/md_to_pdf.py docs/example.md -o output/example.pdf
+python scripts/docs/md_to_pdf.py docs/example.md -o output/example.pdf
 ```
 
 ### Options
@@ -108,13 +108,13 @@ python scripts/md_to_pdf.py docs/example.md -o output/example.pdf
 
 ```bash
 # Convert with custom title
-python scripts/md_to_pdf.py docs/tutorial.md --title "My Tutorial"
+python scripts/docs/md_to_pdf.py docs/tutorial.md --title "My Tutorial"
 
 # Skip Mermaid preprocessing
-python scripts/md_to_pdf.py docs/simple.md --no-mermaid
+python scripts/docs/md_to_pdf.py docs/simple.md --no-mermaid
 
 # Debug Mermaid conversion issues
-python scripts/md_to_pdf.py docs/diagrams.md --debug
+python scripts/docs/md_to_pdf.py docs/diagrams.md --debug
 ```
 
 ## How It Works
@@ -229,7 +229,7 @@ To convert multiple files:
 # Convert all markdown files in a directory
 for f in docs/causal_inference/*.md; do
   name=$(basename "$f" .md)
-  python scripts/md_to_pdf.py "$f" -o "docs/causal_inference/pdf/${name}.pdf"
+  python scripts/docs/md_to_pdf.py "$f" -o "docs/causal_inference/pdf/${name}.pdf"
 done
 ```
 

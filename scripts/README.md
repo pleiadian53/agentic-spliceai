@@ -6,9 +6,11 @@
 
 ```
 scripts/
+├── data/               # Data aggregation & viewing utilities
+├── docs/               # Documentation tools (md_to_pdf, sync)
+├── eval/               # Evaluation utilities
 ├── setup/              # Setup & verification scripts
 ├── validation/         # Validation & testing utilities
-├── docs/               # Scripts documentation
 └── README.md           # This file
 ```
 
@@ -77,34 +79,34 @@ Convert Markdown documents to professional PDFs using Pandoc and XeLaTeX.
 
 ```bash
 # Basic conversion (generates PDF in same directory)
-python scripts/md_to_pdf.py docs/API.md
+python scripts/docs/md_to_pdf.py docs/API.md
 
 # Specify output path
-python scripts/md_to_pdf.py docs/API.md -o output/api_documentation.pdf
+python scripts/docs/md_to_pdf.py docs/API.md -o output/api_documentation.pdf
 
 # With custom title and author
-python scripts/md_to_pdf.py docs/BIOLOGY.md \
+python scripts/docs/md_to_pdf.py docs/BIOLOGY.md \
     --title "Splice Site Biology Primer" \
     --author "Agentic SpliceAI Team"
 
 # Generate LaTeX only (for debugging or customization)
-python scripts/md_to_pdf.py docs/TUTORIAL.md --latex-only
+python scripts/docs/md_to_pdf.py docs/TUTORIAL.md --latex-only
 ```
 
 **Examples**:
 
 ```bash
 # Convert README to PDF
-python scripts/md_to_pdf.py README.md
+python scripts/docs/md_to_pdf.py README.md
 
 # Convert research notes with metadata
-python scripts/md_to_pdf.py dev/notes/research_summary.md \
+python scripts/docs/md_to_pdf.py dev/notes/research_summary.md \
     --title "Research Summary" \
     --author "Your Name" \
     -o output/research_summary.pdf
 
 # Generate LaTeX for manual editing
-python scripts/md_to_pdf.py docs/ARCHITECTURE.md --latex-only
+python scripts/docs/md_to_pdf.py docs/ARCHITECTURE.md --latex-only
 # Creates: docs/ARCHITECTURE.tex
 ```
 
@@ -170,5 +172,5 @@ When adding new scripts to this directory:
 
 **Need help?** Check the script's built-in help:
 ```bash
-python scripts/md_to_pdf.py --help
+python scripts/docs/md_to_pdf.py --help
 ```

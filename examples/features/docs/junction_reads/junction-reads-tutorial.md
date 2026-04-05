@@ -64,6 +64,20 @@ This enables tissue-breadth and variance features. Sources:
 - **recount3**: 750K+ uniformly-processed samples (use `recount3` R package)
 - **ENCODE**: Factor knockdown experiments for induced splicing
 
+### Aggregation Script
+
+The `scripts/data/aggregate_gtex_junctions.py` script downloads GTEx v8
+junction files from the GTEx Portal, aggregates across tissues, and writes
+the parquet files consumed by the junction modality.
+
+```bash
+python scripts/data/aggregate_gtex_junctions.py \
+    --output data/mane/GRCh38/junction_data/
+```
+
+Output: `junctions_gtex_v8.parquet` (353K junctions, 54 tissues) plus
+per-tissue parquets in `data/mane/GRCh38/junction_data/by_tissue/`.
+
 ### Placing the Data
 
 The junction modality resolves data via the resource registry:

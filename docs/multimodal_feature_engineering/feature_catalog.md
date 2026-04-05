@@ -268,7 +268,7 @@ Source file: `modalities/junction.py`
 
 RNA-binding protein (RBP) occupancy from ENCODE eCLIP experiments. Features are
 **sparse** — most positions have zero values (no overlapping peaks). Uses pre-aggregated
-parquet from `scripts/aggregate_eclip_peaks.py` which queries the ENCODE REST API
+parquet from `scripts/data/aggregate_eclip_peaks.py` which queries the ENCODE REST API
 for IDR-filtered replicate-merged narrowPeak files.
 
 Default cell lines: K562, HepG2. GRCh38 only; GRCh37 returns zero-filled columns.

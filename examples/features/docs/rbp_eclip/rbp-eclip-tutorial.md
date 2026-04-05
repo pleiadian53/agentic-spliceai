@@ -319,18 +319,18 @@ absence of binding, which is why unbound positions receive **0.0** (not NaN).
 
 ### Aggregation Script
 
-The `scripts/aggregate_eclip_peaks.py` script downloads IDR-filtered eCLIP narrowPeak
+The `scripts/data/aggregate_eclip_peaks.py` script downloads IDR-filtered eCLIP narrowPeak
 files from ENCODE, aggregates them across RBPs and cell lines, and writes a single
 parquet file for the feature pipeline.
 
 ```bash
 # Download from ENCODE (recommended for first run)
-python scripts/aggregate_eclip_peaks.py \
+python scripts/data/aggregate_eclip_peaks.py \
     --output data/mane/GRCh38/rbp_data/ \
     --cache-dir data/mane/GRCh38/rbp_data/raw/
 
 # From pre-downloaded narrowPeak BED files
-python scripts/aggregate_eclip_peaks.py \
+python scripts/data/aggregate_eclip_peaks.py \
     --input-dir /path/to/beds/ \
     --output data/mane/GRCh38/rbp_data/
 ```
