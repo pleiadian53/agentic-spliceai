@@ -235,7 +235,7 @@ def cmd_provision(args: argparse.Namespace) -> None:
         setup_lines.append(f"export PIP_CACHE_DIR={pip_cache}")
         setup_lines.append(f"mkdir -p {pip_cache}")
     setup_lines.extend([
-        "pip install -e .",
+        'pip install -e ".[bio,conservation]"',
         "pip install -e ./foundation_models",
     ])
     # Model dependency: conditional install (skip if already cached)

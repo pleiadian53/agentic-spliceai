@@ -132,3 +132,9 @@ This specificity matters because your colleague running the same code on a diffe
 5. For AgenticSpliceAI, this matters because your meta-model learns on annotated data. Swapping annotations reveals how much of your model's uncertainty comes from the annotation layer versus the underlying sequence prediction.
 
 6. When publishing or deploying, specify genome build, FASTA variant (primary_assembly, toplevel, etc.), annotation source, and annotation version. This enables reproducibility and helps others understand the sources of your results.
+
+
+
+---
+
+> 

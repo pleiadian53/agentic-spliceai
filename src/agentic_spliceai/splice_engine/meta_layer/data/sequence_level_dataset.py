@@ -497,11 +497,25 @@ def build_gene_cache(
         chrom = gene_to_row[gene_id]["chrom"]
         chrom_to_genes[chrom].append(gene_id)
 
-    # ── Phase 4: iterate per chromosome ───────────────────────────
+    # ── Phase 4: iterate per chromosome, sub-batched ───────────────
+    import gc
+    import os
+
+    def _log_mem(tag: str) -> None:
+        try:
+            rss_kb = int(open(f"/proc/{os.getpid()}/status").read()
+                         .split("VmRSS:")[1].split("kB")[0].strip())
+            logger.info("[MEM] %s: %.1f GB RSS", tag, rss_kb / 1e6)
+        except Exception:
+            pass  # /proc not available (macOS)
+
     n_done = len(index)
     n_total = len(gene_ids)
+    sub_batch_size = 200  # gc.collect() after every N genes per chromosome
 
     for chrom, chrom_gene_ids in chrom_to_genes.items():
+        _log_mem(f"{chrom} start ({len(chrom_gene_ids)} genes)")
+
         # Collect gene ranges for bulk parquet load
         gene_ranges: List[Tuple[str, int, int, int]] = []
         for gid in chrom_gene_ids:
@@ -513,6 +527,7 @@ def build_gene_cache(
         chrom_scores = _load_chrom_base_scores(base_scores_dir, chrom, gene_ranges)
 
         # Process each gene on this chromosome
+        batch_count = 0
         for gid, start, end, _ in gene_ranges:
             npz_path = cache_dir / f"{gid}.npz"
 
@@ -560,11 +575,19 @@ def build_gene_cache(
 
             del sequence, base_scores, mm_features, labels, raw_labels
             n_done += 1
-            if n_done % 100 == 0:
+            batch_count += 1
+
+            if n_done % 50 == 0:
                 logger.info("Cached %d / %d genes", n_done, n_total)
+
+            # Reclaim Polars/Arrow/numpy buffers between sub-batches
+            if batch_count % sub_batch_size == 0:
+                gc.collect()
 
         # Free chromosome-level data before next chromosome
         del chrom_scores
+        gc.collect()
+        _log_mem(f"{chrom} done")
 
     logger.info("Gene cache complete: %d genes in %s", len(index), cache_dir)
     return index
@@ -595,6 +618,10 @@ def _load_chrom_base_scores(
     path = base_scores_dir / f"predictions_{chrom}.parquet"
     if not path.exists():
         path = base_scores_dir / f"predictions_{chrom.replace('chr', '')}.parquet"
+    if not path.exists():
+        # Try adding chr prefix (Ensembl uses bare "1", parquets may use "chr1")
+        bare = chrom.replace("chr", "")
+        path = base_scores_dir / f"predictions_chr{bare}.parquet"
     if not path.exists():
         logger.warning("No predictions for %s, using uniform prior", chrom)
         return {

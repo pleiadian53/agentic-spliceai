@@ -19,6 +19,11 @@ Usage:
     # (annotation_source and build are inferred from the output path)
     python 04_generate_ground_truth.py --output data/ensembl/GRCh37/
 
+    # Arbitrary GTF (e.g., T2T-CHM13, pangenome, non-model organism)
+    python 04_generate_ground_truth.py \\
+        --gtf /path/to/chm13v2.0_RefSeq_Curated.gtf \\
+        --output data/t2t_chm13/
+
     # Force re-extraction (overwrite cached file)
     python 04_generate_ground_truth.py --output data/mane/GRCh38/ --force
 """
@@ -27,6 +32,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+import polars as pl
 
 # Add project to path - using marker-based root finding
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -49,9 +55,13 @@ def infer_from_output_path(output_path: Path) -> dict:
         Keys ``annotation_source`` and ``build`` with inferred values,
         or empty dict if nothing could be inferred.
     """
-    known_sources = {"mane", "ensembl", "gencode"}
+    known_sources = {"mane", "ensembl", "gencode", "refseq", "t2t_chm13", "pangenome"}
     # Map lowercase → canonical mixed-case build names
-    known_builds = {"grch37": "GRCh37", "grch38": "GRCh38"}
+    known_builds = {
+        "grch37": "GRCh37", "grch38": "GRCh38",
+        "t2t_chm13": "T2T-CHM13", "chm13": "T2T-CHM13",
+        "t2t-chm13": "T2T-CHM13",
+    }
 
     parts = [p.lower() for p in output_path.resolve().parts]
     result = {}
@@ -75,15 +85,25 @@ def main():
         help="Output directory (e.g., data/mane/GRCh38/)"
     )
     parser.add_argument(
+        "--gtf",
+        type=Path,
+        default=None,
+        help="Path to GTF annotation file. Bypasses registry lookup, "
+             "enabling any genome build (T2T-CHM13, pangenome, non-model "
+             "organisms). When provided, --build and --annotation-source "
+             "are used only for labeling, not path resolution.",
+    )
+    parser.add_argument(
         "--build",
         default=None,
-        help="Genome build (default: inferred from --output, else GRCh38)"
+        help="Genome build (default: inferred from --output, else GRCh38). "
+             "With --gtf, used only for metadata labeling.",
     )
     parser.add_argument(
         "--annotation-source",
         default=None,
-        choices=["mane", "ensembl"],
-        help="Annotation source (default: inferred from --output, else mane)"
+        help="Annotation source (default: inferred from --output, else mane). "
+             "With --gtf, can be any string (e.g., 't2t_chm13', 'pangenome').",
     )
     parser.add_argument(
         "--force",
@@ -114,11 +134,18 @@ def main():
             print(f"⚠️  Output path suggests build='{inferred['build']}' "
                   f"but --build={args.build}")
 
+    # Validate --gtf if provided
+    if args.gtf and not args.gtf.exists():
+        print(f"ERROR: GTF file not found: {args.gtf}")
+        return 1
+
     print("=" * 80)
     print("Generate Ground Truth: splice_sites_enhanced.tsv")
     print("=" * 80)
     print(f"\nBuild: {args.build}")
     print(f"Annotation Source: {args.annotation_source}")
+    if args.gtf:
+        print(f"GTF (custom): {args.gtf}")
     print(f"Output: {args.output}")
     print(f"Force: {args.force}")
     print()
@@ -131,6 +158,7 @@ def main():
         genes=None,           # No filter — genome-wide
         build=args.build,
         annotation_source=args.annotation_source,
+        gtf_path=str(args.gtf) if args.gtf else None,
         force_extract=args.force,
         verbosity=2
     )
@@ -164,5 +192,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import polars as pl
     sys.exit(main())
