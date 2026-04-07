@@ -328,6 +328,7 @@ class MetaSpliceModel(nn.Module):
         sequence: torch.Tensor,
         base_scores: torch.Tensor,
         mm_features: torch.Tensor,
+        return_logits: bool = False,
     ) -> torch.Tensor:
         """Forward pass.
 
@@ -340,11 +341,16 @@ class MetaSpliceModel(nn.Module):
             Base model predictions ``[B, L, 3]`` (L = window_size).
         mm_features : torch.Tensor
             Dense multimodal features ``[B, C_mm, L]``.
+        return_logits : bool
+            If True, return raw logits ``[B, L, 3]`` instead of
+            probabilities.  Used for post-hoc temperature scaling
+            calibration.
 
         Returns
         -------
         torch.Tensor
-            Refined predictions ``[B, L, 3]`` with softmax constraint.
+            Refined predictions ``[B, L, 3]`` with softmax constraint,
+            or raw logits if ``return_logits=True``.
         """
         L = base_scores.shape[1]
 
@@ -378,9 +384,10 @@ class MetaSpliceModel(nn.Module):
         fused = fused.permute(0, 2, 1).contiguous()  # [B, L, H]
         logits = self.output_head(fused)  # [B, L, num_classes]
 
-        if self.training:
+        if self.training or return_logits:
             # During training: return raw logits for cross-entropy loss.
             # Avoids log(softmax(...)) chain that causes MPS autograd issues.
+            # return_logits=True: caller needs raw logits for temperature scaling.
             return logits
 
         # During inference: apply softmax and optional residual blend
