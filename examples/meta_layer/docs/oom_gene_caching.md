@@ -101,14 +101,94 @@ For future workflows that cache per-gene data:
 4. **Run one heavy process at a time** — don't launch both M1-S training
    and Ensembl predictions simultaneously on the same pod
 
+---
+
+## OOM #2: Evaluation Script Bulk Loading (2026-04-06)
+
+### The Problem
+
+Running `08_evaluate_sequence_model.py` with `--build-cache` for 5,522
+test genes on an A40 pod (503 GB system RAM) caused OOM.  The pod hit
+100% memory and restarted.
+
+### Root Cause: Three Accumulation Points
+
+The evaluation script had three compounding memory hazards:
+
+1. **Bulk .npz loading** (lines 679-690): loaded ALL gene data into a
+   `gene_data_map` dict before starting inference.  5,522 genes × ~5 MB
+   each ≈ **28-35 GB**.
+
+2. **Inference accumulation** (lines 707-726): stored `meta_probs`,
+   `base_probs`, and `labels` arrays per gene in three separate dicts +
+   three growing lists.  **3 parallel copies ≈ 90-105 GB**.
+
+3. **Metrics concatenation** (lines 734-736): `np.concatenate()` on all
+   accumulated arrays created a 4th copy.  **Peak ≈ 120-140 GB**.
+
+Combined with the `build_gene_cache()` phase (base score parquets +
+22 bigWig handles + feature extraction), total memory exceeded 503 GB.
+
+### The Fix: Streaming Evaluation Architecture
+
+Replaced bulk load-infer-accumulate with a **streaming per-gene loop**:
+
+```python
+evaluator = StreamingEvaluator()  # ~5 MB total, regardless of gene count
+
+for gene_id in test_genes:
+    data = _load_gene_npz(npz_path)           # load ONE gene
+    meta_probs = infer_full_gene(model, data)  # infer ONE gene
+    evaluator.update(meta_probs, data["base_scores"], data["labels"], gene_id)
+    del data, meta_probs                       # free IMMEDIATELY
+```
+
+`StreamingEvaluator` accumulates only:
+- **Scalar counters**: TP/FP/FN/n_correct per class (~100 bytes)
+- **Splice-site probs for PR-AUC**: all splice positions (~100K) + 1%
+  subsample of "neither" (~200K) ≈ **1.6 MB**
+- **Top-k accumulators**: one float per gene per k ≈ **50 KB**
+
+PR-AUC for donor/acceptor is **exact** (all true positives preserved).
+Neither PR-AUC uses 1% subsample (always ~1.0, negligible error).
+
+### Memory comparison
+
+| | Before (bulk) | After (streaming) |
+|---|---|---|
+| Gene loading | ~35 GB (all in RAM) | ~5 MB (one gene) |
+| Inference results | ~105 GB (3 copies) | ~5 MB (counters) |
+| Metrics computation | +35 GB (concatenation) | 0 (from counters) |
+| **Total evaluation peak** | **~175 GB** | **~10 MB** |
+
+### Additional hardening: `build_gene_cache()`
+
+- `gc.collect()` after every chromosome and every 200 genes within a
+  chromosome, reclaiming Polars/Arrow/numpy buffers
+- Memory logging (`[MEM]` probes) at chromosome boundaries
+- Progress logging every 50 genes (was 100)
+
+### Files changed
+
+- `examples/meta_layer/08_evaluate_sequence_model.py` — streaming loop
+- `src/.../eval/streaming_metrics.py` — `StreamingEvaluator` (NEW)
+- `src/.../eval/sequence_inference.py` — shared `infer_full_gene()` (NEW)
+- `examples/meta_layer/09_evaluate_alternative_sites.py` — M2a eval (NEW)
+- `src/.../meta_layer/data/sequence_level_dataset.py` — gc + memory logging
+
+---
+
 ## Related
 
 - Memory monitor utility: `src/.../utils/memory_monitor.py`
 - Ephemeral workflow (same pattern for feature engineering):
   `examples/features/06a_ephemeral_genome_workflow.py`
 - FM extraction OOM fix: `examples/features/docs/fm-extraction-memory-guide.md`
+- Base layer OOM history: `examples/base_layer/docs/genome_scale_memory_management.md`
 
 ## Timeline
 
-- **2026-04-03**: OOM during M1-S training on A40 pod (sky-3e26-pleiadian53)
+- **2026-04-03**: OOM #1 during M1-S training on A40 pod (sky-3e26-pleiadian53)
 - **2026-04-03**: Disk-backed cache implemented and tested locally
+- **2026-04-06**: OOM #2 during evaluation on A40 pod (sky-e74e-pleiadian53)
+- **2026-04-06**: Streaming evaluation architecture implemented

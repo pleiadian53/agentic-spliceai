@@ -5,31 +5,37 @@ Compares the meta-layer's refined [L, 3] predictions against the raw
 base model scores on held-out test genes, answering: "Does the
 meta-layer actually improve over the base model?"
 
+Uses streaming evaluation — only one gene's arrays in memory at a time,
+bounded to ~5 MB regardless of total gene count.
+
 Metrics reported:
 - Per-class and macro PR-AUC
 - Accuracy, top-1, top-2
 - Per-class precision, recall, F1
 - FN/FP counts and reduction vs base model
 - SpliceAI paper top-k accuracy (k = 0.5, 1, 2, 4 × n_true)
-- Confusion matrices for both models
 
 Usage:
-    # Evaluate M1-S on test chromosomes (chr1,3,5,7,9)
+    # Build test cache + evaluate M1-S (chr1,3,5,7,9)
     python 08_evaluate_sequence_model.py \\
         --checkpoint output/meta_layer/m1s/best.pt \\
-        --cache-dir output/meta_layer/gene_cache/val
+        --build-cache
+
+    # Evaluate from existing cache
+    python 08_evaluate_sequence_model.py \\
+        --checkpoint output/meta_layer/m1s/best.pt \\
+        --cache-dir output/meta_layer/gene_cache/test
 
     # Evaluate on specific chromosomes
     python 08_evaluate_sequence_model.py \\
         --checkpoint output/meta_layer/m1s/best.pt \\
         --test-chroms chr1 chr3 \\
-        --cache-dir /path/to/gene_cache
+        --build-cache
 
-    # M2a evaluation: Ensembl-only sites
+    # Pure FASTA inference (no annotations, no features)
     python 08_evaluate_sequence_model.py \\
         --checkpoint output/meta_layer/m1s/best.pt \\
-        --annotation-source ensembl \\
-        --filter-mane-sites
+        --fasta /path/to/sequences.fa
 """
 
 import argparse
@@ -37,7 +43,6 @@ import json
 import logging
 import sys
 import time
-from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -51,225 +56,115 @@ setup_example_environment()
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Metrics
-# ---------------------------------------------------------------------------
-
-
-def compute_classification_metrics(
-    probs: np.ndarray,
-    labels: np.ndarray,
-    class_names: List[str] = ["donor", "acceptor", "neither"],
-) -> dict:
-    """Compute classification metrics from [N, 3] probs and [N] labels."""
-    from sklearn.metrics import (
-        accuracy_score, average_precision_score, confusion_matrix,
-        f1_score, precision_score, recall_score,
-    )
-
-    n_classes = len(class_names)
-    preds = probs.argmax(axis=1)
-
-    metrics = {
-        "accuracy": float(accuracy_score(labels, preds)),
-        "top_1_accuracy": float(accuracy_score(labels, preds)),
-    }
-
-    # Top-2 accuracy
-    top2 = np.argsort(probs, axis=1)[:, -2:]
-    metrics["top_2_accuracy"] = float(
-        np.any(top2 == labels.reshape(-1, 1), axis=1).mean()
-    )
-
-    # Per-class PR-AUC
-    pr_aucs = {}
-    for i, name in enumerate(class_names):
-        binary = (labels == i).astype(int)
-        if binary.sum() > 0 and binary.sum() < len(binary):
-            pr_aucs[name] = float(average_precision_score(binary, probs[:, i]))
-    metrics["pr_aucs"] = pr_aucs
-    metrics["macro_pr_auc"] = float(np.mean(list(pr_aucs.values()))) if pr_aucs else 0.0
-
-    # Per-class precision, recall, F1
-    for i, name in enumerate(class_names):
-        binary_true = (labels == i).astype(int)
-        binary_pred = (preds == i).astype(int)
-        if binary_true.sum() > 0:
-            metrics[f"{name}_precision"] = float(precision_score(binary_true, binary_pred, zero_division=0))
-            metrics[f"{name}_recall"] = float(recall_score(binary_true, binary_pred, zero_division=0))
-            metrics[f"{name}_f1"] = float(f1_score(binary_true, binary_pred, zero_division=0))
-
-    # FN / FP counts for splice sites (donor + acceptor)
-    splice_true = labels < 2  # donor=0, acceptor=1
-    splice_pred = preds < 2
-    metrics["fn_count"] = int((splice_true & ~splice_pred).sum())
-    metrics["fp_count"] = int((~splice_true & splice_pred).sum())
-    metrics["tp_count"] = int((splice_true & splice_pred).sum())
-
-    # Confusion matrix
-    cm = confusion_matrix(labels, preds, labels=list(range(n_classes)))
-    metrics["confusion_matrix"] = cm.tolist()
-
-    return metrics
-
-
-def compute_topk_accuracy_from_arrays(
-    gene_probs: Dict[str, np.ndarray],
-    gene_labels: Dict[str, np.ndarray],
-    k_multipliers: List[float] = [0.5, 1.0, 2.0, 4.0],
-) -> Dict[str, Dict[float, float]]:
-    """Compute SpliceAI paper top-k accuracy from per-gene arrays.
-
-    For each gene and splice type:
-    1. Count true sites: n_true
-    2. Rank positions by predicted probability (descending)
-    3. Take top k = k_multiplier × n_true positions
-    4. Top-k accuracy = (# true sites in top-k) / n_true
-
-    Parameters
-    ----------
-    gene_probs : dict
-        gene_id → [L, 3] probability array
-    gene_labels : dict
-        gene_id → [L] label array (0=donor, 1=acceptor, 2=neither)
-    k_multipliers : list
-        Multipliers for n_true
-
-    Returns
-    -------
-    dict with keys 'donor', 'acceptor', 'overall', each mapping
-    k_multiplier → accuracy.
-    """
-    results = {
-        "donor": defaultdict(list),
-        "acceptor": defaultdict(list),
-    }
-
-    for gene_id in gene_probs:
-        probs = gene_probs[gene_id]
-        labels = gene_labels[gene_id]
-
-        for splice_idx, splice_name in [(0, "donor"), (1, "acceptor")]:
-            true_mask = labels == splice_idx
-            n_true = int(true_mask.sum())
-            if n_true == 0:
-                continue
-
-            scores = probs[:, splice_idx]
-            ranked_indices = np.argsort(scores)[::-1]
-
-            for km in k_multipliers:
-                k = max(1, int(np.ceil(km * n_true)))
-                top_k_set = set(ranked_indices[:k])
-                true_positions = set(np.where(true_mask)[0])
-                recovered = len(top_k_set & true_positions)
-                results[splice_name][km].append(recovered / n_true)
-
-    # Average across genes
-    topk = {}
-    for splice_name in ["donor", "acceptor"]:
-        topk[splice_name] = {}
-        for km in k_multipliers:
-            vals = results[splice_name][km]
-            topk[splice_name][km] = float(np.mean(vals)) if vals else 0.0
-
-    # Overall = average of donor and acceptor
-    topk["overall"] = {}
-    for km in k_multipliers:
-        topk["overall"][km] = np.mean([topk["donor"][km], topk["acceptor"][km]])
-
-    return topk
+from agentic_spliceai.splice_engine.eval.sequence_inference import infer_full_gene
 
 
 # ---------------------------------------------------------------------------
-# Full-gene sliding window inference
+# FASTA inference (Case 4)
 # ---------------------------------------------------------------------------
 
 
-def infer_full_gene(
+def _run_fasta_inference(
     model,
-    gene_data: dict,
-    window_size: int = 5001,
-    context_padding: int = 400,
-    device: "torch.device" = None,
-) -> np.ndarray:
-    """Run sliding window inference on a full gene, return [L, 3] probs."""
-    import torch
-    from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset import (
-        _one_hot_encode,
-    )
+    cfg,
+    args: argparse.Namespace,
+    device,
+) -> int:
+    """Run pure inference on arbitrary FASTA sequences.
 
-    if device is None:
-        device = torch.device("cpu")
+    No gene annotations, no base model scores, no multimodal features.
+    Uses uniform 1/3 base-score prior and zero multimodal features.
+    Outputs per-position [donor, acceptor, neither] probabilities.
+    """
+    import pyfaidx
 
-    sequence = gene_data["sequence"]
-    base_scores = gene_data["base_scores"]  # [L, 3]
-    mm_features = gene_data["mm_features"]  # [L, C]
-    gene_len = len(sequence)
-    W = window_size
-    ctx = context_padding
+    fasta_path = args.fasta
+    if not fasta_path.exists():
+        print(f"ERROR: FASTA not found: {fasta_path}")
+        return 1
 
-    if gene_len <= W:
-        # Small gene: single window with padding
-        seq_onehot = _one_hot_encode(sequence)  # [4, L]
-        total_len = W + ctx
-        padded_seq = np.zeros((4, total_len), dtype=np.float32)
-        offset = (total_len - seq_onehot.shape[1]) // 2
-        padded_seq[:, offset:offset + seq_onehot.shape[1]] = seq_onehot
+    output_dir = args.output_dir or args.checkpoint.parent
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-        padded_base = np.full((W, 3), 1.0 / 3, dtype=np.float32)
-        padded_base[:gene_len] = base_scores[:gene_len]
+    mm_channels = cfg.mm_channels
+    min_recommended = 5001 + 400  # window + context
 
-        padded_mm = np.zeros((mm_features.shape[1], W), dtype=np.float32)
-        padded_mm[:, :gene_len] = mm_features[:gene_len].T
+    print(f"\n{'='*70}")
+    print("FASTA Inference Mode")
+    print(f"{'='*70}")
+    print(f"  Input:  {fasta_path}")
+    print(f"  Format: {args.output_format}")
 
-        with torch.no_grad():
-            seq_t = torch.from_numpy(padded_seq).unsqueeze(0).to(device)
-            base_t = torch.from_numpy(padded_base).unsqueeze(0).to(device)
-            mm_t = torch.from_numpy(padded_mm).unsqueeze(0).to(device)
-            probs = model(seq_t, base_t, mm_t)  # [1, W, 3]
-            return probs[0, :gene_len].cpu().numpy()
+    fasta = pyfaidx.Fasta(str(fasta_path))
+    seq_names = list(fasta.keys())
+    print(f"  Sequences: {len(seq_names)}")
 
-    # Sliding window with overlap
-    stride = W // 2  # 50% overlap
-    accum = np.zeros((gene_len, 3), dtype=np.float64)
-    counts = np.zeros(gene_len, dtype=np.float64)
+    rows: List[Tuple[str, int, float, float, float]] = []
+    t0 = time.time()
 
-    starts = list(range(0, gene_len - W + 1, stride))
-    if starts[-1] + W < gene_len:
-        starts.append(gene_len - W)  # ensure last positions are covered
+    for i, name in enumerate(seq_names):
+        sequence = str(fasta[name][:]).upper()
+        seq_len = len(sequence)
 
-    for out_start in starts:
-        out_end = out_start + W
+        if seq_len < 100:
+            log.warning("Skipping %s: too short (%d bp)", name, seq_len)
+            continue
+        if seq_len < min_recommended:
+            log.warning(
+                "%s: %d bp (< %d recommended) — predictions may be degraded",
+                name, seq_len, min_recommended,
+            )
 
-        # Sequence with context
-        seq_start = max(0, out_start - ctx // 2)
-        seq_end = min(gene_len, out_end + (ctx - ctx // 2))
-        seq_onehot = _one_hot_encode(sequence[seq_start:seq_end])
+        gene_data = {
+            "sequence": sequence,
+            "base_scores": np.full((seq_len, 3), 1.0 / 3, dtype=np.float32),
+            "mm_features": np.zeros((seq_len, mm_channels), dtype=np.float32),
+        }
 
-        total_len = W + ctx
-        if seq_onehot.shape[1] < total_len:
-            padded = np.zeros((4, total_len), dtype=np.float32)
-            off = (total_len - seq_onehot.shape[1]) // 2
-            padded[:, off:off + seq_onehot.shape[1]] = seq_onehot
-            seq_onehot = padded
+        probs = infer_full_gene(model, gene_data, device=device)  # [L, 3]
 
-        bs = base_scores[out_start:out_end]  # [W, 3]
-        mm = mm_features[out_start:out_end].T.copy()  # [C, W]
+        for pos in range(seq_len):
+            rows.append((
+                name,
+                pos,
+                float(probs[pos, 0]),
+                float(probs[pos, 1]),
+                float(probs[pos, 2]),
+            ))
 
-        with torch.no_grad():
-            seq_t = torch.from_numpy(seq_onehot).unsqueeze(0).to(device)
-            base_t = torch.from_numpy(bs).unsqueeze(0).to(device)
-            mm_t = torch.from_numpy(mm).unsqueeze(0).to(device)
-            probs = model(seq_t, base_t, mm_t)  # [1, W, 3]
-            window_probs = probs[0].cpu().numpy()
+        if (i + 1) % 10 == 0 or (i + 1) == len(seq_names):
+            print(f"  Processed {i+1}/{len(seq_names)} sequences...")
 
-        accum[out_start:out_end] += window_probs
-        counts[out_start:out_end] += 1.0
+    elapsed = time.time() - t0
+    total_positions = len(rows)
+    print(f"  Done: {total_positions:,} positions in {elapsed:.1f}s")
 
-    # Average overlapping regions
-    counts = np.maximum(counts, 1.0)
-    return (accum / counts[:, None]).astype(np.float32)
+    # ── Write output ────────────────────────────────────────────────
+    if args.output_format == "parquet":
+        import polars as pl
+
+        df = pl.DataFrame(
+            {
+                "sequence_id": [r[0] for r in rows],
+                "position": [r[1] for r in rows],
+                "donor_prob": [r[2] for r in rows],
+                "acceptor_prob": [r[3] for r in rows],
+                "neither_prob": [r[4] for r in rows],
+            },
+        )
+        out_path = output_dir / "fasta_predictions.parquet"
+        df.write_parquet(out_path)
+    else:
+        out_path = output_dir / "fasta_predictions.tsv"
+        with open(out_path, "w") as f:
+            f.write("sequence_id\tposition\tdonor_prob\tacceptor_prob\tneither_prob\n")
+            for seq_id, pos, dp, ap, np_ in rows:
+                f.write(f"{seq_id}\t{pos}\t{dp:.6f}\t{ap:.6f}\t{np_:.6f}\n")
+
+    print(f"\n  Output: {out_path}")
+    print(f"{'='*70}")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -291,8 +186,22 @@ def main():
         help="Path to config.pt (default: same dir as checkpoint)",
     )
     parser.add_argument(
-        "--cache-dir", type=Path, required=True,
-        help="Directory with gene cache (.npz files)",
+        "--cache-dir", type=Path, default=None,
+        help="Directory with gene cache (.npz files). "
+             "Default: <checkpoint-dir>/gene_cache/test",
+    )
+    parser.add_argument(
+        "--build-cache", action="store_true",
+        help="Build gene cache for test genes before evaluating. "
+             "Requires FASTA, base scores, and feature data.",
+    )
+    parser.add_argument(
+        "--base-scores-dir", type=Path, default=None,
+        help="Override base model predictions directory for cache building.",
+    )
+    parser.add_argument(
+        "--bigwig-cache", type=Path, default=None,
+        help="Local directory with cached conservation bigWig files.",
     )
     parser.add_argument(
         "--test-chroms", nargs="+", default=None,
@@ -311,6 +220,47 @@ def main():
     parser.add_argument(
         "--max-genes", type=int, default=None,
         help="Limit number of genes for quick testing",
+    )
+    parser.add_argument(
+        "--sweep-thresholds", action="store_true",
+        help="Sweep classification thresholds to find optimal precision-recall "
+             "operating point.  Reports F1-optimal threshold and best precision "
+             "at >= 95%% recall.",
+    )
+    parser.add_argument(
+        "--temperature", type=float, default=None,
+        help="Apply temperature scaling with a fixed T value.  "
+             "Use --calibrate-temperature to learn T from validation genes.",
+    )
+    parser.add_argument(
+        "--calibrate-temperature", action="store_true",
+        help="Learn optimal temperature T from validation set genes "
+             "(SpliceAI val: chr2,4,6,8,10) before test evaluation.  "
+             "Requires gene cache for validation chromosomes.",
+    )
+    parser.add_argument(
+        "--val-cache-dir", type=Path, default=None,
+        help="Gene cache for validation set (used with --calibrate-temperature). "
+             "Default: <checkpoint-dir>/gene_cache/val",
+    )
+    parser.add_argument(
+        "--zero-channels", nargs="+", default=None,
+        help="Ablation: zero out specific multimodal channels before inference. "
+             "Channel names: phylop_score, phastcons_score, h3k36me3_max, "
+             "h3k4me3_max, atac_max, dnase_max, junction_log1p, "
+             "junction_has_support, rbp_n_bound.  Use 'all' to zero all channels "
+             "(sequence + base scores only).  Reuses existing cache.",
+    )
+    parser.add_argument(
+        "--fasta", type=Path, default=None,
+        help="FASTA file for pure inference mode.  Runs sliding-window "
+             "prediction on each sequence using uniform base-score prior "
+             "and zero multimodal features.  Mutually exclusive with "
+             "--cache-dir / --build-cache / --genes / --test-chroms.",
+    )
+    parser.add_argument(
+        "--output-format", choices=["tsv", "parquet"], default="tsv",
+        help="Output format for FASTA inference (default: tsv).",
     )
     parser.add_argument(
         "--output-dir", type=Path, default=None,
@@ -348,6 +298,10 @@ def main():
     print(f"  Checkpoint: {args.checkpoint}")
     print(f"  Device: {device}")
 
+    # ── FASTA inference mode (Case 4) ────────────────────────────────
+    if args.fasta:
+        return _run_fasta_inference(model, cfg, args, device)
+
     # ── Resolve test genes ───────────────────────────────────────────
     from agentic_spliceai.splice_engine.resources import get_model_resources, get_genomic_registry
     from agentic_spliceai.splice_engine.base_layer.data.genomic_extraction import extract_gene_annotations
@@ -366,26 +320,19 @@ def main():
     gene_annotations = extract_gene_annotations(gtf_path, verbosity=0)
 
     # ── Resolve evaluation gene set ────────────────────────────────
-    # Three modes:
-    # 1. --genes BRCA1 TP53: evaluate specific genes (inference mode)
-    # 2. --test-chroms chr21 chr22: evaluate all genes on these chromosomes
-    # 3. Default: SpliceAI test split (chr1,3,5,7,9)
     gene_chroms = gene_chromosomes_from_dataframe(gene_annotations)
 
     if args.genes:
-        # Mode 1: user-specified genes
         test_genes = args.genes
         test_chroms = sorted(set(
             gene_chroms.get(g, "unknown") for g in test_genes if g in gene_chroms
         ))
         print(f"  Eval genes: {len(test_genes)} (user-specified)")
     elif args.test_chroms:
-        # Mode 2: user-specified chromosomes
         test_chroms = [c if c.startswith("chr") else f"chr{c}" for c in args.test_chroms]
         test_genes = sorted(g for g, c in gene_chroms.items() if c in test_chroms)
         print(f"  Eval genes: {len(test_genes)} on {test_chroms}")
     else:
-        # Mode 3: SpliceAI test split (default)
         gene_split = build_gene_split(gene_chroms, preset="spliceai", val_fraction=0.0)
         test_genes = sorted(gene_split.test_genes)
         test_chroms = sorted(set(
@@ -397,188 +344,286 @@ def main():
         test_genes = test_genes[:args.max_genes]
         print(f"  Limited to {len(test_genes)} genes")
 
-    # ── Load gene cache ──────────────────────────────────────────────
+    # ── Resolve cache directory ─────────────────────────────────────
+    cache_dir = args.cache_dir or args.checkpoint.parent / "gene_cache" / "test"
+
+    # ── Build gene cache if requested ────────────────────────────────
+    if args.build_cache:
+        import pandas as pd
+        from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset import (
+            build_gene_cache,
+        )
+        from agentic_spliceai.splice_engine.features.dense_feature_extractor import (
+            DenseFeatureExtractor, DenseFeatureConfig,
+        )
+        from agentic_spliceai.splice_engine.eval.streaming_metrics import (
+            preflight_check,
+        )
+
+        fasta_path = str(resources.get_fasta_path())
+        splice_sites_path = Path(ann_registry.stash) / "splice_sites_enhanced.tsv"
+        if args.base_scores_dir:
+            base_scores_dir = args.base_scores_dir
+        else:
+            base_scores_dir = resources.get_registry().get_base_model_eval_dir(
+                "openspliceai"
+            ) / "precomputed"
+
+        # Fail fast if dependencies or data are missing
+        preflight_check(
+            needs_bigwig=True,
+            needs_pyfaidx=True,
+            fasta_path=fasta_path,
+            base_scores_dir=base_scores_dir,
+        )
+
+        print(f"\n  Building test gene cache ({len(test_genes)} genes)...")
+        print(f"    Cache dir:    {cache_dir}")
+        print(f"    FASTA:        {fasta_path}")
+        print(f"    Splice sites: {splice_sites_path}")
+        print(f"    Base scores:  {base_scores_dir}")
+
+        splice_sites_df = pd.read_csv(splice_sites_path, sep="\t")
+        feat_config = DenseFeatureConfig(
+            build="GRCh38",
+            bigwig_cache_dir=args.bigwig_cache,
+        )
+        extractor = DenseFeatureExtractor(feat_config)
+
+        t_cache = time.time()
+        build_gene_cache(
+            test_genes, splice_sites_df, fasta_path,
+            base_scores_dir, extractor, gene_annotations,
+            cache_dir=cache_dir,
+        )
+        extractor.close()
+        print(f"    Cache built in {time.time() - t_cache:.1f}s\n")
+
+    # ── Streaming evaluation ─────────────────────────────────────────
     from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset import (
-        _load_gene_npz, _one_hot_encode,
+        _load_gene_npz,
+    )
+    from agentic_spliceai.splice_engine.eval.streaming_metrics import (
+        StreamingEvaluator, print_comparison_report,
+    )
+    from agentic_spliceai.splice_engine.eval.sequence_inference import (
+        apply_temperature_blend,
     )
 
-    cache_dir = args.cache_dir
     min_length = 5001 + 400  # window_size + context_padding
+    evaluator = StreamingEvaluator()
 
-    gene_data_map: Dict[str, dict] = {}
-    skipped = 0
-    for gene_id in test_genes:
-        npz_path = cache_dir / f"{gene_id}.npz"
-        if not npz_path.exists():
-            skipped += 1
-            continue
-        data = _load_gene_npz(npz_path)
-        if len(data["sequence"]) < min_length:
-            skipped += 1
-            continue
-        gene_data_map[gene_id] = data
+    # ── Ablation: resolve channel indices to zero ────────────────────
+    zero_channel_indices = None
+    if args.zero_channels:
+        from agentic_spliceai.splice_engine.features.dense_feature_extractor import (
+            CHANNEL_NAMES,
+        )
+        if "all" in args.zero_channels:
+            zero_channel_indices = list(range(len(CHANNEL_NAMES)))
+            ablation_label = "all channels zeroed (sequence + base scores only)"
+        else:
+            zero_channel_indices = []
+            for ch in args.zero_channels:
+                if ch not in CHANNEL_NAMES:
+                    print(f"ERROR: Unknown channel '{ch}'. Valid: {CHANNEL_NAMES}")
+                    return 1
+                zero_channel_indices.append(CHANNEL_NAMES.index(ch))
+            ablation_label = f"zeroed: {', '.join(args.zero_channels)}"
+        print(f"  Ablation: {ablation_label}")
 
-    print(f"  Loaded {len(gene_data_map)} genes from cache ({skipped} skipped)")
+    # ── Temperature scaling: resolve blend_alpha from model ─────────
+    import torch
+    blend_alpha = 0.5  # default (sigmoid(0))
+    if hasattr(model, "blend_alpha"):
+        blend_alpha = float(torch.sigmoid(model.blend_alpha).item())
+        log.info("Model blend_alpha: %.4f (raw=%.4f)", blend_alpha, model.blend_alpha.item())
 
-    if not gene_data_map:
-        print("ERROR: No genes loaded. Check --cache-dir path.")
-        return 1
+    # Temperature can be scalar (--temperature) or array (--calibrate-temperature)
+    temperature = args.temperature or 1.0
+    use_temperature = args.temperature is not None or args.calibrate_temperature
 
-    # ── Run evaluation ───────────────────────────────────────────────
+    # ── Temperature calibration on validation set ───────────────────
+    if args.calibrate_temperature:
+        from agentic_spliceai.splice_engine.eval.streaming_metrics import (
+            TemperatureScaler,
+        )
+
+        val_cache_dir = args.val_cache_dir or args.checkpoint.parent / "gene_cache" / "val"
+        if not val_cache_dir.exists():
+            print(f"ERROR: Validation cache not found: {val_cache_dir}")
+            print("  Build it first with --build-cache --test-chroms chr2 chr4 chr6 chr8 chr10")
+            return 1
+
+        # Use all genes available in the val cache directory.
+        # The caller is responsible for building the val cache from the
+        # right chromosomes (e.g. --test-chroms chr2 chr4 --cache-dir .../val).
+        val_npz_files = sorted(val_cache_dir.glob("*.npz"))
+        val_genes = [f.stem for f in val_npz_files]
+        if not val_genes:
+            print(f"ERROR: No .npz files found in {val_cache_dir}")
+            return 1
+
+        print(f"\n{'='*70}")
+        print(f"Temperature Calibration ({len(val_genes)} validation genes)")
+        print(f"{'='*70}\n")
+
+        scaler = TemperatureScaler(subsample_rate=0.1)
+        n_cal = 0
+        for gene_id in val_genes:
+            npz_path = val_cache_dir / f"{gene_id}.npz"
+            if not npz_path.exists():
+                continue
+            data = _load_gene_npz(npz_path)
+            if len(data["sequence"]) < min_length:
+                del data
+                continue
+
+            logits = infer_full_gene(model, data, device=device, return_logits=True)
+            scaler.collect(logits, data["base_scores"], data["labels"])
+            del data, logits
+            n_cal += 1
+
+        if n_cal < 10:
+            print(f"WARNING: Only {n_cal} validation genes found. "
+                  "Results may be unreliable. Skipping calibration.")
+        else:
+            cal_result = scaler.fit(blend_alpha=blend_alpha)
+            temperature = cal_result["temperature"]  # np.ndarray [3]
+            T = temperature
+            print(f"  Class-wise temperature: [donor={T[0]:.4f}, acceptor={T[1]:.4f}, neither={T[2]:.4f}]")
+            print(f"  NLL: {cal_result['nll_before']:.4f} → {cal_result['nll_after']:.4f}")
+            print(f"  ECE: {cal_result['ece_before']:.4f} → {cal_result['ece_after']:.4f}")
+            print(f"  Validation genes: {n_cal}")
+            print(f"  Positions used: {cal_result['n_positions']:,}")
+            use_temperature = True
+
+        del scaler
+
+    _is_default_T = (
+        np.isscalar(temperature) and temperature == 1.0
+    ) if np.isscalar(temperature) else np.allclose(temperature, 1.0)
+
+    if use_temperature and not _is_default_T:
+        if np.isscalar(temperature):
+            print(f"\n  Temperature scaling: T={temperature:.4f}, blend_alpha={blend_alpha:.4f}")
+        else:
+            T = temperature
+            print(f"\n  Class-wise temperature: [donor={T[0]:.4f}, acceptor={T[1]:.4f}, neither={T[2]:.4f}]")
+            print(f"  blend_alpha={blend_alpha:.4f}")
+
     print(f"\n{'='*70}")
-    print("Evaluating: Meta model vs Base model")
+    print("Evaluating: Meta model vs Base model (streaming)")
     print(f"{'='*70}\n")
 
-    meta_gene_probs: Dict[str, np.ndarray] = {}
-    base_gene_probs: Dict[str, np.ndarray] = {}
-    gene_labels_map: Dict[str, np.ndarray] = {}
-
-    all_meta_probs = []
-    all_base_probs = []
-    all_labels = []
-
     t0 = time.time()
-    for i, (gene_id, data) in enumerate(gene_data_map.items()):
-        # Meta model: sliding window inference
-        meta_probs = infer_full_gene(model, data, device=device)
-        base_probs = data["base_scores"]  # [L, 3]
-        labels = data["labels"]  # [L]
+    for i, gene_id in enumerate(test_genes):
+        npz_path = cache_dir / f"{gene_id}.npz"
+        if not npz_path.exists():
+            evaluator.n_skipped += 1
+            continue
 
-        # Store per-gene for top-k
-        meta_gene_probs[gene_id] = meta_probs
-        base_gene_probs[gene_id] = base_probs
-        gene_labels_map[gene_id] = labels
+        data = _load_gene_npz(npz_path)
+        if len(data["sequence"]) < min_length:
+            evaluator.n_skipped += 1
+            del data
+            continue
 
-        # Collect all positions
-        all_meta_probs.append(meta_probs)
-        all_base_probs.append(base_probs)
-        all_labels.append(labels)
+        # Ablation: zero out specified channels before inference
+        if zero_channel_indices is not None:
+            data["mm_features"][:, zero_channel_indices] = 0.0
+
+        # Inference: one gene at a time
+        if use_temperature and not _is_default_T:
+            # Temperature scaling: get logits, then apply T + blend externally
+            logits = infer_full_gene(model, data, device=device, return_logits=True)
+            meta_probs = apply_temperature_blend(
+                logits, data["base_scores"], temperature, blend_alpha,
+            )
+            del logits
+        else:
+            meta_probs = infer_full_gene(model, data, device=device)
+
+        base_probs = data["base_scores"]
+        labels = data["labels"]
+
+        evaluator.update(meta_probs, base_probs, labels, gene_id)
+
+        # Free immediately — only one gene's arrays in memory
+        del data, meta_probs, base_probs, labels
 
         if (i + 1) % 100 == 0:
-            print(f"  Processed {i+1}/{len(gene_data_map)} genes...")
+            mem_mb = evaluator.memory_usage_mb()
+            print(f"  Processed {i+1}/{len(test_genes)} genes "
+                  f"(accum: {mem_mb:.1f} MB)...")
 
     elapsed = time.time() - t0
-    print(f"  Inference complete: {len(gene_data_map)} genes in {elapsed:.1f}s")
+    print(f"  Inference complete: {evaluator.n_genes} genes in {elapsed:.1f}s "
+          f"({evaluator.n_skipped} skipped)")
+    print(f"  Accumulator memory: {evaluator.memory_usage_mb():.1f} MB")
 
-    # Concatenate all positions
-    all_meta = np.concatenate(all_meta_probs)
-    all_base = np.concatenate(all_base_probs)
-    all_lab = np.concatenate(all_labels)
-    print(f"  Total positions: {len(all_lab):,}")
+    if evaluator.n_genes == 0:
+        print("ERROR: No genes evaluated. Check --cache-dir path.")
+        return 1
 
-    # ── Compute metrics ──────────────────────────────────────────────
-    print(f"\n{'─'*70}")
-    print("Classification Metrics")
-    print(f"{'─'*70}\n")
+    # ── Compute and display metrics ──────────────────────────────────
+    results = evaluator.compute()
+    results["model"] = cfg.variant
+    results["checkpoint"] = str(args.checkpoint)
+    results["annotation_source"] = ann_src
+    results["test_chromosomes"] = test_chroms if 'test_chroms' in dir() else []
+    if args.zero_channels:
+        results["ablation"] = args.zero_channels
+    if use_temperature and not _is_default_T:
+        results["temperature"] = (
+            temperature.tolist() if hasattr(temperature, "tolist") else temperature
+        )
+        results["blend_alpha"] = blend_alpha
+        if args.calibrate_temperature and 'cal_result' in dir():
+            cal_for_json = {**cal_result}
+            if hasattr(cal_for_json["temperature"], "tolist"):
+                cal_for_json["temperature"] = cal_for_json["temperature"].tolist()
+            results["calibration"] = cal_for_json
 
-    meta_metrics = compute_classification_metrics(all_meta, all_lab)
-    base_metrics = compute_classification_metrics(all_base, all_lab)
+    print_comparison_report(results)
 
-    # Display comparison table
-    print(f"{'Metric':<30} {'Base Model':>15} {'Meta Model':>15} {'Delta':>12}")
-    print(f"{'─'*72}")
-
-    for key in ["accuracy", "top_1_accuracy", "top_2_accuracy", "macro_pr_auc"]:
-        b, m = base_metrics[key], meta_metrics[key]
-        d = m - b
-        print(f"{key:<30} {b:>15.4f} {m:>15.4f} {d:>+12.4f}")
-
-    print()
-    for cls in ["donor", "acceptor", "neither"]:
-        b_auc = base_metrics["pr_aucs"].get(cls, 0)
-        m_auc = meta_metrics["pr_aucs"].get(cls, 0)
-        d = m_auc - b_auc
-        print(f"PR-AUC ({cls}){'':<17} {b_auc:>15.4f} {m_auc:>15.4f} {d:>+12.4f}")
-
-    print()
-    for cls in ["donor", "acceptor"]:
-        for met in ["precision", "recall", "f1"]:
-            key = f"{cls}_{met}"
-            b, m = base_metrics.get(key, 0), meta_metrics.get(key, 0)
-            d = m - b
-            print(f"{key:<30} {b:>15.4f} {m:>15.4f} {d:>+12.4f}")
-
-    # FN/FP comparison
-    print(f"\n{'─'*70}")
-    print("Error Analysis (splice sites: donor + acceptor)")
-    print(f"{'─'*70}\n")
-
-    b_fn, m_fn = base_metrics["fn_count"], meta_metrics["fn_count"]
-    b_fp, m_fp = base_metrics["fp_count"], meta_metrics["fp_count"]
-    fn_reduction = (b_fn - m_fn) / max(b_fn, 1) * 100
-    fp_reduction = (b_fp - m_fp) / max(b_fp, 1) * 100
-
-    print(f"{'':30} {'Base':>15} {'Meta':>15} {'Reduction':>12}")
-    print(f"{'False Negatives':<30} {b_fn:>15,} {m_fn:>15,} {fn_reduction:>+11.1f}%")
-    print(f"{'False Positives':<30} {b_fp:>15,} {m_fp:>15,} {fp_reduction:>+11.1f}%")
-    print(f"{'True Positives':<30} {base_metrics['tp_count']:>15,} {meta_metrics['tp_count']:>15,}")
-
-    # ── Top-K Accuracy (SpliceAI paper) ──────────────────────────────
-    print(f"\n{'─'*70}")
-    print("Top-K Accuracy (SpliceAI paper, per-gene ranking)")
-    print(f"{'─'*70}\n")
-
-    k_mults = [0.5, 1.0, 2.0, 4.0]
-    meta_topk = compute_topk_accuracy_from_arrays(meta_gene_probs, gene_labels_map, k_mults)
-    base_topk = compute_topk_accuracy_from_arrays(base_gene_probs, gene_labels_map, k_mults)
-
-    print(f"{'k multiplier':<15}", end="")
-    for km in k_mults:
-        print(f"  {'k=' + str(km) + 'x':>10}", end="")
-    print()
-    print("─" * 60)
-
-    for splice in ["donor", "acceptor", "overall"]:
-        print(f"\n  {splice.upper()}")
-        for label, topk in [("  Base", base_topk), ("  Meta", meta_topk)]:
-            print(f"  {label:<12}", end="")
-            for km in k_mults:
-                print(f"  {topk[splice][km]:>10.4f}", end="")
-            print()
-        # Delta
-        print(f"  {'  Delta':<12}", end="")
-        for km in k_mults:
-            d = meta_topk[splice][km] - base_topk[splice][km]
-            print(f"  {d:>+10.4f}", end="")
-        print()
+    # ── Threshold sweep ──────────────────────────────────────────────
+    if args.sweep_thresholds:
+        from agentic_spliceai.splice_engine.eval.streaming_metrics import (
+            print_threshold_analysis,
+        )
+        sweep = evaluator.sweep_thresholds()
+        print_threshold_analysis(sweep)
+        results["threshold_sweep"] = sweep
 
     # ── Save results ─────────────────────────────────────────────────
     output_dir = args.output_dir or args.checkpoint.parent
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    results = {
-        "model": cfg.variant,
-        "checkpoint": str(args.checkpoint),
-        "annotation_source": ann_src,
-        "n_genes": len(gene_data_map),
-        "n_positions": int(len(all_lab)),
-        "test_chromosomes": test_chroms,
-        "meta_model": meta_metrics,
-        "base_model": base_metrics,
-        "meta_topk": {
-            splice: {str(k): v for k, v in vals.items()}
-            for splice, vals in meta_topk.items()
-        },
-        "base_topk": {
-            splice: {str(k): v for k, v in vals.items()}
-            for splice, vals in base_topk.items()
-        },
-        "fn_reduction_pct": fn_reduction,
-        "fp_reduction_pct": fp_reduction,
-    }
-
-    results_path = output_dir / "eval_results.json"
+    # Use descriptive filename based on evaluation mode
+    if args.zero_channels:
+        suffix = "_".join(args.zero_channels).replace(",", "_")
+        results_path = output_dir / f"eval_ablation_{suffix}.json"
+    elif use_temperature and not _is_default_T:
+        if np.isscalar(temperature):
+            results_path = output_dir / f"eval_results_T{temperature:.2f}.json"
+        else:
+            results_path = output_dir / "eval_results_calibrated.json"
+    else:
+        results_path = output_dir / "eval_results.json"
     with open(results_path, "w") as f:
         json.dump(results, f, indent=2, default=str)
     print(f"\nResults saved to {results_path}")
 
+    meta_m = results["meta_model"]
+    base_m = results["base_model"]
     print(f"\n{'='*70}")
-    print(f"Summary: Meta model {'improves' if meta_metrics['macro_pr_auc'] > base_metrics['macro_pr_auc'] else 'does not improve'} over base model")
-    print(f"  Base PR-AUC: {base_metrics['macro_pr_auc']:.4f}")
-    print(f"  Meta PR-AUC: {meta_metrics['macro_pr_auc']:.4f}")
-    print(f"  FN reduction: {fn_reduction:+.1f}%")
-    print(f"  FP reduction: {fp_reduction:+.1f}%")
+    print(f"Summary: Meta model {'improves' if meta_m['macro_pr_auc'] > base_m['macro_pr_auc'] else 'does not improve'} over base model")
+    print(f"  Base PR-AUC: {base_m['macro_pr_auc']:.4f}")
+    print(f"  Meta PR-AUC: {meta_m['macro_pr_auc']:.4f}")
+    print(f"  FN reduction: {results['fn_reduction_pct']:+.1f}%")
+    print(f"  FP reduction: {results['fp_reduction_pct']:+.1f}%")
     print(f"{'='*70}")
 
     return 0
