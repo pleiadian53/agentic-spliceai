@@ -1,10 +1,14 @@
-# M1 Full-Genome Results: Multimodal Meta-Layer Baseline
+# M1-P Full-Genome Results: Position-Level Meta-Layer Baseline
 
 **Date**: 2026-03-31
-**Model**: XGBoost (3-class: donor / acceptor / neither)
+**Model variant**: M1-P (position-level XGBoost, 3-class: donor / acceptor / neither)
 **Base model**: OpenSpliceAI (GRCh38 / MANE)
 **Split**: SpliceAI chromosome holdout (Jaganathan et al., 2019)
 **Data**: 6.27M sampled positions across 24 chromosomes, 19,174 genes
+
+> **Note**: This is the position-level (M1-P) baseline. For the sequence-level
+> model (M1-S), see `m1s_ablation_study.md` and the evaluation results in
+> `output/meta_layer/m1s/`.
 
 ---
 
