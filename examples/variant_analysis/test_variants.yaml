@@ -1,0 +1,38 @@
+# Test variants for Phase 1A delta prediction.
+# Validated against OpenSpliceAI base model and meta-layer M1-S.
+#
+# All coordinates are GRCh38, 1-based. Ref/alt are plus-strand alleles
+# (matching the reference FASTA), regardless of gene strand.
+
+variants:
+  # ── Plus-strand test ──────────────────────────────────────────
+  # PSMD2 exon boundary: G is the first base of a GT donor (donor_prob=0.999).
+  # G>A disrupts the invariant GT → expected donor loss + cryptic donor gain.
+  # Verified: DS_DG=+0.46, DS_DL=-0.19
+  - chrom: chr3
+    pos: 184300445
+    ref: G
+    alt: A
+    gene: PSMD2
+    strand: "+"
+
+  # ── Minus-strand tests ────────────────────────────────────────
+  # MYBPC3 donor site: C on plus strand = G of GT in transcript.
+  # C>A disrupts the invariant donor → expected strong donor loss.
+  # Verified: DS_DL=-0.68, DS_DG=+0.30
+  - chrom: chr11
+    pos: 47332565
+    ref: C
+    alt: A
+    gene: MYBPC3
+    strand: "-"
+
+  # MYBPC3 second donor site (donor_prob=0.999).
+  # C>A at the G of GT (transcript) → strong donor loss + multiple cryptic gains.
+  # Verified: DS_DL=-0.67, DS_DG=+0.48
+  - chrom: chr11
+    pos: 47333193
+    ref: C
+    alt: A
+    gene: MYBPC3
+    strand: "-"

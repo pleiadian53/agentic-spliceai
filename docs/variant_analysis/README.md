@@ -1,23 +1,22 @@
 # Variant Analysis
 
-Documentation on variant impact analysis is coming soon.
+Documentation on variant impact analysis for splice site prediction.
+
+## Tutorials
+
+- [Negative Strand Genes and Variant Effects](negative_strand_and_variant_effects.md) -
+  Coordinate systems, strand-aware prediction, delta score patterns, and
+  compensatory splice signals
 
 ## Planned Content
 
-- Variant calling and annotation
-- Splice site disruption prediction
-- Pathogenicity assessment
 - VUS (Variants of Uncertain Significance) analysis
-- Clinical interpretation
-- Reporting and visualization
+- Clinical interpretation and reporting
+- Integration with ClinVar and gnomAD
 
 ## Related Resources
 
-For now, please refer to:
-
-- [Splice Prediction Guide](../tutorials/SPLICE_PREDICTION_GUIDE.md) - Splice prediction methods
+- [Splice Prediction Guide](../tutorials/SPLICE_PREDICTION_GUIDE.md) - Base layer prediction methods
+- [Position Coordinate Systems](../base_layer/POSITION_COORDINATE_SYSTEMS.md) - Absolute vs relative coordinates
+- [Meta-Layer Methods](../meta_layer/methods/) - Multimodal evidence fusion
 - [Isoform Discovery](../isoform_discovery/README.md) - Novel isoform discovery
-
----
-
-*This section is under development. Check back soon for variant analysis documentation.*
