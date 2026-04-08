@@ -21,7 +21,7 @@ Architecture::
                             |
                     output head → logits [B, L, 3]
                             |
-                α × softmax(logits) + (1-α) × softmax(base_scores)
+                softmax((α × logits + (1-α) × log(base_probs)) / T)
                             |
                         output [B, L, 3]
 
@@ -80,6 +80,8 @@ class MetaSpliceConfig:
     dropout: float = 0.1
     activation: Literal["relu", "gelu", "selu"] = "gelu"
     use_residual_blend: bool = True
+    blend_mode: Literal["probability", "logit"] = "logit"
+    use_blend_temperature: bool = True
 
     # Base score handling: if True, base scores (3 channels) are
     # concatenated into the multimodal stream as additional channels
@@ -310,17 +312,24 @@ class MetaSpliceModel(nn.Module):
         # Learnable residual blend weight (initialized at 0.5)
         if config.use_residual_blend:
             self.blend_alpha = nn.Parameter(torch.tensor(0.0))  # sigmoid(0) = 0.5
+        if getattr(config, "use_blend_temperature", False):
+            self.blend_temperature = nn.Parameter(torch.ones(config.num_classes))
 
         self._log_model_info()
 
     def _log_model_info(self) -> None:
         n_params = sum(p.numel() for p in self.parameters())
+        blend_mode = getattr(self.config, "blend_mode", "probability")
+        has_temp = hasattr(self, "blend_temperature")
         logger.info(
-            "MetaSpliceModel (%s): %.1fK params, H=%d, mm_channels=%d",
+            "MetaSpliceModel (%s): %.1fK params, H=%d, mm_channels=%d, "
+            "blend=%s%s",
             self.config.variant,
             n_params / 1000,
             self.config.hidden_dim,
             self.config.mm_channels,
+            blend_mode,
+            "+classT" if has_temp else "",
         )
 
     def forward(
@@ -384,20 +393,39 @@ class MetaSpliceModel(nn.Module):
         fused = fused.permute(0, 2, 1).contiguous()  # [B, L, H]
         logits = self.output_head(fused)  # [B, L, num_classes]
 
-        if self.training or return_logits:
-            # During training: return raw logits for cross-entropy loss.
-            # Avoids log(softmax(...)) chain that causes MPS autograd issues.
-            # return_logits=True: caller needs raw logits for temperature scaling.
-            return logits
+        # Residual blend: combine meta logits with base model signal
+        blend_mode = getattr(self.config, "blend_mode", "probability")
 
-        # During inference: apply softmax and optional residual blend
-        if self.config.use_residual_blend and self.config.num_classes == 3:
+        if self.config.use_residual_blend:
             alpha = torch.sigmoid(self.blend_alpha)
-            meta_probs = F.softmax(logits, dim=-1)
-            base_probs = F.softmax(base_scores, dim=-1)
-            return alpha * meta_probs + (1.0 - alpha) * base_probs
-        else:
-            return F.softmax(logits, dim=-1)
+
+            if blend_mode == "logit":
+                # Product-of-experts: blend in logit space before softmax.
+                # base_scores are cached probabilities → convert to logits.
+                base_logits = torch.log(base_scores.clamp(min=1e-8))
+                blended = alpha * logits + (1.0 - alpha) * base_logits
+
+                # Class-wise learned temperature (subsumes post-hoc calibration)
+                if hasattr(self, "blend_temperature"):
+                    T = self.blend_temperature.clamp(min=0.05, max=5.0)
+                    blended = blended / T  # [B, L, C] / [C] broadcasts
+
+                if self.training or return_logits:
+                    return blended
+                return F.softmax(blended, dim=-1)
+
+            else:
+                # Legacy probability-space mode (for old checkpoints).
+                # base_scores are already probabilities — use directly.
+                if self.training or return_logits:
+                    return logits
+                meta_probs = F.softmax(logits, dim=-1)
+                return alpha * meta_probs + (1.0 - alpha) * base_scores
+
+        # No blend
+        if self.training or return_logits:
+            return logits
+        return F.softmax(logits, dim=-1)
 
     def predict_with_delta(
         self,

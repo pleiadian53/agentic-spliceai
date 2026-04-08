@@ -432,12 +432,17 @@ def main():
             ablation_label = f"zeroed: {', '.join(args.zero_channels)}"
         print(f"  Ablation: {ablation_label}")
 
-    # ── Temperature scaling: resolve blend_alpha from model ─────────
+    # ── Blend parameters from model config ──────────────────────────
     import torch
     blend_alpha = 0.5  # default (sigmoid(0))
     if hasattr(model, "blend_alpha"):
         blend_alpha = float(torch.sigmoid(model.blend_alpha).item())
         log.info("Model blend_alpha: %.4f (raw=%.4f)", blend_alpha, model.blend_alpha.item())
+    blend_mode = getattr(cfg, "blend_mode", "probability")
+    if hasattr(model, "blend_temperature"):
+        t_vals = model.blend_temperature.detach().clamp(min=0.05, max=5.0).cpu().numpy()
+        log.info("Model blend_temperature: %s", t_vals)
+    log.info("Blend mode: %s", blend_mode)
 
     # Temperature can be scalar (--temperature) or array (--calibrate-temperature)
     temperature = args.temperature or 1.0
@@ -488,7 +493,9 @@ def main():
             print(f"WARNING: Only {n_cal} validation genes found. "
                   "Results may be unreliable. Skipping calibration.")
         else:
-            cal_result = scaler.fit(blend_alpha=blend_alpha)
+            cal_result = scaler.fit(
+                blend_alpha=blend_alpha, blend_mode=blend_mode,
+            )
             temperature = cal_result["temperature"]  # np.ndarray [3]
             T = temperature
             print(f"  Class-wise temperature: [donor={T[0]:.4f}, acceptor={T[1]:.4f}, neither={T[2]:.4f}]")
@@ -539,6 +546,7 @@ def main():
             logits = infer_full_gene(model, data, device=device, return_logits=True)
             meta_probs = apply_temperature_blend(
                 logits, data["base_scores"], temperature, blend_alpha,
+                blend_mode=blend_mode,
             )
             del logits
         else:

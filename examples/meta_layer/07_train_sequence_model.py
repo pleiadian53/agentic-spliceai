@@ -153,13 +153,13 @@ def evaluate(
         mm = batch["mm_features"].to(device)
         labels = batch["labels"].to(device)
 
-        probs = model(seq, base, mm)  # [B, L, C] softmax probs (model.eval=True)
-        logits = torch.log(probs.clamp(min=1e-8))
+        logits = model(seq, base, mm, return_logits=True)  # [B, L, C]
         loss = criterion(logits.contiguous(), labels)
         total_loss += loss.item()
         n_batches += 1
 
-        # Collect predictions
+        # Collect predictions (softmax for metrics)
+        probs = F.softmax(logits, dim=-1)
         all_probs.append(probs.cpu().numpy().reshape(-1, num_classes))
         all_labels.append(labels.cpu().numpy().reshape(-1))
 
@@ -520,6 +520,16 @@ def main() -> int:
         lr = optimizer.param_groups[0]["lr"]
         macro = val_metrics["macro_pr_auc"]
 
+        # Log blend parameters if available
+        blend_info = ""
+        if hasattr(model, "blend_alpha"):
+            alpha_val = float(torch.sigmoid(model.blend_alpha).item())
+            blend_info += f" α={alpha_val:.3f}"
+        if hasattr(model, "blend_temperature"):
+            t_vals = model.blend_temperature.detach().clamp(min=0.05, max=5.0)
+            t_str = ",".join(f"{v:.3f}" for v in t_vals.cpu().numpy())
+            blend_info += f" T=[{t_str}]"
+
         print(
             f"  Epoch {epoch:3d}/{args.epochs} | "
             f"train_loss={train_loss:.4f} | "
@@ -528,6 +538,7 @@ def main() -> int:
             f"val_pr_auc={macro:.4f} | "
             f"lr={lr:.2e} | "
             f"{elapsed:.0f}s"
+            + (f" |{blend_info}" if blend_info else "")
         )
 
         # Save best

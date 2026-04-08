@@ -599,6 +599,7 @@ class TemperatureScaler:
         self,
         blend_alpha: float = 0.5,
         num_classes: int = 3,
+        blend_mode: str = "logit",
         lr: float = 0.01,
         max_epochs: int = 2000,
         patience: int = 2,
@@ -617,6 +618,11 @@ class TemperatureScaler:
             The model's residual blend weight (sigmoid of blend_alpha param).
         num_classes : int
             Number of output classes (default 3).
+        blend_mode : str
+            ``"logit"`` or ``"probability"``.  For ``"logit"`` mode, logits
+            passed to :meth:`collect` are already blended by the model —
+            temperature is applied directly.  For ``"probability"`` mode,
+            blend is done here as ``alpha * softmax(logits/T) + (1-alpha) * base``.
         lr : float
             Adam learning rate (default 0.01).
         max_epochs : int
@@ -631,10 +637,10 @@ class TemperatureScaler:
         Returns
         -------
         dict
-            Keys: ``temperature`` (np.ndarray [3]),
+            Keys: ``temperature`` (np.ndarray [C]),
             ``nll_before``, ``nll_after``,
             ``ece_before``, ``ece_after``, ``n_positions``,
-            ``blend_alpha``.
+            ``blend_alpha``, ``blend_mode``.
         """
         import torch
         import torch.nn.functional as F
@@ -659,10 +665,17 @@ class TemperatureScaler:
 
         def _compute_nll(T: torch.Tensor) -> torch.Tensor:
             T_clamped = torch.clamp(T, min=t_min, max=t_max)
-            scaled = logits_t / T_clamped  # [N, 3] / [3] broadcasts
-            meta_probs = F.softmax(scaled, dim=-1)
-            base_probs = F.softmax(base_t, dim=-1)
-            blended = blend_alpha * meta_probs + (1 - blend_alpha) * base_probs
+            scaled = logits_t / T_clamped  # [N, C] / [C] broadcasts
+
+            if blend_mode == "logit":
+                # Logits are already blended — just apply temperature
+                blended = F.softmax(scaled, dim=-1)
+            else:
+                # Legacy: probability-space blend
+                meta_probs = F.softmax(scaled, dim=-1)
+                # base_scores are already probabilities — use directly
+                blended = blend_alpha * meta_probs + (1 - blend_alpha) * base_t
+
             blended = torch.clamp(blended, min=1e-8)
             log_probs = torch.log(blended[torch.arange(n, device=device), labels_t])
             return -log_probs.mean()
@@ -751,6 +764,7 @@ class TemperatureScaler:
             "ece_after": float(ece_after),
             "n_positions": n,
             "blend_alpha": blend_alpha,
+            "blend_mode": blend_mode,
         }
 
     def memory_usage_mb(self) -> float:

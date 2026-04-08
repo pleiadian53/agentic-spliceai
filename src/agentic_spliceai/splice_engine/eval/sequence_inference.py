@@ -18,8 +18,16 @@ def apply_temperature_blend(
     base_scores: np.ndarray,
     temperature: "float | np.ndarray" = 1.0,
     blend_alpha: float = 0.5,
+    blend_mode: str = "logit",
 ) -> np.ndarray:
     """Apply temperature scaling to logits, then residual blend with base scores.
+
+    Supports two blend modes:
+
+    - ``"logit"`` (default): Product-of-experts in logit space.
+      ``softmax((alpha * logits + (1-alpha) * log(base_scores)) / T)``
+    - ``"probability"``: Legacy probability-space blend (no double-softmax).
+      ``alpha * softmax(logits / T) + (1-alpha) * base_scores``
 
     Supports both scalar temperature (single T for all classes) and
     class-wise temperature (one T per class, matching OpenSpliceAI).
@@ -27,28 +35,40 @@ def apply_temperature_blend(
     Parameters
     ----------
     logits : np.ndarray
-        Raw model logits ``[L, 3]``.
+        Raw model logits ``[L, C]``.  For ``blend_mode="logit"`` these
+        are **blended** logits (already include base signal + learned
+        temperature from model forward).
     base_scores : np.ndarray
-        Base model scores ``[L, 3]``.
+        Base model probabilities ``[L, C]``.
     temperature : float or np.ndarray
-        Temperature parameter(s).  Scalar applies to all classes.
-        Array of shape ``[3]`` applies per-class: ``[T_donor, T_acceptor, T_neither]``.
+        Post-hoc temperature parameter(s).  Scalar applies to all classes.
+        Array of shape ``[C]`` applies per-class.
         Values >1 soften, <1 sharpen.  Default 1.0 (no change).
     blend_alpha : float
-        Residual blend weight: ``alpha * softmax(logits/T) + (1-alpha) * softmax(base)``.
+        Residual blend weight.  Only used in ``"probability"`` mode;
+        in ``"logit"`` mode, blending is already part of the model logits.
+    blend_mode : str
+        ``"logit"`` (default) or ``"probability"``.
 
     Returns
     -------
     np.ndarray
-        Calibrated probabilities ``[L, 3]``.
+        Calibrated probabilities ``[L, C]``.
     """
     from scipy.special import softmax
 
     temperature = np.asarray(temperature, dtype=np.float64)
-    scaled_logits = logits / temperature  # broadcasts [L, 3] / [3] or scalar
+
+    if blend_mode == "logit":
+        # Logits are already blended by model.forward(return_logits=True).
+        # Apply post-hoc temperature only (often T=1.0, i.e. no-op).
+        return softmax(logits / temperature, axis=-1)
+
+    # Legacy probability-space blend (for old checkpoints).
+    # base_scores are already probabilities — use directly, no double-softmax.
+    scaled_logits = logits / temperature
     meta_probs = softmax(scaled_logits, axis=-1)
-    base_probs = softmax(base_scores, axis=-1)
-    return blend_alpha * meta_probs + (1.0 - blend_alpha) * base_probs
+    return blend_alpha * meta_probs + (1.0 - blend_alpha) * base_scores
 
 
 def infer_full_gene(
