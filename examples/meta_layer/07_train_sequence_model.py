@@ -211,7 +211,9 @@ def main() -> int:
              "Override to mix (e.g., m1 on ensembl for M2a evaluation).",
     )
     parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=None,
+                        help="Batch size. Default: auto-detected from device "
+                             "(4 for CPU/MPS, 16 for CUDA).")
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--hidden-dim", type=int, default=32)
     parser.add_argument(
@@ -227,7 +229,9 @@ def main() -> int:
         help="Directory for disk-backed gene cache (.npz per gene). "
              "Default: <output-dir>/gene_cache/",
     )
-    parser.add_argument("--accumulation-steps", type=int, default=4)
+    parser.add_argument("--accumulation-steps", type=int, default=None,
+                        help="Gradient accumulation steps. Default: auto-detected "
+                             "from device (4 for CPU/MPS, 1 for CUDA).")
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument(
         "--base-scores-dir", type=Path, default=None,
@@ -273,6 +277,18 @@ def main() -> int:
     else:
         device = torch.device(args.device)
     print(f"Device: {device}")
+
+    # ── Environment-aware defaults ──────────────────────────────────
+    # On CUDA: large batch, no accumulation (plenty of VRAM).
+    # On CPU/MPS: small batch + accumulation (memory-constrained).
+    cuda = device.type == "cuda"
+    if args.batch_size is None:
+        args.batch_size = 16 if cuda else 4
+    if args.accumulation_steps is None:
+        args.accumulation_steps = 1 if cuda else 4
+    eff_batch = args.batch_size * args.accumulation_steps
+    print(f"  Batch size: {args.batch_size} × {args.accumulation_steps} "
+          f"accumulation = {eff_batch} effective")
 
     # ── Imports ──────────────────────────────────────────────────────
     from agentic_spliceai.splice_engine.meta_layer.models.meta_splice_model_v3 import (

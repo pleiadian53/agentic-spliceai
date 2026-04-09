@@ -39,17 +39,18 @@ python -u examples/meta_layer/07_train_sequence_model.py \
     --mode m1 \
     --device cuda \
     --epochs 50 \
-    --batch-size 8 \
-    --accumulation-steps 2 \
     --lr 1e-3 \
     --hidden-dim 32 \
     --activation gelu \
     --samples-per-epoch 100000 \
     --patience 10 \
     --bigwig-cache "$BIGWIG_CACHE" \
-    --cache-dir /runpod-volume/output/meta_layer/gene_cache \
+    --cache-dir /runpod-volume/output/meta_layer/gene_cache_mane \
     --use-shards \
     --output-dir "$OUTPUT_DIR"
+    # batch-size and accumulation-steps auto-detected from device:
+    #   cuda → batch_size=16, accumulation_steps=1 (eff=16)
+    #   cpu  → batch_size=4,  accumulation_steps=4 (eff=16)
 
 echo "============================================================"
 echo "Training complete — $(date)"

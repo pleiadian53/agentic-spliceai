@@ -5,7 +5,7 @@
 # Each ablation run is inference-only (~15-20 min on A40).
 #
 # Prerequisites:
-#   1. M1-S gene cache already built: output/meta_layer/m1s/gene_cache/test/
+#   1. M1-S gene cache already built: /runpod-volume/output/meta_layer/gene_cache_mane/test/
 #   2. M1-S checkpoint: output/meta_layer/m1s/best.pt + config.pt
 #
 # Usage:
@@ -18,7 +18,7 @@ set -e
 
 WORKDIR=~/sky_workdir
 CHECKPOINT=$WORKDIR/output/meta_layer/m1s/best.pt
-CACHE_DIR=$WORKDIR/output/meta_layer/m1s/gene_cache/test
+CACHE_DIR=/runpod-volume/output/meta_layer/gene_cache_mane/test
 OUTPUT_DIR=/runpod-volume/output/m1s_eval
 
 cd "$WORKDIR"
