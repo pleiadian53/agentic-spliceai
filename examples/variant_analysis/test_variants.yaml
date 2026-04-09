@@ -36,3 +36,87 @@ variants:
     alt: A
     gene: MYBPC3
     strand: "-"
+
+  # ── Extended validation set ───────────────────────────────────
+  # Disease-gene donor mutations (G-of-GT → A, invariant splice site)
+
+  # BRCA1: Hereditary breast/ovarian cancer (minus-strand)
+  # C on plus strand = G of GT in transcript
+  - chrom: chr17
+    pos: 43047642
+    ref: C
+    alt: T
+    gene: BRCA1
+    strand: "-"
+
+  # TP53: Li-Fraumeni syndrome (minus-strand)
+  - chrom: chr17
+    pos: 7670608
+    ref: C
+    alt: T
+    gene: TP53
+    strand: "-"
+
+  # DMD: Duchenne muscular dystrophy (minus-strand, chrX)
+  - chrom: chrX
+    pos: 31119221
+    ref: C
+    alt: T
+    gene: DMD
+    strand: "-"
+
+  # CFTR: Cystic fibrosis donor (plus-strand)
+  - chrom: chr7
+    pos: 117480148
+    ref: G
+    alt: A
+    gene: CFTR
+    strand: "+"
+
+  # CFTR: Cystic fibrosis acceptor (plus-strand, G-of-AG)
+  - chrom: chr7
+    pos: 117509033
+    ref: G
+    alt: A
+    gene: CFTR
+    strand: "+"
+
+  # NF1: Neurofibromatosis type 1 donor (plus-strand)
+  - chrom: chr17
+    pos: 31095370
+    ref: G
+    alt: A
+    gene: NF1
+    strand: "+"
+
+  # ATM: Ataxia-telangiectasia donor (plus-strand)
+  - chrom: chr11
+    pos: 108223187
+    ref: G
+    alt: A
+    gene: ATM
+    strand: "+"
+
+  # ATM: Ataxia-telangiectasia acceptor (plus-strand, G-of-AG)
+  - chrom: chr11
+    pos: 108227775
+    ref: G
+    alt: A
+    gene: ATM
+    strand: "+"
+
+  # BRCA2: Hereditary breast cancer donor (plus-strand)
+  - chrom: chr13
+    pos: 32315668
+    ref: G
+    alt: A
+    gene: BRCA2
+    strand: "+"
+
+  # MLH1: Lynch syndrome donor (plus-strand)
+  - chrom: chr3
+    pos: 36993664
+    ref: G
+    alt: A
+    gene: MLH1
+    strand: "+"
