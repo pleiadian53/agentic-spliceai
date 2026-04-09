@@ -219,8 +219,9 @@ graph LR
 |-----------|-------------|
 | **M1-M4 Model Variants** | Four progressively harder tasks: canonical (M1), alternative (M2/M2a-f), novel discovery (M3), perturbation-induced (M4) — see [Model Variants](docs/meta_layer/methods/00_model_variants_m1_m4.md) |
 | **Position-Level (M*-P)** | XGBoost baseline with Tree SHAP (M1-P: 99.74% accuracy, PR-AUC 0.999, FN -62% / FP -68% vs base-only) |
-| **Sequence-Level (M*-S)** | 2-stream dilated CNN (367K params) producing per-nucleotide `[L, 3]` predictions (M1-S: 99.99% accuracy, PR-AUC 0.9899) — same I/O protocol as base models |
-| **M2 Series** | Six training/evaluation protocols (M2a-f) for alternative splice site detection with annotation-tier weighting and junction-informed soft labels — see [M2 Formulations](docs/meta_layer/methods/05_m2_variant_formulations.md) |
+| **Sequence-Level (M*-S)** | 2-stream dilated CNN (367K params) with logit-space residual blend and per-class learned temperature (M1-S: 99.99% accuracy, PR-AUC 0.9954, FPs -15.5% vs base) — same I/O protocol as base models |
+| **M2 Series** | Six training/evaluation protocols (M2a-f) for alternative splice site detection — M2a evaluation shows meta model exceeds base on alternative sites (PR-AUC 0.775 vs 0.749) — see [M2 Formulations](docs/meta_layer/methods/05_m2_variant_formulations.md) |
+| **Variant Effect (M4)** | Per-variant delta scoring with splice consequence prediction — validated on 13 disease-gene variants, cryptic site positions match RNA-seq within 2bp — see [`examples/variant_analysis/`](examples/variant_analysis/) |
 | **Smart Checkpointing** | Per-chromosome parquet saves, disk-backed gene cache, HDF5 shard packing, `--resume` support |
 
 ### 🤖 NEW: Agentic Workflow Enhancements
@@ -555,9 +556,9 @@ MIT License - see LICENSE file for details
 | 2.5 | Bioinformatics Lab UI | ✅ Complete |
 | 4 | Feature Engineering (10 modalities, 116 columns) | ✅ Complete |
 | 5 | Foundation Models (Evo2, SpliceBERT) | 🔬 Experimental |
-| 6 | Meta Layer Training — M1-S done (PR-AUC 0.9899), M2 series next | 🔄 Active |
+| 6 | Meta Layer — M1-S (PR-AUC 0.9954), M2a/M2b eval, M2c next | 🔄 Active |
 | 7 | Agentic Validation Layer | 📋 Planned |
-| 8 | Variant Analysis (ClinVar, VCF) | 📋 Planned |
+| 8 | Variant Analysis — Phase 1A+1B done, ClinVar + saturation scan next | 🔄 Active |
 | 9 | Isoform Discovery | 🎯 Ultimate Goal |
 
 **See**: [Full Roadmap](docs/ROADMAP.md) for detailed phase breakdowns, deliverables, and success metrics

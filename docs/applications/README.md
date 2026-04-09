@@ -37,7 +37,16 @@ By moving beyond canonical annotations, we unlock 10-100x more therapeutic targe
 
 ## Application Domains
 
-> **Note**: CLI commands shown in the workflows below reflect planned Phase 7-9 functionality. Current capabilities cover base layer prediction, feature engineering, and meta layer training (Phases 1-6).
+> **Note**: CLI commands shown in the workflows below reflect planned Phase 7-9 functionality. Current capabilities cover base layer prediction, feature engineering, meta layer training (Phases 1-6), and variant effect prediction (M4 Phase 1A+1B).
+
+### 0. Variant Analysis: Splice Effect Prediction and Validation
+
+**Status**: Active development (M4 Phase 1A+1B complete, Phase 2-3 planned)
+
+Predict how genetic variants disrupt splicing, identify cryptic splice site locations, and validate against experimental evidence.
+
+- [Saturation Mutagenesis & SpliceVarDB Validation](variant_analysis/saturation_mutagenesis_and_validation.md) — Phase 3 plan for gene-wide splice vulnerability mapping with SpliceVarDB cross-validation and GTEx junction verification
+- [Current validation results](../../examples/variant_analysis/results/variant_effect_validation.md) — 13 disease-gene variants, 4 RNA-seq validated cases from SpliceAI paper
 
 ### 1. Oncology: Cancer-Specific Isoform Targets
 
@@ -144,4 +153,4 @@ agentic-spliceai validate --isoforms output/biomarker_candidates.parquet \
 
 ---
 
-Last Updated: March 2026
+Last Updated: April 2026

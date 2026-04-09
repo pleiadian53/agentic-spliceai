@@ -79,13 +79,21 @@ Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isofo
 | [foundation_models/evo2/junction_support_labels.md](foundation_models/evo2/junction_support_labels.md) | Evo2 junction support labels |
 | [foundation_models/training/deepspeed_training.md](foundation_models/training/deepspeed_training.md) | DeepSpeed training guide |
 
+### Variant Analysis
+
+| Document | Description |
+| --- | --- |
+| [variant_analysis/README.md](variant_analysis/README.md) | Variant analysis overview |
+| [variant_analysis/negative_strand_and_variant_effects.md](variant_analysis/negative_strand_and_variant_effects.md) | Negative strand handling, delta scores, compensatory signals |
+| [Validation results](../examples/variant_analysis/results/variant_effect_validation.md) | 13 disease-gene variants + RNA-seq validated cases |
+| [Saturation mutagenesis plan](applications/variant_analysis/saturation_mutagenesis_and_validation.md) | Gene-wide vulnerability mapping + SpliceVarDB validation |
+
 ### Applications & Use Cases
 
 | Document | Description |
 | --- | --- |
 | [applications/README.md](applications/README.md) | Domain-specific application workflows |
 | [isoform_discovery/README.md](isoform_discovery/README.md) | Novel isoform discovery overview |
-| [variant_analysis/README.md](variant_analysis/README.md) | Variant analysis overview |
 
 ### Agentic Workflows
 
@@ -102,6 +110,16 @@ Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isofo
 | [tutorials/README.md](tutorials/README.md) | Tutorials overview |
 | [tutorials/SPLICE_PREDICTION_GUIDE.md](tutorials/SPLICE_PREDICTION_GUIDE.md) | Splice site prediction guide |
 | [workflows/README.md](workflows/README.md) | Analysis workflows |
+
+### ML Engineering
+
+| Document | Description |
+| --- | --- |
+| [ml_engineering/data_pipeline/io_bottlenecks_dataloader.md](ml_engineering/data_pipeline/io_bottlenecks_dataloader.md) | I/O bottlenecks and DataLoader tuning |
+| [ml_engineering/data_pipeline/sharding_and_io_efficiency.md](ml_engineering/data_pipeline/sharding_and_io_efficiency.md) | HDF5 sharding for genomic training data |
+| [ml_engineering/data_pipeline/stochastic_training_data.md](ml_engineering/data_pipeline/stochastic_training_data.md) | Stochastic vs fixed-dataset training |
+| [ml_engineering/optimization/batch_size_and_learning_rate.md](ml_engineering/optimization/batch_size_and_learning_rate.md) | Batch size, LR scaling, sparse signals |
+| [ml_engineering/probability_calibration/temperature_scaling.md](ml_engineering/probability_calibration/temperature_scaling.md) | Post-hoc vs learned temperature scaling |
 
 ### Domain Knowledge
 
@@ -142,7 +160,9 @@ Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isofo
 | Learn about the base layer | [base_layer/](base_layer/) |
 | Understand meta-learning | [meta_layer/](meta_layer/) |
 | Work with foundation models | [foundation_models/](foundation_models/) |
+| Analyze variant effects | [variant_analysis/README.md](variant_analysis/README.md) |
 | Discover novel isoforms | [isoform_discovery/README.md](isoform_discovery/README.md) |
+| Learn ML engineering | [ml_engineering/](ml_engineering/) |
 | Use agentic validation | [agency/README.md](agency/README.md) |
 | Follow a tutorial | [tutorials/SPLICE_PREDICTION_GUIDE.md](tutorials/SPLICE_PREDICTION_GUIDE.md) |
 | Read splice biology | [biology/README.md](biology/README.md) |
@@ -153,4 +173,4 @@ Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isofo
 
 ---
 
-**Last Updated:** March 2026
+**Last Updated:** April 2026

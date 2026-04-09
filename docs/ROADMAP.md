@@ -16,7 +16,7 @@
 | 5 | Foundation Models | Experimental |
 | 6 | Meta Layer Training | Active Research |
 | 7 | Agentic Validation Layer | Planned |
-| 8 | Variant Analysis | Planned |
+| 8 | Variant Analysis | **Phase 1A+1B Done** |
 | 9 | Isoform Discovery | Ultimate Goal |
 | 10+ | Drug Target Validation & Deployment | Future |
 
@@ -80,22 +80,29 @@ infrastructure with specialized model heads for progressively harder tasks:
 
 | Variant | Purpose | Status |
 |---------|---------|--------|
-| M1 | Canonical Classification | XGBoost baseline 99.78% acc, PR-AUC 0.999/0.998 |
-| **M2a** | **Ensembl vs MANE evaluation** — predict alternative splice sites in (Ensembl \ MANE) that the base model never saw | **Next priority** |
-| M2 | Alternative Splice Sites (tissue-specific, isoform-specific) | Planned |
+| M1-S v2 | Canonical Classification | **Done** — logit-space blend, PR-AUC 0.9954, FPs -15.5% |
+| M2a | Ensembl alternative sites evaluation | **Done** — v2 meta PR-AUC 0.775 > base 0.749 (OOD fixed) |
+| M2b | GENCODE alternative sites evaluation | **Running** |
+| M2c | Train on Ensembl labels | Ready (ops script + gene cache infra prepared) |
 | M3 | Novel Site Discovery (junction as held-out target) | Planned |
-| M4 | Perturbation-Induced (variant/disease/treatment effects) | Planned |
+| M4 | Perturbation-Induced (variant/disease/treatment effects) | **Phase 1A+1B Done** |
 
-**M2a is the strongest justification for multimodality**: M1 already achieves
-99.7% on canonical sites (little room to prove multimodality's value).
-Ensembl-only sites are where the base model is weakest — the delta
-(meta - base) at these positions directly measures the value of multimodal
-evidence fusion. Requires: Ensembl/GRCh38 annotations, set difference
-computation, base score evaluation, then full meta-layer rescue + ablation.
+**Logit-space blend (v2)**: Replaced the probability-space residual blend with
+a product-of-experts formulation: `softmax((alpha * meta_logits + (1-alpha) * log(base_probs)) / T)`.
+Per-class learned temperature subsumes post-hoc calibration.  blend_alpha now
+receives gradients during training (was stuck at 0.5 in v1).
+
+**OOD generalization fixed**: v1 meta model hurt on alternative sites (PR-AUC
+0.704 < base 0.749). v2 logit-space blend enables graceful degradation — when
+the meta-CNN is uncertain, the base model signal dominates. v2 now exceeds the
+base model on alternative sites (0.775 > 0.749).
 
 **Key Insight**: Junction support is the #2 feature by SHAP (31.3%), reducing false negatives by 60-70%.
 
-**See**: `examples/meta_layer/docs/meta_model_variants_m1_m4.md` for the full M1-M4 framework and M2a evaluation design
+**See**:
+- `docs/meta_layer/methods/00_model_variants_m1_m4.md` for the full M1-M4 framework
+- `examples/meta_layer/results/` for M1-S v2, M2, and ablation results
+- `examples/meta_layer/docs/ood_generalization.md` for OOD analysis
 
 ### Phase 7: Agentic Validation Layer — PLANNED
 
@@ -107,12 +114,28 @@ computation, base score evaluation, then full meta-layer rescue + ablation.
 - Self-improvement feedback loop (validation results refine meta layer)
 - **Deliverable**: AI-validated predictions with biological context
 
-### Phase 8: Variant Analysis — PLANNED
+### Phase 8: Variant Analysis — PHASE 1A+1B DONE
 
-- VCF processing and variant-induced splicing analysis
-- Pathogenicity scoring for splice-affecting variants
-- Clinical interpretation and reporting
-- ClinVar integration and VUS reclassification
+Use-case-driven R&D for M4 variant effect prediction.
+
+| Sub-phase | Description | Status |
+|-----------|-------------|--------|
+| **1A** | VariantRunner — ref/alt delta computation | **Done** |
+| **1B** | SpliceEventDetector — consequence classification | **Done** |
+| 2 | ClinVar integration & benchmarking | Planned |
+| 3 | Saturation mutagenesis & SpliceVarDB validation | Planned |
+| 5 | Agentic variant interpretation | Planned |
+
+**Validated**: 13 disease-gene variants (10 genes, both strands), 4 SpliceAI
+paper cases with RNA-seq confirmed cryptic site positions (MYBPC3 and FAM229B
+match within 2bp of RNA-seq ground truth).
+
+**Variant delta recovery**: v2 logit-space blend preserves 45-95% of base model
+signal (v1: 20-71%). Cryptic donor gains amplified beyond base model.
+
+**See**:
+- `examples/variant_analysis/` for scripts and results
+- `docs/applications/variant_analysis/` for Phase 3 application plan
 
 ### Phase 9: Isoform Discovery — ULTIMATE GOAL
 
@@ -151,4 +174,4 @@ computation, base score evaluation, then full meta-layer rescue + ablation.
 
 ---
 
-Last Updated: March 2026
+Last Updated: April 2026
