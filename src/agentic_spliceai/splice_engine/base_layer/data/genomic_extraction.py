@@ -381,6 +381,59 @@ def extract_exon_annotations(
     return df
 
 
+def extract_cds_annotations(
+    gtf_file: str,
+    chromosomes: Optional[List[str]] = None,
+    verbosity: int = 1,
+) -> pl.DataFrame:
+    """Extract CDS (coding sequence) annotations from a GTF file.
+
+    CDS records define the protein-coding portion of exons, excluding
+    5'/3' UTRs.  Each record includes a ``frame`` field (phase 0/1/2)
+    indicating the reading frame at the CDS start.
+
+    Parameters
+    ----------
+    gtf_file : str
+        Path to GTF annotation file.
+    chromosomes : List[str], optional
+        Filter to specific chromosomes.
+    verbosity : int
+        Verbosity level.
+
+    Returns
+    -------
+    pl.DataFrame
+        Columns: chrom, start, end, strand, frame, gene_id, gene_name,
+        transcript_id.
+    """
+    if verbosity >= 1:
+        print(f"[extract] Extracting CDS annotations from: {gtf_file}")
+
+    records = []
+    for record in iter_gtf_records(
+        gtf_file, feature_types=["CDS"], chromosomes=chromosomes
+    ):
+        frame_val = record.get("frame", ".")
+        records.append(
+            {
+                "chrom": record["chrom"],
+                "start": record["start"],
+                "end": record["end"],
+                "strand": record["strand"],
+                "frame": int(frame_val) if str(frame_val).isdigit() else -1,
+                "gene_id": record.get("gene_id", ""),
+                "gene_name": record.get("gene_name", ""),
+                "transcript_id": record.get("transcript_id", ""),
+            }
+        )
+
+    df = pl.DataFrame(records)
+    if verbosity >= 1:
+        print(f"[extract] Found {len(df)} CDS records")
+    return df
+
+
 def extract_splice_sites_from_exons(
     exon_df: pl.DataFrame,
     verbosity: int = 1

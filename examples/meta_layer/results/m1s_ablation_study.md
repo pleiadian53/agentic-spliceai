@@ -3,7 +3,7 @@
 **Date**: 2026-04-06
 **Model**: M1-S (367K params, 3-stream CNN, residual blending)
 **Test set**: SpliceAI test split (chr1, 3, 5, 7, 9) — 4,653 genes, 363M positions
-**Pod**: A40 (sky-86ba-pleiadian53), CUDA inference
+**Pod**: A40 GPU pod, CUDA inference
 
 ---
 

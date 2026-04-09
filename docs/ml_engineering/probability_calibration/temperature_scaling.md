@@ -1,32 +1,215 @@
-Temperature scaling is strictly a **post-hoc calibration** step — it's applied **after** training is complete, not during.
+# Temperature Scaling for Splice Site Prediction
 
-## Why post-training, not during training
+Temperature scaling adjusts the confidence of model predictions without
+changing the ranking.  It comes in two forms: **post-hoc** (applied
+after training) and **learned** (integrated into the model).
 
-1. **T doesn't change the ranking** — it only rescales confidences. PR-AUC, top-k accuracy, and the relative ordering of predictions are invariant to T. It only affects the decision boundary (which positions cross a given probability threshold).
-2. **Training already optimizes cross-entropy** — during training, the model implicitly learns some calibration through the loss function. But modern deep nets tend to be overconfident (Guo et al. 2017), so post-hoc T fixes the residual miscalibration.
-3. **T is a single scalar** — fitting it takes seconds on the validation set. There's no risk of overfitting a single parameter, so no need for nested CV or expensive search.
+---
 
-## The standard protocol
+## 1. What Temperature Does
 
-
+Given raw logits `z` from a model, softmax produces probabilities:
 
 ```
-Train set (chr11-22 even, etc.)  →  train model weights + blend_alpha
-Validation set (chr2,4,6,8,10)  →  fit T (minimize NLL, ~seconds)
-Test set (chr1,3,5,7,9)         →  evaluate with fixed T
+p_i = exp(z_i) / Σ exp(z_j)
 ```
 
-This is the same train/val/test split you already use — no extra splits or nested CV needed. The validation set is the one that the SpliceAI paper designates for hyperparameter selection.
+Temperature scaling divides logits by T before softmax:
 
-## What T is and isn't
+```
+p_i = exp(z_i / T) / Σ exp(z_j / T)
+```
 
-- **Is**: a calibration knob that adjusts confidence levels. Higher T → softer probabilities → fewer FPs at the cost of slightly more FNs.
-- **Is not**: a hyperparameter like learning rate or hidden dim that affects what the model learns. The model weights are frozen when you fit T.
+- **T > 1**: softens probabilities (less confident, more uniform)
+- **T < 1**: sharpens probabilities (more confident, more peaked)
+- **T = 1**: no change (standard softmax)
 
-Think of it like choosing a classification threshold — you train the model, then pick the operating point on the PR curve that best suits your application. Temperature scaling is a more principled version of threshold tuning because it calibrates the full probability distribution, not just a single cutoff.
+Temperature preserves the **ranking** of predictions — if class A had the
+highest probability before scaling, it still does after.  Only the
+magnitude of the probabilities changes.
 
-## For M1-S specifically
+---
 
-The FP doubling (7,938 → 15,883) we observed is exactly the kind of overconfidence that temperature scaling addresses. The model's probability mass is too concentrated — many "neither" positions get assigned moderate splice-site probability that crosses the argmax boundary. A T > 1 will soften those predictions back below the decision boundary.
+## 2. Why Models Need Calibration
 
-The `--calibrate-temperature` flag we just implemented does this in one step — it runs through the validation cache, fits T in ~10 seconds, then applies it to the test evaluation. No retraining needed.
+Modern deep networks are systematically **overconfident** (Guo et al.,
+2017).  A model predicting p=0.95 for "donor" is not correct 95% of
+the time — it might be correct only 80% of the time.
+
+For splice site prediction, overconfidence manifests as **excess false
+positives**: background positions that cross the classification threshold
+because their splice-site probability is too high.  In the M1-S model,
+15,883 FPs were observed before calibration.
+
+Temperature scaling addresses this by softening the probability
+distribution, pulling overconfident predictions back toward the
+decision boundary.
+
+---
+
+## 3. Post-Hoc Temperature Scaling (Standard)
+
+The traditional approach, applied **after training is complete**:
+
+### Protocol
+
+```
+Train set   →  train model weights (T=1, standard softmax)
+Val set     →  fit T by minimizing NLL (seconds, single parameter)
+Test set    →  evaluate with fixed T (model weights frozen)
+```
+
+### Scalar temperature
+
+One T for all classes.  Simple but limited — it sharpens or softens
+all classes equally, which may not be appropriate when classes have
+different calibration needs.
+
+For M1-S, scalar T=0.35 made FPs **worse** (17,649 vs 15,883) because
+sharpening the "neither" class also sharpened splice-site predictions.
+
+### Class-wise temperature (OpenSpliceAI approach)
+
+A vector `T = [T_donor, T_acceptor, T_neither]`, one per class:
+
+```
+p_i = exp(z_i / T_i) / Σ exp(z_j / T_j)
+```
+
+This allows different calibration per class.  For M1-S post-hoc
+calibration:
+
+```
+T = [0.81, 0.81, 1.17]
+     ^^^^  ^^^^  ^^^^
+     sharpen splice    soften background
+```
+
+Result: FPs reduced from 15,883 → 14,195 with minimal recall loss.
+Splice classes get sharpened (more decisive), background gets softened
+(less overconfident).
+
+### Implementation
+
+```python
+from agentic_spliceai.splice_engine.eval.streaming_metrics import TemperatureScaler
+
+scaler = TemperatureScaler()
+for gene_data in val_genes:
+    logits = infer_full_gene(model, gene_data, return_logits=True)
+    scaler.collect(logits, gene_data["base_scores"], gene_data["labels"])
+
+result = scaler.fit(blend_alpha=0.5, blend_mode="logit")
+T = result["temperature"]  # np.ndarray [3]
+```
+
+---
+
+## 4. Learned Temperature (Integrated into Training)
+
+The M1-S v2 model (logit-space blend) takes a different approach: the
+per-class temperature is a **learnable parameter** trained end-to-end
+alongside the model weights.
+
+### Architecture
+
+The model's output layer applies:
+
+```
+output = softmax((α × meta_logits + (1-α) × base_logits) / T)
+```
+
+where `T = [T_donor, T_acceptor, T_neither]` is an `nn.Parameter`
+initialized to `[1.0, 1.0, 1.0]` and clamped to `[0.05, 5.0]`.
+
+During training, `T` receives gradients through the cross-entropy loss
+and adapts alongside the model weights.  The model learns its own
+calibration.
+
+### Why this works
+
+Post-hoc temperature fixes calibration **after** the model has already
+learned miscalibrated internal representations.  Learned temperature
+lets the model adjust its confidence **during** learning, which can lead
+to better-calibrated internal features.
+
+The cross-entropy loss directly incentivizes calibration: a model that
+assigns p=0.95 to a class that's correct 95% of the time achieves
+lower NLL than one that assigns p=0.99 (overconfident) or p=0.80
+(underconfident).  Learned T gives the model an extra degree of freedom
+to achieve this calibration.
+
+### Early results (M1-S v2, epoch 2)
+
+```
+T = [1.48, 1.13, 1.12]    α = 0.505
+PR-AUC = 0.9901 (matches v1 best at epoch 46)
+```
+
+All T values are > 1 (softening), which differs from the post-hoc
+result (T_splice < 1, sharpening).  This is expected: during training,
+softer probabilities produce better-conditioned gradients.  The model
+may sharpen T later as it converges, or the learned T may settle at
+different values than post-hoc T because the model weights co-adapt.
+
+### When post-hoc calibration is still useful
+
+Even with learned temperature, post-hoc calibration may add value:
+
+- **Distribution shift**: if the test data distribution differs from
+  training (e.g., evaluating on Ensembl genes when trained on MANE),
+  the learned T may be miscalibrated for the new distribution.
+- **Threshold selection**: for a specific clinical application (e.g.,
+  "minimize FPs at >99% recall"), post-hoc T can be re-optimized for
+  that specific operating point.
+- **Comparison**: post-hoc T on the new model provides an apples-to-
+  apples comparison with the v1 model's post-hoc results.
+
+---
+
+## 5. Temperature and Variant Analysis
+
+Temperature has a direct impact on variant delta scores:
+
+```
+delta = softmax(alt_logits / T) - softmax(ref_logits / T)
+```
+
+- **T > 1** (softer): smaller absolute deltas, fewer detected events.
+  Lower sensitivity but fewer false alarms.
+- **T < 1** (sharper): larger absolute deltas, more detected events.
+  Higher sensitivity but more noise.
+
+The M1-S v1 model had dampened variant deltas (1.5-5x weaker than the
+base model) partly because of the probability-space blend bug, but also
+because the residual blend inherently smooths predictions.  The v2
+logit-space blend with learned T should produce sharper deltas because
+the blend happens before softmax, preserving the full dynamic range.
+
+---
+
+## 6. Summary
+
+| Approach | When T is optimized | Degrees of freedom | Changes model weights? |
+|----------|--------------------|--------------------|----------------------|
+| **Scalar post-hoc** | After training | 1 | No |
+| **Class-wise post-hoc** | After training | num_classes | No |
+| **Learned (M1-S v2)** | During training | num_classes | Co-adapted |
+
+For new models, prefer learned temperature — it's strictly more
+expressive and costs nothing (num_classes extra parameters).  Post-hoc
+calibration remains available as a safety net for distribution shift or
+application-specific tuning.
+
+---
+
+## 7. References
+
+- Guo et al. (2017). "On Calibration of Modern Neural Networks." ICML.
+  Establishes that modern DNNs are miscalibrated and proposes temperature
+  scaling.
+- Chao et al. (2025). "OpenSpliceAI improves the prediction of variant
+  effects on mRNA splicing." Uses class-wise temperature scaling
+  (per-class T vector) with Adam optimizer.
+- Platt (1999). "Probabilistic Outputs for Support Vector Machines."
+  The predecessor to temperature scaling (Platt scaling for SVMs).
