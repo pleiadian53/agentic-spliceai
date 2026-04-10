@@ -102,49 +102,90 @@ exist in the ground truth.
 
 ## M2b: GENCODE v47 Alternative Sites
 
-*Results pending — evaluation running on A40 GPU pod.
-GENCODE gene cache build in progress (22,349 test genes).*
+**Annotation**: GENCODE v47 comprehensive (3.5M splice sites, 62K genes)
+**Test set**: SpliceAI test split (chr1, 3, 5, 7, 9) — 22,349 genes, 11,046 evaluated
 
-### What M2b will show
+### Alternative sites only (GENCODE \ MANE)
 
-GENCODE v47 comprehensive annotation provides:
-- **3.5M splice sites** (vs Ensembl's 10M — more curated, fewer pseudogenes)
-- Tiered confidence: sites shared with Ensembl (high confidence) vs
-  GENCODE-only (computational predictions)
-- Better ground truth for assessing generalization to well-supported
-  alternative isoforms
+| Metric | Base model | **v2 Meta** | Change |
+|--------|-----------|-------------|--------|
+| **PR-AUC** | 0.637 | **0.728** | **+0.091** |
+| True Positives | 22,678 | **27,890** | **+5,212 recovered** |
+| False Negatives | 125,754 | 120,542 | -5,212 (-4.1%) |
+| **False Positives** | **10,178** | **1,441** | **-8,737 (-85.8%)** |
 
-### Expected results
+### M2a vs M2b comparison
 
-| Site category | Description | Expected base PR-AUC |
-|--------------|-------------|---------------------|
-| GENCODE ∩ Ensembl \ MANE | Well-supported alternatives | Higher (validated) |
-| GENCODE-only \ MANE | Rare isoforms, predictions | Lower (noisier labels) |
+| Metric | M2a (Ensembl) | M2b (GENCODE) |
+|--------|--------------|---------------|
+| N alternative sites | 95,399 | 148,432 |
+| Base PR-AUC | 0.749 | 0.637 |
+| Meta PR-AUC | 0.775 | 0.728 |
+| **Meta - Base** | +0.026 | **+0.091** |
+| TPs recovered | +2,823 | **+5,212** |
+| **FP reduction** | +1 (negligible) | **-8,737 (-85.8%)** |
+| FN reduction | -3.4% | -4.1% |
 
-*This section will be updated when M2b results are available.*
+### Analysis
+
+**The meta-layer's advantage is largest on the harder task.** GENCODE
+alternative sites have lower base PR-AUC (0.637 vs 0.749) because they
+include more rare isoforms and computationally predicted splice sites.
+The meta-layer provides +0.091 PR-AUC improvement — 3.5x larger than
+the M2a improvement (+0.026).
+
+**FP elimination is the headline result.** The base model produces 10,178
+false positives on GENCODE alternative sites. The meta-layer eliminates
+85.8% of them (down to 1,441), while simultaneously recovering 5,212
+additional true positives. The multimodal features (conservation, junction
+evidence, chromatin) provide strong negative evidence at non-splice
+positions, enabling the model to confidently reject false calls.
+
+**GENCODE is a harder but more informative evaluation.** With 148K
+alternative sites (55% more than Ensembl's 95K), GENCODE provides a
+broader test of generalization. The meta-layer's consistent improvement
+across both evaluation sets confirms the logit-space blend enables
+genuine OOD generalization, not overfitting to one annotation's biases.
+
+### Top-K accuracy (v2)
+
+| k | Base | v2 Meta | Delta |
+|---|------|---------|-------|
+| 0.5x | 0.448 | 0.463 | +0.015 |
+| 1.0x | 0.654 | **0.681** | **+0.027** |
+| 2.0x | 0.957 | **0.973** | +0.016 |
+| 4.0x | 0.999 | 1.000 | +0.001 |
 
 ---
 
 ## Implications for M2c (Ensembl-Trained M1-S)
 
-The v2 M2a results change the calculus for M2c training:
+### Updated assessment (post M2a + M2b)
 
-**v1 conclusion** (now revised): Base model > meta model on alt sites →
-meta-layer hurts on unseen sites → M2c training on Ensembl labels needed.
+The v2 meta-layer consistently improves over the base model on alternative
+sites across both annotation sets — a clear win for the logit-space blend
+and multimodal features.  However, significant room for improvement remains:
 
-**v2 conclusion**: Meta model > base model on alt sites → logit-space blend
-preserves base signal and adds multimodal context → M2c training is **less
-urgent** but may still help for the ~81K false negatives remaining.
+| Setting | Meta FNs | Total alt sites | Recall |
+|---------|----------|----------------|--------|
+| M2a (Ensembl) | 81,231 | 95,399 | 14.8% |
+| M2b (GENCODE) | 120,542 | 148,432 | 18.8% |
 
-The decision to proceed to M2c should depend on M2b results:
-- If v2 performs well on GENCODE high-confidence alternatives → the model
-  generalizes adequately from MANE → defer M2c
-- If v2 still misses many GENCODE Tier 1 sites → the model needs exposure
-  to alternative sites during training → proceed to M2c
+The model recovers only 15-19% of alternative sites — the vast majority
+are still missed. M2c training on Ensembl labels would expose the model to
+these sites as positive examples during training, potentially pushing recall
+much higher.
+
+**The M2b FP result strongly motivates M2c**: the meta-layer already
+eliminates 85.8% of base model FPs on GENCODE sites without any training
+on those sites. If the model can maintain this FP suppression while also
+learning to detect more alternative sites through broader training labels,
+the precision-recall tradeoff would be very favorable.
 
 M2c would retrain the meta-layer on Ensembl labels with confidence weighting.
 This requires building an Ensembl train/val gene cache but **not retraining
-the base model** (OpenSpliceAI remains frozen).
+the base model** (OpenSpliceAI remains frozen). Ops script is ready:
+`examples/meta_layer/ops_train_m2c_pod.sh`.
 
 ---
 
@@ -188,7 +229,7 @@ python -u examples/meta_layer/09_evaluate_alternative_sites.py \
 |----------|----------|
 | v1 M2a results | `output/meta_layer/m2a_eval/m2a_eval_results.json` |
 | v2 M2a results | `output/meta_layer/m2a_v2_eval_results.json` |
-| v2 M2b results | *pending* |
+| v2 M2b results | `output/meta_layer/m2b_v2_eval_results.json` |
 | GENCODE ground truth | `data/gencode/GRCh38/splice_sites_enhanced.tsv` |
 
 ## Related
