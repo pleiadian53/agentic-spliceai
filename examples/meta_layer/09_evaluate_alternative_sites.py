@@ -361,7 +361,7 @@ def main():
         StreamingEvaluator, print_comparison_report,
     )
 
-    min_length = 5001 + 400
+    min_length = 1  # infer_full_gene() handles padding for short genes
     overall_eval = StreamingEvaluator()  # all sites
     alt_eval = StreamingEvaluator()      # alternative sites only
 
@@ -411,8 +411,8 @@ def main():
         del data, meta_probs, base_probs, labels, alt_mask
 
         if (i + 1) % 100 == 0:
-            print(f"  Processed {i+1}/{len(test_genes)} genes "
-                  f"(alt sites: {n_alt_sites_total:,})...")
+            print(f"  Evaluated {i+1}/{len(test_genes)} genes "
+                  f"(inference, alt sites: {n_alt_sites_total:,})...")
 
     elapsed = time.time() - t0
     overall_eval.n_skipped = n_skipped

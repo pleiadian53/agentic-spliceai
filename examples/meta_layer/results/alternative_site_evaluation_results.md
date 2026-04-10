@@ -1,8 +1,12 @@
-# M2 Evaluation: Alternative Splice Site Generalization
+# Alternative Splice Site Evaluation Results
 
-**Date**: 2026-04-09 (updated)
-**Model**: M1-S trained on MANE canonical sites only
-**Question**: Does the meta-layer generalize to splice sites it was never trained on?
+**Date**: 2026-04-10 (updated)
+**Models evaluated**: M1-S (MANE-trained), M2-S (Ensembl-trained)
+**Evaluation protocols**: Eval-Ensembl-Alt, Eval-GENCODE-Alt
+**Question**: How well do meta-layer models detect alternative splice sites?
+
+> See [naming_convention.md](../../../docs/meta_layer/methods/naming_convention.md)
+> for model vs evaluation protocol definitions.
 
 ---
 
@@ -21,27 +25,31 @@ labels during training, can still predict them correctly.
 
 ### Annotation hierarchy
 
-| Source | Genes | Splice sites | Description |
-|--------|-------|-------------|-------------|
-| MANE | ~19K | ~370K | One canonical transcript per gene |
-| Ensembl 112 | ~57K | ~10M | Comprehensive, includes pseudogenes |
-| GENCODE v47 | ~62K | ~3.5M | GENCODE comprehensive annotation |
+| Source | Genes | Unique sites | Rows (per-transcript) | Description |
+|--------|-------|-------------|----------------------|-------------|
+| MANE | 18,200 | 367K | 370K | One canonical transcript per gene |
+| Ensembl 112 | 39,291 | 738K | 2.8M | Comprehensive, includes pseudogenes |
+| GENCODE v47 | 54,117 | 928K | 3.5M | GENCODE comprehensive annotation |
 
-The alternative site sets:
-- **M2a**: Ensembl \ MANE (~9.6M sites) — broad, includes many pseudogene sites
-- **M2b**: GENCODE \ MANE (~3.1M sites) — curated, tiered confidence
+The evaluation protocols use the set difference as the test set:
+- **Eval-Ensembl-Alt**: Ensembl \ MANE (~371K unique sites)
+- **Eval-GENCODE-Alt**: GENCODE \ MANE (~561K unique sites)
 
-These alternative sites are **out-of-distribution (OOD)** for the meta-layer
-— they were never positive labels during training.  M2 evaluation directly
-measures OOD generalization: does the meta-layer help or hurt on splice sites
-it has never seen?  See [OOD Generalization](../docs/ood_generalization.md) for
-the full analysis.
+For M1-S, these alternative sites are **out-of-distribution (OOD)** — they
+were never positive labels during M1-S training.  For M2-S (trained on
+Ensembl), they are in-distribution.  Comparing M1-S vs M2-S on the same
+protocol reveals the value of training on broader labels.
+See [OOD Generalization](../docs/ood_generalization.md) for the full analysis.
+
+> **Note on site counts**: Annotation files contain per-transcript rows
+> (2.8M Ensembl, 3.5M GENCODE).  At the unique (chrom, position) level,
+> Ensembl has ~738K and GENCODE has ~928K unique splice sites.
 
 ---
 
-## M2a: Ensembl Alternative Sites
+## Eval-Ensembl-Alt: M1-S on Ensembl Alternative Sites
 
-### v1 (probability-space blend) vs v2 (logit-space blend)
+### M1-S v1 (probability-space blend) vs v2 (logit-space blend)
 
 #### Alternative sites only (Ensembl \ MANE)
 
@@ -100,7 +108,7 @@ exist in the ground truth.
 
 ---
 
-## M2b: GENCODE v47 Alternative Sites
+## Eval-GENCODE-Alt: M1-S on GENCODE v47 Alternative Sites
 
 **Annotation**: GENCODE v47 comprehensive (3.5M splice sites, 62K genes)
 **Test set**: SpliceAI test split (chr1, 3, 5, 7, 9) — 22,349 genes, 11,046 evaluated
@@ -114,9 +122,9 @@ exist in the ground truth.
 | False Negatives | 125,754 | 120,542 | -5,212 (-4.1%) |
 | **False Positives** | **10,178** | **1,441** | **-8,737 (-85.8%)** |
 
-### M2a vs M2b comparison
+### Eval-Ensembl-Alt vs Eval-GENCODE-Alt comparison
 
-| Metric | M2a (Ensembl) | M2b (GENCODE) |
+| Metric | Eval-Ensembl-Alt | Eval-GENCODE-Alt |
 |--------|--------------|---------------|
 | N alternative sites | 95,399 | 148,432 |
 | Base PR-AUC | 0.749 | 0.637 |
@@ -132,7 +140,7 @@ exist in the ground truth.
 alternative sites have lower base PR-AUC (0.637 vs 0.749) because they
 include more rare isoforms and computationally predicted splice sites.
 The meta-layer provides +0.091 PR-AUC improvement — 3.5x larger than
-the M2a improvement (+0.026).
+the Eval-Ensembl-Alt improvement (+0.026).
 
 **FP elimination is the headline result.** The base model produces 10,178
 false positives on GENCODE alternative sites. The meta-layer eliminates
@@ -158,34 +166,48 @@ genuine OOD generalization, not overfitting to one annotation's biases.
 
 ---
 
-## Implications for M2c (Ensembl-Trained M1-S)
+## M2-S Results (Ensembl-Trained Model)
 
-### Updated assessment (post M2a + M2b)
+M2-S was trained on Ensembl labels (~2.8M sites, 63K genes) using the same
+architecture as M1-S. Full training details in
+[m2s_ensembl_trained_results.md](m2s_ensembl_trained_results.md).
 
-The v2 meta-layer consistently improves over the base model on alternative
-sites across both annotation sets — a clear win for the logit-space blend
-and multimodal features.  However, significant room for improvement remains:
+### M2-S on Eval-Ensembl-Alt (all genes, no min_length skip)
 
-| Setting | Meta FNs | Total alt sites | Recall |
-|---------|----------|----------------|--------|
-| M2a (Ensembl) | 81,231 | 95,399 | 14.8% |
-| M2b (GENCODE) | 120,542 | 148,432 | 18.8% |
+| Metric | Base model | M1-S | **M2-S** |
+|--------|-----------|------|---------|
+| **PR-AUC** | 0.749 | 0.775 | **0.965** |
+| **Recall** | 12.1% | 14.9% | **59.2%** |
+| TPs | 12,474 | 14,168 | **61,181** |
+| FNs | 90,838 | 81,231 | **42,131** |
+| FPs | 11 | 10 | 450 |
 
-The model recovers only 15-19% of alternative sites — the vast majority
-are still missed. M2c training on Ensembl labels would expose the model to
-these sites as positive examples during training, potentially pushing recall
-much higher.
+### M2-S on Eval-GENCODE-Alt (all genes, no min_length skip)
 
-**The M2b FP result strongly motivates M2c**: the meta-layer already
-eliminates 85.8% of base model FPs on GENCODE sites without any training
-on those sites. If the model can maintain this FP suppression while also
-learning to detect more alternative sites through broader training labels,
-the precision-recall tradeoff would be very favorable.
+| Metric | Base model | M1-S | **M2-S** |
+|--------|-----------|------|---------|
+| **PR-AUC** | 0.631 | 0.728 | **0.907** |
+| **Recall** | 15.9% | — | **46.9%** |
+| TPs | 25,796 | — | **76,040** |
+| FNs | 136,360 | — | **86,116** |
+| FPs | 11,737 | — | 1,962 |
 
-M2c would retrain the meta-layer on Ensembl labels with confidence weighting.
-This requires building an Ensembl train/val gene cache but **not retraining
-the base model** (OpenSpliceAI remains frozen). Ops script is ready:
-`examples/meta_layer/ops_train_m2c_pod.sh`.
+### M2-S on Eval-MANE (canonical site tradeoff)
+
+| Metric | Base model | M1-S | **M2-S** |
+|--------|-----------|------|---------|
+| PR-AUC | 0.983 | **0.9996** | 0.9990 |
+| FNs | 8,434 | 643 | **144** |
+| FPs | 8,617 | 13,427 | **1,910,382** |
+| FN reduction | — | +91.8% | **+98.3%** |
+
+**Tradeoff**: M2-S achieves near-perfect recall on canonical sites (only
+144 FNs) but at the cost of massive FP overcalling (1.9M). The model
+trained on 2.8M Ensembl sites calls splice sites much more aggressively.
+
+**Use-case guidance**:
+- **M1-S**: High precision for clinical variant interpretation (few FPs)
+- **M2-S**: High recall for discovery workflows (few FNs, tolerant of FPs)
 
 ---
 
@@ -234,8 +256,9 @@ python -u examples/meta_layer/09_evaluate_alternative_sites.py \
 
 ## Related
 
-- [OOD generalization](../docs/ood_generalization.md) — why v1 failed OOD, why v2 fixes it, general principles
+- [Naming convention](../../../docs/meta_layer/methods/naming_convention.md) — model vs evaluation protocol definitions
+- [M2-S results](m2s_ensembl_trained_results.md) — Ensembl-trained model details
+- [OOD generalization](../docs/ood_generalization.md) — why M1-S failed OOD, why logit blend fixes it
 - [M1-S v2 results](m1s_v2_logit_blend_results.md) — logit blend canonical evaluation
 - [M1-S ablation study](m1s_ablation_study.md) — modality contributions
-- [M2 variant formulations](../../../docs/meta_layer/methods/05_m2_variant_formulations.md) — M2a-M2f design
 - [Temperature scaling](../../../docs/ml_engineering/probability_calibration/temperature_scaling.md)

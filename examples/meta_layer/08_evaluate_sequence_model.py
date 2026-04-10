@@ -410,7 +410,7 @@ def main():
         apply_temperature_blend,
     )
 
-    min_length = 5001 + 400  # window_size + context_padding
+    min_length = 1  # infer_full_gene() handles padding for short genes
     evaluator = StreamingEvaluator()
 
     # ── Ablation: resolve channel indices to zero ────────────────────
@@ -562,8 +562,8 @@ def main():
 
         if (i + 1) % 100 == 0:
             mem_mb = evaluator.memory_usage_mb()
-            print(f"  Processed {i+1}/{len(test_genes)} genes "
-                  f"(accum: {mem_mb:.1f} MB)...")
+            print(f"  Evaluated {i+1}/{len(test_genes)} genes "
+                  f"(inference, accum: {mem_mb:.1f} MB)...")
 
     elapsed = time.time() - t0
     print(f"  Inference complete: {evaluator.n_genes} genes in {elapsed:.1f}s "

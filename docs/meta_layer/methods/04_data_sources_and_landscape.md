@@ -178,9 +178,9 @@ learns the mapping from (sequence + context features + perturbation signal) to
 
 | Tool | Architecture | Context | Tissue-Aware | Training Data | Key Limitation |
 |------|-------------|---------|--------------|---------------|----------------|
-| **SpliceAI** (2019) | ResNet, 3-channel output | 10kb | No | GENCODE annotations | Per-position only; argmax discards information |
+| **SpliceAI** (2019) | ResNet, 3-channel output | 10kb | No | GENCODE V24lift37 canonical (hg19) | Per-position only; argmax discards information |
 | **CI-SpliceAI** (2022) | Same as SpliceAI | 10kb | No | Curated alt sites | Marginal improvement (~1%) |
-| **OpenSpliceAI** (2025) | Same architecture, retrained | 10kb | No | GENCODE v46 | Per-position only |
+| **OpenSpliceAI** (2025) | Same architecture, retrained | 10kb | No | RefSeq MANE v1.3 (GRCh38) | Per-position only |
 | **Pangolin** (2022) | SpliceAI architecture | 5kb | 4 tissues | RNA-seq junction counts (4 tissues x 4 species) | Bug affected ~28% of hg38 scores in 2024 |
 | **SpTransformer** (2024) | Transformer | Variable | 56 tissues | GTEx + GENCODE | Per-position; claims 83% cross-tissue inference |
 
