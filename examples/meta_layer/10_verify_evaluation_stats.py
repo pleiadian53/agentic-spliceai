@@ -27,6 +27,36 @@ from typing import Dict, Optional
 # Data statistics
 # ---------------------------------------------------------------------------
 
+def _resolve_splice_sites_path(source: str) -> Path:
+    """Resolve splice sites path via resource manager.
+
+    Uses the genomic registry for MANE and Ensembl.  GENCODE is not
+    yet registered, so it falls back to the conventional path.
+    """
+    from agentic_spliceai.splice_engine.resources import (
+        get_model_resources,
+        get_genomic_registry,
+    )
+
+    if source == "MANE":
+        registry = get_model_resources("openspliceai").get_registry()
+        path = registry.resolve("splice_sites")
+        if path:
+            return Path(path)
+    elif source == "Ensembl":
+        registry = get_genomic_registry(build="GRCh38", release="112")
+        path = registry.resolve("splice_sites")
+        if path:
+            return Path(path)
+    elif source == "GENCODE":
+        # GENCODE not yet in registry — use conventional path
+        return Path("data/gencode/GRCh38/splice_sites_enhanced.tsv")
+
+    # Fallback to conventional path
+    source_dir = source.lower()
+    return Path(f"data/{source_dir}/GRCh38/splice_sites_enhanced.tsv")
+
+
 def verify_annotation_stats() -> None:
     """Verify gene and splice site counts across MANE, Ensembl, GENCODE."""
     import polars as pl
@@ -36,9 +66,8 @@ def verify_annotation_stats() -> None:
     print("=" * 70)
 
     sources = {
-        "MANE": Path("data/mane/GRCh38/splice_sites_enhanced.tsv"),
-        "Ensembl": Path("data/ensembl/GRCh38/splice_sites_enhanced.tsv"),
-        "GENCODE": Path("data/gencode/GRCh38/splice_sites_enhanced.tsv"),
+        name: _resolve_splice_sites_path(name)
+        for name in ["MANE", "Ensembl", "GENCODE"]
     }
 
     stats = {}
