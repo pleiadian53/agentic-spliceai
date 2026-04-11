@@ -347,6 +347,21 @@ def main():
     # ── Resolve cache directory ─────────────────────────────────────
     cache_dir = args.cache_dir or args.checkpoint.parent / "gene_cache" / "test"
 
+    # If an explicit cache dir was provided, scan it for available genes.
+    # This handles cross-annotation evaluation (e.g., Ensembl cache with
+    # MANE-trained model) where gene IDs differ between the annotation
+    # split and the cache.
+    if args.cache_dir and cache_dir.exists():
+        cached_genes = sorted(
+            p.stem for p in cache_dir.glob("*.npz")
+        )
+        if cached_genes and not any(
+            (cache_dir / f"{g}.npz").exists() for g in test_genes[:10]
+        ):
+            print(f"  Gene ID mismatch: scan cache instead of annotation split")
+            test_genes = cached_genes
+            print(f"  Eval genes: {len(test_genes)} (from cache scan)")
+
     # ── Build gene cache if requested ────────────────────────────────
     if args.build_cache:
         import pandas as pd
