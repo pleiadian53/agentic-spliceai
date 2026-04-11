@@ -44,6 +44,7 @@ class ClinVarRecord:
     review_stars: int  # 0-4
     disease: str
     variant_type: str  # "SNV", "Indel", "Other"
+    molecular_consequence: str  # e.g., "splice_donor_variant", "missense_variant"
     raw_clnsig: str  # original CLNSIG value
 
     @property
@@ -61,6 +62,11 @@ class ClinVarRecord:
     @property
     def is_snv(self) -> bool:
         return self.variant_type == "SNV"
+
+    @property
+    def is_splice_annotated(self) -> bool:
+        """Whether ClinVar's molecular consequence mentions splicing."""
+        return "splice" in self.molecular_consequence.lower()
 
     def get_coordinate_key(self) -> str:
         return f"{self.chrom}:{self.position}"
@@ -176,11 +182,17 @@ class ClinVarLoader:
                 revstat = str(info.get("CLNREVSTAT", ("",))[0]) if "CLNREVSTAT" in info else ""
                 disease = str(info.get("CLNDN", ("",))[0]) if "CLNDN" in info else ""
                 gene_info = str(info.get("GENEINFO", "")) if "GENEINFO" in info else ""
+                mc_raw = str(info.get("MC", ("",))[0]) if "MC" in info else ""
 
                 # Parse gene name from GENEINFO (format: "GENE:ID|GENE2:ID2")
                 gene = ""
                 if gene_info:
                     gene = gene_info.split(":")[0].split("|")[0]
+
+                # Parse molecular consequence (format: "SO:0001575|splice_donor_variant")
+                mol_consequence = ""
+                if mc_raw and "|" in mc_raw:
+                    mol_consequence = mc_raw.split("|", 1)[1]
 
                 classification = _normalize_clnsig(clnsig)
                 stars = _parse_review_stars(revstat)
@@ -197,6 +209,7 @@ class ClinVarLoader:
                     review_stars=stars,
                     disease=disease,
                     variant_type=vtype,
+                    molecular_consequence=mol_consequence,
                     raw_clnsig=clnsig,
                 ))
 
@@ -236,28 +249,61 @@ class ClinVarLoader:
     def get_splice_relevant(
         self,
         gene_names: Optional[Set[str]] = None,
+        splice_site_positions: Optional[Set[str]] = None,
+        max_distance_to_splice: int = 50,
         min_stars: int = 0,
         snvs_only: bool = True,
     ) -> List[ClinVarRecord]:
-        """Get variants in known protein-coding genes.
+        """Get variants likely to affect splicing.
+
+        ClinVar classifies by disease pathogenicity, not by splice
+        effect.  Most pathogenic variants are missense or frameshift —
+        NOT splice-altering.  This method filters to variants near
+        annotated splice sites where splice disruption is plausible.
+
+        Filtering strategy (applied in order):
+        1. Pathogenic or Benign classification (skip VUS)
+        2. SNVs only (indels deferred)
+        3. Gene filter (if provided)
+        4. Near splice site (if positions provided)
 
         Parameters
         ----------
         gene_names : set of str, optional
             Filter to these genes.  If None, returns all.
+        splice_site_positions : set of str, optional
+            Set of ``"chrom:position"`` keys for known splice sites.
+            If provided, only return variants within
+            ``max_distance_to_splice`` bp of a splice site.
+        max_distance_to_splice : int
+            Maximum distance (bp) from a known splice site.
         min_stars : int
             Minimum review star count.
         snvs_only : bool
             If True, exclude indels.
         """
         records = self.load_all()
-        return [
-            r for r in records
-            if r.review_stars >= min_stars
-            and (not snvs_only or r.is_snv)
-            and (gene_names is None or r.gene in gene_names)
-            and r.classification in ("Pathogenic", "Benign")
-        ]
+        result = []
+        for r in records:
+            if r.review_stars < min_stars:
+                continue
+            if snvs_only and not r.is_snv:
+                continue
+            if r.classification not in ("Pathogenic", "Benign"):
+                continue
+            if gene_names is not None and r.gene not in gene_names:
+                continue
+            if splice_site_positions is not None:
+                near_splice = False
+                for offset in range(-max_distance_to_splice, max_distance_to_splice + 1):
+                    key = f"{r.chrom}:{r.position + offset}"
+                    if key in splice_site_positions:
+                        near_splice = True
+                        break
+                if not near_splice:
+                    continue
+            result.append(r)
+        return result
 
     def iter_variants(
         self,
