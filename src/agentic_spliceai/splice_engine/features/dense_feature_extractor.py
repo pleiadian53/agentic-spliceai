@@ -427,6 +427,22 @@ class DenseFeatureExtractor:
     # Junction reads (sparse lookup)
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _resolve_chrom(chrom: str, available_keys) -> str:
+        """Resolve chromosome name against available keys.
+
+        Handles the chr-prefix mismatch between annotation sources
+        (Ensembl uses bare ``"1"``, MANE/UCSC uses ``"chr1"``).
+        Uses the same logic as ``normalize_chromosome_names`` from
+        ``base_layer.data.preparation``.
+        """
+        if chrom in available_keys:
+            return chrom
+        alt = f"chr{chrom}" if not chrom.startswith("chr") else chrom.replace("chr", "")
+        if alt in available_keys:
+            return alt
+        return chrom
+
     def _query_junction(
         self,
         chrom: str,
@@ -442,8 +458,9 @@ class DenseFeatureExtractor:
         L = end - start
         out = np.zeros(L, dtype=np.float32)
 
-        # Filter to this chrom + window
-        chrom_data = idx.get(chrom)
+        # Resolve chromosome name (Ensembl uses bare "1", junction data uses "chr1")
+        resolved = self._resolve_chrom(chrom, idx)
+        chrom_data = idx.get(resolved)
         if chrom_data is None:
             return out
 
@@ -549,9 +566,14 @@ class DenseFeatureExtractor:
         L = end - start
         out = np.zeros(L, dtype=np.float32)
 
+        # Resolve chromosome name (Ensembl uses bare "1", eCLIP uses "chr1")
+        if not hasattr(self, "_rbp_chroms"):
+            self._rbp_chroms = set(peaks["chrom"].unique().to_list())
+        chrom_resolved = self._resolve_chrom(chrom, self._rbp_chroms)
+
         # Filter peaks to this chrom + window overlap
         chrom_peaks = peaks.filter(
-            (pl.col("chrom") == chrom)
+            (pl.col("chrom") == chrom_resolved)
             & (pl.col("start") < end)
             & (pl.col("end") > start)
         )
