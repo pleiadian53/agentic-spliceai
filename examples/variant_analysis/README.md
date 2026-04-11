@@ -36,6 +36,32 @@ python 01b_splice_consequences.py \
     --json results/consequences.json
 ```
 
+### Phase 2: ClinVar & MutSpliceDB Benchmarking
+
+```bash
+# Download and filter ClinVar VCF
+python 02_clinvar_download.py --output-dir data/clinvar/
+
+# Benchmark on ClinVar (pathogenic vs benign)
+python 03_clinvar_benchmark.py \
+    --checkpoint output/meta_layer/m1s_v2_logit_blend/best.pt \
+    --fasta data/mane/GRCh38/Homo_sapiens.GRCh38.dna.primary_assembly.fa \
+    --clinvar data/clinvar/clinvar_splice_snvs.parquet
+
+# Benchmark on MutSpliceDB (RNA-seq validated variants)
+python 04_mutsplicedb_benchmark.py \
+    --checkpoint output/meta_layer/m1s_v2_logit_blend/best.pt \
+    --fasta data/mane/GRCh38/Homo_sapiens.GRCh38.dna.primary_assembly.fa
+```
+
+### Data Preparation Utilities
+
+```bash
+# Parse raw MutSpliceDB CSV into splice_sites_induced.tsv
+# (one-time setup — data already exists at data/mutsplicedb/)
+python ../../scripts/data/parse_mutsplicedb.py
+```
+
 ## Test Variants
 
 `test_variants.yaml` contains 13 validated splice site mutations across

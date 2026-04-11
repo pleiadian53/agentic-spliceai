@@ -10,6 +10,10 @@ junction analysis.  This script checks:
   1. Does the model detect a splice-altering event (delta > threshold)?
   2. Does the predicted consequence match the observed effect?
 
+Data preparation (one-time):
+    python scripts/data/parse_mutsplicedb.py
+    # Parses raw CSV export → data/mutsplicedb/splice_sites_induced.tsv
+
 Usage:
     python 04_mutsplicedb_benchmark.py \
         --checkpoint output/meta_layer/m1s_v2_logit_blend/best.pt \
