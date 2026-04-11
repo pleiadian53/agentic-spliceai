@@ -43,22 +43,36 @@
 # Usage:
 #   ssh <cluster>
 #   cd ~/sky_workdir
-#   nohup bash examples/meta_layer/ops_eval_m2a_pod.sh \
-#       > /runpod-volume/output/m2a_eval/eval.log 2>&1 &
+#
+#   # Evaluate M1-S on alternative sites
+#   bash examples/meta_layer/ops_eval_ensembl_alt_pod.sh m1s
+#
+#   # Evaluate M2-S on alternative sites
+#   bash examples/meta_layer/ops_eval_ensembl_alt_pod.sh m2s
 
 set -e
 
 WORKDIR=~/sky_workdir
-CHECKPOINT=$WORKDIR/output/meta_layer/m1s/best.pt
+
+# Accept model name as argument (default: m1s)
+MODEL=${1:-m1s}
+case "$MODEL" in
+    m1s)  CHECKPOINT=$WORKDIR/output/meta_layer/m1s/best.pt
+          OUTPUT_DIR=/runpod-volume/output/m1s_eval_ensembl_alt ;;
+    m2s)  CHECKPOINT=$WORKDIR/output/meta_layer/m2c/best.pt
+          OUTPUT_DIR=/runpod-volume/output/m2s_eval_ensembl_alt ;;
+    *)    CHECKPOINT=$MODEL  # allow arbitrary checkpoint path
+          OUTPUT_DIR=/runpod-volume/output/eval_ensembl_alt ;;
+esac
+
 BIGWIG_CACHE=/runpod-volume/bigwig_cache
 ENSEMBL_SCORES=/runpod-volume/data/ensembl/GRCh38/openspliceai_eval/precomputed
-OUTPUT_DIR=/runpod-volume/output/m2a_eval
 
 cd "$WORKDIR"
 mkdir -p "$OUTPUT_DIR"
 
 echo "============================================================"
-echo "M2a Evaluation (Ensembl \\ MANE) — $(date)"
+echo "Eval-Ensembl-Alt ($MODEL) — $(date)"
 echo "  Checkpoint:    $CHECKPOINT"
 echo "  Base scores:   $ENSEMBL_SCORES"
 echo "  BigWig:        $BIGWIG_CACHE"
@@ -68,7 +82,7 @@ echo "============================================================"
 # Verify data is staged
 echo "Checking prerequisites..."
 ls "$CHECKPOINT" >/dev/null
-ls "$WORKDIR/output/meta_layer/m1s/config.pt" >/dev/null
+ls "$(dirname "$CHECKPOINT")/config.pt" >/dev/null
 ls data/ensembl/GRCh38/splice_sites_enhanced.tsv >/dev/null
 ls data/mane/GRCh38/splice_sites_enhanced.tsv >/dev/null
 ls "$ENSEMBL_SCORES"/predictions_chr1.parquet >/dev/null
@@ -88,6 +102,6 @@ python -u examples/meta_layer/09_evaluate_alternative_sites.py \
     --device cuda
 
 echo "============================================================"
-echo "M2a evaluation complete — $(date)"
+echo "Eval-Ensembl-Alt ($MODEL) complete — $(date)"
 echo "Results: $OUTPUT_DIR/m2a_eval_results.json"
 echo "============================================================"
