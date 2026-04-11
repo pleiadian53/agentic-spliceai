@@ -1,8 +1,9 @@
 #!/bin/bash
-# Train M2c: Meta-layer on Ensembl labels (expanded training data).
+# Train M2-S: Meta-layer on Ensembl labels (expanded training data).
+# (Formerly ops_train_m2c_pod.sh)
 #
-# M2c trains the same M1-S architecture but uses Ensembl splice sites as
-# labels instead of MANE.  This exposes the model to alternative splice
+# M2-S uses the same architecture as M1-S but trains on Ensembl splice
+# sites instead of MANE.  This exposes the model to alternative splice
 # sites during training, testing whether broader label coverage improves
 # OOD generalization beyond what the logit-space blend achieves alone.
 #

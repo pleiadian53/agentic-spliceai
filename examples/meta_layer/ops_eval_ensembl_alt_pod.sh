@@ -1,5 +1,6 @@
 #!/bin/bash
-# Evaluate M1-S at alternative splice sites (M2a: Ensembl \ MANE).
+# Eval-Ensembl-Alt: Evaluate model on alternative splice sites (Ensembl \ MANE).
+# (Formerly ops_eval_m2a_pod.sh)
 #
 # Tests whether multimodal features help the model generalize to splice
 # sites it was never trained on (present in Ensembl but not MANE).
