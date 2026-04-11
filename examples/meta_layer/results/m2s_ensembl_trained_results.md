@@ -11,6 +11,21 @@
 
 ---
 
+## Architecture
+
+M1-S and M2-S share the **same architecture** (367K-param 2-stream dilated
+CNN with logit-space residual blend and per-class learned temperature).
+The base model (OpenSpliceAI, trained on MANE) is **frozen** — it is never
+retrained.  Only the meta-layer weights differ between M1-S and M2-S.
+
+The sole difference is the **training labels**: M1-S trains on MANE splice
+sites (~370K, one canonical transcript per gene), while M2-S trains on
+Ensembl splice sites (~2.8M, including alternative transcripts from ~63K
+genes).  This exposes M2-S to alternative splice sites that the base model
+(and M1-S) have never seen as positive labels.
+
+---
+
 ## Training Summary
 
 | Parameter | M1-S | M2-S |

@@ -12,10 +12,17 @@
 
 ## Background
 
-The M1-S model is trained exclusively on **MANE** splice sites (~370K sites,
-~19K protein-coding genes).  MANE represents one canonical transcript per gene
-— the most well-supported, clinically relevant isoform.
+M1-S and M2-S share the **same architecture** (367K-param 2-stream dilated
+CNN with logit-space blend).  The base model (OpenSpliceAI, trained on
+MANE v1.3) is **frozen** in both — only the meta-layer weights differ.
+What distinguishes them is the training labels:
 
+- **M1-S**: trained on MANE splice sites (~370K sites, ~19K genes) —
+  one canonical transcript per gene
+- **M2-S**: trained on Ensembl splice sites (~2.8M sites, ~63K genes) —
+  includes alternative transcripts and pseudogenes
+
+MANE represents the most well-supported, clinically relevant isoform.
 But human genes produce multiple transcript isoforms via alternative splicing.
 Sites present in richer annotations (Ensembl, GENCODE) but absent from MANE
 represent **alternative splice sites** — the delta set.
