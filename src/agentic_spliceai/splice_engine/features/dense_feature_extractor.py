@@ -151,6 +151,14 @@ class DenseFeatureExtractor:
         if config.bigwig_cache_dir is None:
             config.bigwig_cache_dir = _resolve_default_bigwig_cache()
 
+        # Ensure paths are Path objects (not strings from CLI args)
+        if config.bigwig_cache_dir is not None:
+            config.bigwig_cache_dir = Path(config.bigwig_cache_dir)
+        if config.junction_parquet is not None:
+            config.junction_parquet = Path(config.junction_parquet)
+        if config.eclip_parquet is not None:
+            config.eclip_parquet = Path(config.eclip_parquet)
+
         self.config = config
 
         # Determine active channels
