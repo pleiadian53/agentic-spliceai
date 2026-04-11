@@ -81,9 +81,9 @@ infrastructure with specialized model heads for progressively harder tasks:
 | Variant | Purpose | Status |
 |---------|---------|--------|
 | M1-S v2 | Canonical Classification | **Done** — logit-space blend, PR-AUC 0.9954, FPs -15.5% |
-| M2a | Ensembl alternative sites evaluation | **Done** — v2 meta PR-AUC 0.775 > base 0.749 (OOD fixed) |
-| M2b | GENCODE alternative sites evaluation | **Running** |
-| M2c | Train on Ensembl labels | Ready (ops script + gene cache infra prepared) |
+| Eval-Ensembl-Alt | Ensembl alternative sites evaluation | **Done** — M2-S PR-AUC 0.965 |
+| Eval-GENCODE-Alt | GENCODE alternative sites evaluation | **Done** — M2-S PR-AUC 0.907 |
+| M2-S | Ensembl-trained model | **Done** — 59% recall on alternative sites |
 | M3 | Novel Site Discovery (junction as held-out target) | Planned |
 | M4 | Perturbation-Induced (variant/disease/treatment effects) | **Phase 1A+1B Done** |
 

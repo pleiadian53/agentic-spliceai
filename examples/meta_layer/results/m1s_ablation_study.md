@@ -147,7 +147,7 @@ proportional FN benefit.
 
 ## Implications
 
-### For M2 Training (M2c/M2d)
+### For M2 Training (M2-S/M2d)
 
 Junction is the critical modality.  M2d's junction-informed confidence
 weighting is well-motivated: splice sites with strong junction support

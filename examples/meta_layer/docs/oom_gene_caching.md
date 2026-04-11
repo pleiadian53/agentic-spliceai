@@ -173,7 +173,7 @@ Neither PR-AUC uses 1% subsample (always ~1.0, negligible error).
 - `examples/meta_layer/08_evaluate_sequence_model.py` — streaming loop
 - `src/.../eval/streaming_metrics.py` — `StreamingEvaluator` (NEW)
 - `src/.../eval/sequence_inference.py` — shared `infer_full_gene()` (NEW)
-- `examples/meta_layer/09_evaluate_alternative_sites.py` — M2a eval (NEW)
+- `examples/meta_layer/09_evaluate_alternative_sites.py` — Eval-Ensembl-Alt / Eval-GENCODE-Alt (NEW)
 - `src/.../meta_layer/data/sequence_level_dataset.py` — gc + memory logging
 
 ---

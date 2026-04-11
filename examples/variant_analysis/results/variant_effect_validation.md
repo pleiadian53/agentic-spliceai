@@ -167,7 +167,7 @@ overwhelmingly "neither" in the training data.
 FAM229B), it predicts cryptic splice site positions with **nucleotide-level
 accuracy** against RNA-seq validated junctions. When the gene is OOD (PYGB,
 CDC25B), the model fails to detect the variant effect — a known limitation
-of the MANE-trained M1-S that M2c (Ensembl-label training) aims to address.
+of the MANE-trained M1-S that M2-S (Ensembl-label training) aims to address.
 
 ---
 
@@ -203,7 +203,7 @@ from sequence alone.
 ### Current Limitations
 
 1. **OOD genes**: Variants in genes not well-represented in MANE produce
-   low/no signal. M2c training on Ensembl labels should improve coverage.
+   low/no signal. M2-S training on Ensembl labels should improve coverage.
 
 2. **Novel exon creation**: Variants that create entirely new exons (not
    shifting existing boundaries) are harder to detect — the model has
@@ -223,7 +223,7 @@ from sequence alone.
 - **Phase 2 (ClinVar)**: Batch-score ClinVar pathogenic splice variants,
   cross-reference predicted cryptic site positions against GTEx junction
   evidence
-- **M2c training**: Retrain meta-layer on Ensembl labels for broader OOD
+- **M2-S training**: Retrain meta-layer on Ensembl labels for broader OOD
   coverage
 - **Phase 1B refinement**: Cross-type donor-acceptor pairing for novel
   exon prediction; reading frame analysis using CDS annotations

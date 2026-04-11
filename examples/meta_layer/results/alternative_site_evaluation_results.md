@@ -214,7 +214,7 @@ trained on 2.8M Ensembl sites calls splice sites much more aggressively.
 ## Reproduction
 
 ```bash
-# M2a: Ensembl alternative sites
+# Eval-Ensembl-Alt: Ensembl alternative sites
 python -u examples/meta_layer/09_evaluate_alternative_sites.py \
     --checkpoint output/meta_layer/m1s_v2_logit_blend/best.pt \
     --annotation-source ensembl \
@@ -223,7 +223,7 @@ python -u examples/meta_layer/09_evaluate_alternative_sites.py \
     --bigwig-cache /runpod-volume/bigwig_cache \
     --device cuda
 
-# M2b: GENCODE alternative sites
+# Eval-GENCODE-Alt: GENCODE alternative sites
 python -u examples/meta_layer/09_evaluate_alternative_sites.py \
     --checkpoint output/meta_layer/m1s_v2_logit_blend/best.pt \
     --annotation-source gencode \
@@ -249,9 +249,9 @@ python -u examples/meta_layer/09_evaluate_alternative_sites.py \
 
 | Artifact | Location |
 |----------|----------|
-| v1 M2a results | `output/meta_layer/m2a_eval/m2a_eval_results.json` |
-| v2 M2a results | `output/meta_layer/m2a_v2_eval_results.json` |
-| v2 M2b results | `output/meta_layer/m2b_v2_eval_results.json` |
+| M1-S v1 Eval-Ensembl-Alt | `output/meta_layer/m2a_eval/m2a_eval_results.json` |
+| M1-S v2 Eval-Ensembl-Alt | `output/meta_layer/m2a_v2_eval_results.json` |
+| M1-S v2 Eval-GENCODE-Alt | `output/meta_layer/m2b_v2_eval_results.json` |
 | GENCODE ground truth | `data/gencode/GRCh38/splice_sites_enhanced.tsv` |
 
 ## Related

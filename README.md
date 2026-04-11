@@ -6,7 +6,7 @@
 
 The system combines three key architectural ideas:
 - **Multi-task learning**: Shared multimodal representation (10 modalities, 116 features) with task-specific model heads (M1-M4)
-- **Hierarchical prediction**: M1 (canonical) → M2/M2a (alternative) → M3 (novel discovery) → M4 (perturbation-induced) — each level tackles a harder problem with different label regimes
+- **Hierarchical prediction**: M1 (canonical) → M2 (alternative) → M3 (novel discovery) → M4 (perturbation-induced) — each level tackles a harder problem with different label regimes
 - **Agentic validation**: LLM-powered agents for literature mining, expression evidence, clinical interpretation, and recursive self-improvement
 
 ### Workflow: Prediction to Discovery
@@ -217,10 +217,10 @@ graph LR
 
 | Component | Description |
 |-----------|-------------|
-| **M1-M4 Model Variants** | Four progressively harder tasks: canonical (M1), alternative (M2/M2a-f), novel discovery (M3), perturbation-induced (M4) — see [Model Variants](docs/meta_layer/methods/00_model_variants_m1_m4.md) |
+| **M1-M4 Model Variants** | Four progressively harder tasks: canonical (M1-S), alternative (M2-S), novel discovery (M3-S), perturbation-induced (M4-S) — see [Model Variants](docs/meta_layer/methods/00_model_variants_m1_m4.md) and [Naming Convention](docs/meta_layer/methods/naming_convention.md) |
 | **Position-Level (M*-P)** | XGBoost baseline with Tree SHAP (M1-P: 99.74% accuracy, PR-AUC 0.999, FN -62% / FP -68% vs base-only) |
 | **Sequence-Level (M*-S)** | 2-stream dilated CNN (367K params) with logit-space residual blend and per-class learned temperature (M1-S: 99.99% accuracy, PR-AUC 0.9954, FPs -15.5% vs base) — same I/O protocol as base models |
-| **M2 Series** | Six training/evaluation protocols (M2a-f) for alternative splice site detection — M2a evaluation shows meta model exceeds base on alternative sites (PR-AUC 0.775 vs 0.749) — see [M2 Formulations](docs/meta_layer/methods/05_m2_variant_formulations.md) |
+| **M2 Series** | Alternative splice site detection — Eval-Ensembl-Alt shows M2-S achieves PR-AUC 0.965 on alternative sites (base: 0.749) — see [M2 Formulations](docs/meta_layer/methods/05_m2_variant_formulations.md) and [Naming Convention](docs/meta_layer/methods/naming_convention.md) |
 | **Variant Effect (M4)** | Per-variant delta scoring with splice consequence prediction — validated on 13 disease-gene variants, cryptic site positions match RNA-seq within 2bp — see [`examples/variant_analysis/`](examples/variant_analysis/) |
 | **Smart Checkpointing** | Per-chromosome parquet saves, disk-backed gene cache, HDF5 shard packing, `--resume` support |
 
@@ -556,7 +556,7 @@ MIT License - see LICENSE file for details
 | 2.5 | Bioinformatics Lab UI | ✅ Complete |
 | 4 | Feature Engineering (10 modalities, 116 columns) | ✅ Complete |
 | 5 | Foundation Models (Evo2, SpliceBERT) | 🔬 Experimental |
-| 6 | Meta Layer — M1-S (PR-AUC 0.9954), M2a/M2b eval, M2c next | 🔄 Active |
+| 6 | Meta Layer — M1-S (PR-AUC 0.9954), M2-S trained (PR-AUC 0.965 alt sites) | 🔄 Active |
 | 7 | Agentic Validation Layer | 📋 Planned |
 | 8 | Variant Analysis — Phase 1A+1B done, ClinVar + saturation scan next | 🔄 Active |
 | 9 | Isoform Discovery | 🎯 Ultimate Goal |

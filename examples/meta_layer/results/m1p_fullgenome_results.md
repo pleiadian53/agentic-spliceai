@@ -205,7 +205,7 @@ more telling signal is in the *error reduction pattern*:
   position is strongly conserved but has no annotation, it may be a novel
   splice site.
 
-- **FP reduction is the main clinical value** for M2a (alternative sites).
+- **FP reduction is the main clinical value** for alternative site evaluation (Eval-Ensembl-Alt).
   Base scores alone produce 14K FPs on 2M test positions.  The meta-layer
   cuts this to 4.5K — fewer false calls mean higher clinical specificity.
 

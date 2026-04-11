@@ -1,5 +1,9 @@
 # Meta-Layer Model Variants: M1 through M4
 
+> **Naming convention**: M1-M4 are models defined by training task.
+> Evaluation protocols (Eval-MANE, Eval-Ensembl-Alt, etc.) are separate.
+> See [naming_convention.md](naming_convention.md) for details.
+
 ## Two Model Lines: Position-Level (-P) vs Sequence-Level (-S)
 
 Each model variant (M1-M4) exists in two forms that differ in how they

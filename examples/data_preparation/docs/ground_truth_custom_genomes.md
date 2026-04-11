@@ -138,7 +138,7 @@ Different genome builds use different naming conventions:
 | T2T-CHM13 (aliases) | chr prefix | chr1, chr2 |
 
 The script preserves whatever naming the GTF uses.  Downstream tools that
-compare across annotation sources (e.g., M2a site filtering) normalize
+compare across annotation sources (e.g., Eval-Ensembl-Alt site filtering) normalize
 chromosome names at comparison time using `ensure_chrom_column()`.
 
 ---
@@ -157,7 +157,7 @@ The `splice_sites_enhanced.tsv` serves as the label source for
                                           splice_sites_enhanced.tsv
 ```
 
-### M2a Evaluation (Ensembl \ MANE)
+### Eval-Ensembl-Alt (Ensembl \ MANE)
 
 Two `splice_sites_enhanced.tsv` files (one MANE, one Ensembl) are loaded
 simultaneously.  The set difference identifies alternative splice sites.

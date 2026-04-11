@@ -43,7 +43,7 @@ about non-splice positions — important when the training set includes
 
 ---
 
-## M2a Evaluation: Ensembl Alternative Sites
+## Eval-Ensembl-Alt: Ensembl Alternative Sites
 
 Evaluation on alternative sites (Ensembl \ MANE) using the SpliceAI test
 split (chr1, 3, 5, 7, 9) — chromosomes never seen during training.
@@ -94,7 +94,7 @@ data modalities to detect.
 
 ---
 
-## M2b Evaluation: GENCODE Alternative Sites
+## Eval-GENCODE-Alt: GENCODE Alternative Sites
 
 *Results pending — evaluation running on pod.*
 
@@ -102,7 +102,7 @@ data modalities to detect.
 
 ## Comparison Across All Model Variants
 
-### M2a setting (Ensembl \ MANE alternative sites)
+### Eval-Ensembl-Alt (Ensembl \ MANE alternative sites)
 
 | Model | Training | PR-AUC | Recall | FNs | FPs |
 |-------|----------|--------|--------|-----|-----|
@@ -119,7 +119,7 @@ data modalities to detect.
 
 The logit-space blend was necessary but not sufficient. The architectural
 fix (v2) enabled graceful degradation at OOD sites, but true alternative
-site detection required training on broader labels (M2c protocol).
+site detection required training on broader labels (M2-S training protocol).
 
 ---
 
@@ -152,10 +152,10 @@ transcript structures at a genome-wide scale.
 ## Reproduction
 
 ```bash
-# Training (M2c protocol → M2-S)
+# Training (M2-S training protocol → M2-S)
 bash examples/meta_layer/ops_train_m2c_pod.sh
 
-# M2a evaluation
+# Eval-Ensembl-Alt
 python -u examples/meta_layer/09_evaluate_alternative_sites.py \
     --checkpoint output/meta_layer/m2c/best.pt \
     --annotation-source ensembl \
@@ -170,12 +170,12 @@ python -u examples/meta_layer/09_evaluate_alternative_sites.py \
 | M2-S checkpoint | `output/meta_layer/m2c/best.pt` |
 | Config | `output/meta_layer/m2c/config.pt` |
 | Training log | `output/meta_layer/m2c_train.log` |
-| M2a eval results | `output/meta_layer/m2a_m2c_eval_results.json` |
-| M2b eval results | *pending* |
+| Eval-Ensembl-Alt results | `output/meta_layer/m2a_m2c_eval_v2_results.json` |
+| Eval-GENCODE-Alt results | `output/meta_layer/m2b_m2c_eval_v2_results.json` |
 
 ## Related
 
 - [M1-S v2 results](m1s_v2_logit_blend_results.md) — logit blend on canonical sites
-- [M2 evaluation overview](m2_evaluation_results.md) — M2a/M2b comparison across models
+- [Alternative site evaluation](alternative_site_evaluation_results.md) — Eval-Ensembl-Alt/Eval-GENCODE-Alt comparison
 - [OOD generalization](../docs/ood_generalization.md) — why training labels matter
 - [Variant effect validation](../../variant_analysis/results/variant_effect_validation.md)

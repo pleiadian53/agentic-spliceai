@@ -40,12 +40,12 @@ delta scoring through systematic gene-wide vulnerability mapping.
 
 ## In Progress
 
-### M2a/M2b Evaluation
+### Eval-Ensembl-Alt / Eval-GENCODE-Alt
 
-- M2a (Ensembl \ MANE): v2 meta PR-AUC 0.775 > base 0.749 (OOD fixed)
-- M2b (GENCODE \ MANE): evaluation running on pod
+- Eval-Ensembl-Alt: M2-S PR-AUC 0.965 (base 0.749)
+- Eval-GENCODE-Alt: M2-S PR-AUC 0.907 (base 0.631)
 
-### M2c Preparation
+### M2-S Preparation
 
 - Ops script ready: `examples/meta_layer/ops_train_m2c_pod.sh`
 - Ensembl train/val gene cache needs building (~28K genes)
@@ -92,14 +92,14 @@ The base model (OpenSpliceAI) produces zero signal for some genes
 cannot override a confident base model "no splice" prediction.
 
 Options considered:
-1. **M2c training** (preferred) — broader training labels teach the
+1. **M2-S training** (preferred) — broader training labels teach the
    model to recognize splice sites the base model misses
 2. **Confidence-gated alpha** — position-dependent blend weight based
    on base model confidence (~100 extra parameters)
 3. **Threshold-based fallback** — if base model is uncertain, increase
    meta-CNN weight (zero extra parameters)
 
-Decision: pursue M2c first. If OOD failures persist after Ensembl
+Decision: pursue M2-S first. If OOD failures persist after Ensembl
 training, implement confidence-gated alpha.
 
 ### Reading Frame Analysis (Partially Implemented)

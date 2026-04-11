@@ -177,7 +177,7 @@ training.  The meta-layer's OOD performance is bounded by:
 3. **Similarity to training distribution** (alternative sites that
    resemble canonical sites are easier to generalize to)
 
-This motivates the M2c formulation: if OOD performance matters, expand
+This motivates M2-S training: if OOD performance matters, expand
 the training distribution to include alternative sites.
 
 ---
@@ -196,8 +196,8 @@ The OOD set is the **set difference**: sites in the richer annotation
 that are absent from the training annotation.
 
 ```
-OOD sites = Ensembl \ MANE   (M2a)
-OOD sites = GENCODE \ MANE   (M2b)
+OOD sites = Ensembl \ MANE   (Eval-Ensembl-Alt)
+OOD sites = GENCODE \ MANE   (Eval-GENCODE-Alt)
 ```
 
 This is cleaner than typical OOD benchmarks (CIFAR → ImageNet, etc.)
@@ -233,13 +233,13 @@ For M1-S: v1 failed this test (0.704 < 0.749), v2 passes (0.775 > 0.749).
 | Strategy | Complexity | M2 variant | Effect |
 |----------|-----------|------------|--------|
 | Fix the architecture (logit blend) | Low | v2 | Preserve base signal at OOD points |
-| Expand training labels | Medium | M2c | Include alternative sites in training |
-| Confidence-weighted labels | Medium | M2c/M2d | Downweight noisy OOD labels |
+| Expand training labels | Medium | M2-S | Include alternative sites in training |
+| Confidence-weighted labels | Medium | M2-S/M2d | Downweight noisy OOD labels |
 | Junction-validated labels | Medium | M2d | Use empirical evidence as label quality |
 | Tissue conditioning | High | M2e | Match features to expression context |
 | Calibration | Low | Post-hoc T | Make uncertainty estimates meaningful |
 
-The progression M2a → M2b → M2c → M2d represents increasing
+The progression Eval-Ensembl-Alt → Eval-GENCODE-Alt → M2-S → M2d represents increasing
 investment in OOD robustness, with each step informed by the previous
 step's empirical results.
 

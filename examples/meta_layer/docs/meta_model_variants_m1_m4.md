@@ -194,7 +194,7 @@ chromatin accessibility (is the DNA open?), and conservation (is this
 site under selection?), M2 can learn *why* certain sites are alternative
 and *which tissues* they're active in.
 
-### M2a: Ensembl vs. MANE evaluation
+### Eval-Ensembl-Alt: Ensembl vs. MANE evaluation
 
 A particularly clean evaluation for M2 exploits the annotation gap between
 MANE and Ensembl. OpenSpliceAI was trained on MANE/GRCh38, which documents

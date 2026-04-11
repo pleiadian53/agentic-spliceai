@@ -1,5 +1,14 @@
 # M2 Variant Formulations: Training and Evaluation Protocols
 
+> **Naming convention update (April 2026)**: This document uses legacy
+> names (M2a-f) from the original design. The updated convention is:
+> - **M2a** → **Eval-Ensembl-Alt** (evaluation protocol)
+> - **M2b** → **Eval-GENCODE-Alt** (evaluation protocol)
+> - **M2c** → **M2-S** (model: Ensembl-trained meta-layer)
+> - M2d-f remain as future training variants
+>
+> See [naming_convention.md](naming_convention.md) for full details.
+
 ## The Universal Protocol
 
 Every model in the AgenticSpliceAI pipeline — base models (SpliceAI, OpenSpliceAI), meta models (M1-S, M2-S, M3-S), and any future extension — follows the same input-output contract:

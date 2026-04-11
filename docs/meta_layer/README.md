@@ -28,13 +28,15 @@ site discovery.
 | 02 | [Annotation-Driven Splice Prediction](methods/02_annotation_driven_splice_prediction.md) | Annotation as latent variable, GENCODE \ MANE, tier-based confidence |
 | 03 | [Virtual Transcripts & Junction Pairing](methods/03_virtual_transcripts_and_junction_pairing.md) | Representation gap, donor-acceptor pairing, Level 3.5 |
 | 04 | [Data Sources & Landscape](methods/04_data_sources_and_landscape.md) | GTEx, SpliceVault, ENCODE data + ML landscape analysis |
-| 05 | [M2 Variant Formulations](methods/05_m2_variant_formulations.md) | M2a-f training/evaluation protocols |
+| 05 | [M2 Variant Formulations](methods/05_m2_variant_formulations.md) | M2-S model + evaluation protocols |
+| — | [Naming Convention](methods/naming_convention.md) | Model vs eval protocol definitions |
 
 ### Reading guide
 
 - **Start here**: 00 (model overview) — defines M1-M4 and current results
+- **Naming**: [naming_convention.md](methods/naming_convention.md) — models (M1-S, M2-S) vs eval protocols (Eval-MANE, etc.)
 - **Understand the problem**: 01 (label hierarchy) — why this isn't standard supervised learning
-- **Understand M2**: 02 (annotation strategy) + 05 (M2a-f protocols) — the current research frontier
+- **Understand M2**: 02 (annotation strategy) + 05 (M2 protocols) — the current research frontier
 - **Deeper context**: 03 (junction pairing) + 04 (data landscape) — for M3/M4 planning
 
 ---
