@@ -110,11 +110,13 @@ agentic-spliceai/
 │   └── aggregate_eclip_peaks.py         # ENCODE eCLIP peak aggregation
 │
 ├── data/                            # Data directory (symlinked, not in git)
-│   ├── ensembl/GRCh37/                  # Ensembl annotations
-│   └── mane/GRCh38/                     # MANE annotations + derived data
-│       ├── junction_data/                   # GTEx junction parquets
-│       ├── rbp_data/                        # ENCODE eCLIP parquets
-│       └── openspliceai_eval/               # Predictions + feature artifacts
+│   ├── GRCh38/                          # Build-rooted, annotation-agnostic
+│   │   └── junction_data/                   # GTEx v8 junction parquets (experimental data)
+│   ├── ensembl/GRCh38/                   # Ensembl annotations
+│   ├── mane/GRCh38/                      # MANE annotations + derived data
+│   │   ├── rbp_data/                        # ENCODE eCLIP parquets
+│   │   └── openspliceai_eval/               # Predictions + feature artifacts
+│   └── ensembl/GRCh37/                   # Legacy Ensembl annotations
 │
 ├── notebooks/                       # Jupyter analysis & demos
 ├── docs/                            # Public documentation (MkDocs)
