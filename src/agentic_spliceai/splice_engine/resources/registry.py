@@ -104,7 +104,13 @@ class Registry:
                     "gene_features": "gene_features.tsv",
                     "transcript_features": "transcript_features.tsv",
                     "exon_features": "exon_features.tsv",
-                    "junctions": "junctions.tsv"
+                    # 'junctions' intentionally omitted: junction data is an
+                    # experimental dataset (GTEx/recount3/etc.), keyed by build
+                    # only and not annotation-scoped. It lives at
+                    # data/<build>/junction_data/ and should be resolved via
+                    # Registry.get_build_data_dir(), not resolve('junctions').
+                    # Callers that need a legacy junctions TSV must set it
+                    # explicitly via derived_datasets.junctions in settings.
                 }
                 if kind not in mapping:
                     raise ValueError(f"Unknown resource kind: {kind}")
@@ -241,6 +247,30 @@ class Registry:
     def get_local_dir(self) -> Path:
         """Get the local directory for intermediate files."""
         return self.stash
+
+    def get_build_data_dir(self, create: bool = False) -> Path:
+        """Get the annotation-agnostic, build-rooted data directory.
+
+        Returns ``data_root / <build>/`` (e.g., ``data/GRCh38/``), which is the
+        natural home for **experimental datasets** that are not tied to any one
+        annotation source — GTEx junction reads, eCLIP peaks, ENCODE
+        long-read, recount3, etc. These datasets are keyed by genomic
+        coordinates (and often Ensembl/GENCODE IDs) and apply equally to
+        MANE, Ensembl, and GENCODE workflows.
+
+        Distinct from ``self.stash`` (annotation-specific, e.g.,
+        ``data/mane/GRCh38/``), which is the right home for annotation
+        outputs (GTFs, splice-site TSVs, gene_features, etc.).
+
+        The ``_MANE``/``_GENCODE`` build suffixes are stripped so all three
+        annotation flavors (MANE, GENCODE, Ensembl-default) resolve to the
+        same ``data/<build>/`` directory.
+        """
+        build_dir = self.cfg.build.replace("_MANE", "").replace("_GENCODE", "")
+        path = self.cfg.data_root / build_dir
+        if create:
+            path.mkdir(parents=True, exist_ok=True)
+        return path
     
     def get_eval_dir(self, create: bool = False) -> Path:
         """Get the evaluation directory for SpliceAI outputs."""

@@ -88,6 +88,7 @@ class JunctionConfig(ModalityConfig):
     """
 
     base_model: str = "openspliceai"
+    build: Optional[str] = None  # explicit genome build (e.g., "GRCh38"); overrides base_model lookup
     junction_data_path: Optional[Path] = None
     min_support: int = 3
     aggregation: str = "summarized"
@@ -751,8 +752,19 @@ class JunctionModality(Modality):
         return df
 
     def _resolve_build(self) -> str:
-        """Resolve genomic build from base_model (cached)."""
+        """Resolve genomic build.
+
+        Preference order:
+        1. Explicit ``JunctionConfig.build`` — works for any base model,
+           including foundation models not registered in the resources system.
+        2. Derive from ``JunctionConfig.base_model`` via the model registry
+           (legacy path; requires the base model to be registered).
+        """
         if self._build is not None:
+            return self._build
+
+        if self._cfg.build is not None:
+            self._build = self._cfg.build
             return self._build
 
         from agentic_spliceai.splice_engine.resources import get_model_resources
@@ -765,41 +777,57 @@ class JunctionModality(Modality):
         """Resolve junction data file path.
 
         Resolution order:
-        1. Explicit config path (junction_data_path)
-        2. Registry auto-resolution (junctions.tsv in build dir)
-        3. GTEx by-tissue parquet in junction_data/ subdirectory
+        1. Explicit config path (``junction_data_path``).
+        2. GTEx by-tissue parquet at ``data/<build>/junction_data/``
+           (preferred — enables tissue_breadth, tissue_variance, and PSI).
+        3. GTEx summary parquet at the same location (fallback).
+        4. Explicit legacy ``junctions`` override via ``settings.yaml``
+           ``derived_datasets.junctions`` (opt-in only; not resolved by
+           default — junction data is build-scoped experimental data,
+           not annotation-scoped).
 
-        The GTEx by-tissue parquet is preferred for multi-tissue analysis
-        as it enables tissue_breadth, tissue_variance, and PSI features.
+        Same dataset applies to any base model that reports per-nucleotide
+        donor/acceptor/neither scores on the same build.
         """
         if self._cfg.junction_data_path is not None:
             return Path(self._cfg.junction_data_path)
 
-        # Auto-resolve from registry
+        # Derive the build (prefers explicit cfg.build; falls back to
+        # base_model lookup) and resolve the registry from that.
         try:
-            from agentic_spliceai.splice_engine.resources import get_model_resources
+            from agentic_spliceai.splice_engine.resources import get_genomic_registry
+            build = self._resolve_build()
+            registry = get_genomic_registry(build=build)
+        except Exception as e:
+            logger.warning(
+                "Could not resolve registry for junction data (build=%r, base_model=%r): %s. "
+                "Junction features will be zeros.",
+                self._cfg.build, self._cfg.base_model, e,
+            )
+            return None
 
-            resources = get_model_resources(self._cfg.base_model)
-            registry = resources.get_registry()
+        # Prefer GTEx parquets at data/<build>/junction_data/.
+        build_data_dir = registry.get_build_data_dir()
+        gtex_by_tissue = build_data_dir / "junction_data" / "junctions_gtex_v8_by_tissue.parquet"
+        if gtex_by_tissue.exists():
+            logger.info("Using GTEx by-tissue junction data: %s", gtex_by_tissue)
+            return gtex_by_tissue
 
-            # Try registry first (junctions.tsv)
+        gtex_summary = build_data_dir / "junction_data" / "junctions_gtex_v8.parquet"
+        if gtex_summary.exists():
+            logger.info("Using GTEx junction summary: %s", gtex_summary)
+            return gtex_summary
+
+        # Opt-in legacy override: only if derived_datasets.junctions is
+        # explicitly configured in settings.yaml. No implicit discovery.
+        # Registry.resolve raises ValueError for 'junctions' unless it's in
+        # derived_datasets — treat that as "no legacy configured".
+        try:
             path = registry.resolve("junctions")
-            if path is not None and Path(path).exists():
-                return Path(path)
+        except ValueError:
+            path = None
+        if path is not None and Path(path).exists():
+            logger.info("Using configured legacy junction data: %s", path)
+            return Path(path)
 
-            # Fallback: GTEx by-tissue parquet in junction_data/ subdir
-            build_dir = Path(registry.stash)
-            gtex_by_tissue = build_dir / "junction_data" / "junctions_gtex_v8_by_tissue.parquet"
-            if gtex_by_tissue.exists():
-                logger.info("Using GTEx by-tissue junction data: %s", gtex_by_tissue)
-                return gtex_by_tissue
-
-            # Also check for summary-only file
-            gtex_summary = build_dir / "junction_data" / "junctions_gtex_v8.parquet"
-            if gtex_summary.exists():
-                logger.info("Using GTEx junction summary: %s", gtex_summary)
-                return gtex_summary
-
-            return None
-        except Exception:
-            return None
+        return None

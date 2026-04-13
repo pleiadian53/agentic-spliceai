@@ -495,19 +495,29 @@ class DenseFeatureExtractor:
 
         path = self.config.junction_parquet
         if path is None:
-            # Try auto-resolve from registry
+            # Auto-resolve from the extractor's build setting. Junction reads
+            # are an experimental dataset (GTEx RNA-seq) keyed by genomic
+            # coordinates — they apply to any base model that reports per-
+            # nucleotide donor/acceptor/neither scores on the same build,
+            # not just OpenSpliceAI. Resolve the parent dir from the build,
+            # not from a hardcoded base model.
             try:
-                from agentic_spliceai.splice_engine.resources import get_model_resources
-                resources = get_model_resources("openspliceai")
-                registry = resources.get_registry()
-                from pathlib import Path as P
+                from agentic_spliceai.splice_engine.resources import get_genomic_registry
+                registry = get_genomic_registry(build=self.config.build)
+                build_data_dir = registry.get_build_data_dir()
+            except Exception as e:
+                logger.warning(
+                    "Could not resolve build data dir for build=%r: %s. "
+                    "Junction channels will be zeros.", self.config.build, e,
+                )
+                build_data_dir = None
+
+            if build_data_dir is not None:
                 for name in ("junctions_gtex_v8.parquet", "gtex_junction_summary.parquet"):
-                    candidate = P(registry.stash) / "junction_data" / name
+                    candidate = build_data_dir / "junction_data" / name
                     if candidate.exists():
                         path = candidate
                         break
-            except Exception:
-                pass
 
         if path is None or not Path(path).exists():
             logger.info("No junction parquet available; junction channels will be zeros")
@@ -605,17 +615,22 @@ class DenseFeatureExtractor:
 
         path = self.config.eclip_parquet
         if path is None:
-            # Try auto-resolve
+            # Auto-resolve from build. Like junction reads, eCLIP peaks are an
+            # experimental dataset (ENCODE) that applies to any base model on
+            # the same build. Currently the parquet lives under the annotation
+            # stash (data/<annotation>/<build>/rbp_data/); a future refactor
+            # should move it under data/<build>/rbp_data/ alongside junctions.
             try:
-                from agentic_spliceai.splice_engine.resources import get_model_resources
-                resources = get_model_resources("openspliceai")
-                registry = resources.get_registry()
-                from pathlib import Path as P
-                candidate = P(registry.stash) / "rbp_data" / "eclip_peaks.parquet"
+                from agentic_spliceai.splice_engine.resources import get_genomic_registry
+                registry = get_genomic_registry(build=self.config.build)
+                candidate = Path(registry.stash) / "rbp_data" / "eclip_peaks.parquet"
                 if candidate.exists():
                     path = candidate
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Could not resolve eCLIP parquet for build=%r: %s. "
+                    "RBP channel will be zeros.", self.config.build, e,
+                )
 
         if path is None or not Path(path).exists():
             logger.info("No eCLIP parquet available; RBP channel will be zeros")
