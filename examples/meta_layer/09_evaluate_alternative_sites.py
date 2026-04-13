@@ -23,11 +23,12 @@ Usage:
         --build-cache \\
         --base-scores-dir data/ensembl/GRCh38/openspliceai_eval/precomputed
 
-    # From existing cache
+    # From existing cache (--cache-dir is the parent holding train/val/test subdirs,
+    # matching the convention used by 07_train_sequence_model.py)
     python 09_evaluate_alternative_sites.py \\
         --checkpoint output/meta_layer/m1s/best.pt \\
         --annotation-source ensembl \\
-        --cache-dir /path/to/ensembl_gene_cache
+        --cache-dir output/meta_layer/gene_cache_ensembl
 
     # M2b: GENCODE \\ MANE (requires GENCODE gene cache)
     python 09_evaluate_alternative_sites.py \\
@@ -159,8 +160,10 @@ def main():
     )
     parser.add_argument(
         "--cache-dir", type=Path, default=None,
-        help="Directory with gene cache (.npz files). "
-             "Default: <checkpoint-dir>/gene_cache/<annotation_source>",
+        help="Parent gene-cache directory (same convention as 07_train_sequence_model.py: "
+             "{train,val,train_shards,val_shards,test}). Test npz files are read from and "
+             "written to <cache-dir>/test/. "
+             "Default: output/meta_layer/gene_cache_<annotation_source>",
     )
     parser.add_argument(
         "--build-cache", action="store_true",
@@ -271,7 +274,13 @@ def main():
         print(f"  Limited to {len(test_genes)} genes")
 
     # ── Cache directory ──────────────────────────────────────────────
-    cache_dir = args.cache_dir or args.checkpoint.parent / "gene_cache" / ann_src
+    # Convention (matches 07_train_sequence_model.py): --cache-dir is the parent
+    # that holds {train, val, train_shards, val_shards, test}. We read/write test
+    # npz files from <cache-dir>/test/.
+    cache_parent = args.cache_dir or (
+        Path("output/meta_layer") / f"gene_cache_{ann_src}"
+    )
+    cache_dir = cache_parent / "test"
 
     # ── Build cache if requested ─────────────────────────────────────
     if args.build_cache:
