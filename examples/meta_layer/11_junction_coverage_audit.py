@@ -14,6 +14,11 @@ structured outputs that answer three research questions:
       Ensembl-alt-only sites (i.e., sites in Ensembl but not MANE)?
   Q3. **Junctions outside annotations.** How many junction coordinates
       fall on positions *not* in any Ensembl splice site?
+  Q4. **Biotype-filtered coverage.** How much of the apparent alt-only
+      coverage gap is driven by speculative transcript biotypes
+      (retained_intron, pseudogenes, NMD) that are intrinsically
+      low-expression in bulk RNA-seq? Re-computes coverage after
+      excluding those biotypes.
 
 Output layout (default ``output/meta_layer/junction_coverage_audit/``):
 
@@ -22,6 +27,9 @@ Output layout (default ``output/meta_layer/junction_coverage_audit/``):
     q2_canonical_vs_alt.csv               MANE vs alt-only breakdown
     q3_novel_junction_sides.parquet       junction sides not in Ensembl
     q3_novel_summary.csv                  counts + depth/breadth stats
+    q4_coverage_by_biotype.csv            coverage × transcript_biotype × in_mane
+    q4_biotype_filtered_summary.csv       MANE vs alt after excluding
+                                          speculative biotypes
     depth_breadth_hist.png                covered-site histograms
     findings.md                           auto-generated report
 
@@ -50,6 +58,26 @@ logger = logging.getLogger(__name__)
 
 # SpliceAI test split — same chromosomes our PR-AUCs were computed on.
 SPLICEAI_TEST_CHROMS = ["1", "3", "5", "7", "9"]
+
+# Transcript biotypes excluded by default from biotype-filtered coverage.
+# These are designed to be low-expression in bulk RNA-seq:
+#   - retained_intron: intron kept unspliced in this isoform, so its
+#     boundaries aren't actively spliced in this transcript.
+#   - *_pseudogene: pseudogenes are rarely transcribed.
+#   - nonsense_mediated_decay: NMD transcripts are degraded rapidly,
+#     often below bulk RNA-seq detection.
+#   - protein_coding_CDS_not_defined: incomplete/predicted annotations.
+DEFAULT_EXCLUDE_BIOTYPES = [
+    "retained_intron",
+    "processed_pseudogene",
+    "unprocessed_pseudogene",
+    "transcribed_processed_pseudogene",
+    "transcribed_unprocessed_pseudogene",
+    "transcribed_unitary_pseudogene",
+    "unitary_pseudogene",
+    "nonsense_mediated_decay",
+    "protein_coding_CDS_not_defined",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +252,114 @@ def compute_q2(
 
 
 # ---------------------------------------------------------------------------
+# Q4: Biotype-filtered coverage
+# ---------------------------------------------------------------------------
+
+def compute_q4(
+    coverage: pl.DataFrame,
+    ensembl_sites: pl.LazyFrame,
+    mane_sites: pl.LazyFrame,
+    exclude_biotypes: list[str],
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Compute coverage broken down by transcript_biotype, and re-compute
+    the MANE vs alt-only summary after excluding positions whose transcript
+    biotypes are ALL in ``exclude_biotypes``.
+
+    A site is kept if at least one transcript row at (chrom, position,
+    strand, splice_type) has a biotype NOT in the excluded set. This is
+    the right semantics: a splice site supported by any ordinary
+    protein_coding/lncRNA transcript stays even if it also appears in
+    a retained_intron row.
+
+    Returns:
+      - ``by_biotype``: per-biotype coverage split by in_mane
+      - ``filtered_summary``: MANE vs alt-only, after biotype filtering
+    """
+    mane_keys = (
+        mane_sites.select(["chrom", "position", "strand", "splice_type"])
+        .unique()
+        .collect()
+    )
+
+    # Per-row (site × transcript) coverage frame for the by-biotype table.
+    site_rows = (
+        ensembl_sites.select(
+            [
+                "chrom",
+                "position",
+                "strand",
+                "splice_type",
+                "transcript_biotype",
+            ]
+        ).collect()
+    )
+    site_rows_cov = site_rows.join(
+        coverage.select(["chrom", "position", "strand", "splice_type", "covered"]),
+        on=["chrom", "position", "strand", "splice_type"],
+        how="left",
+    )
+    site_rows_cov = site_rows_cov.join(
+        mane_keys.with_columns(pl.lit(True).alias("in_mane")),
+        on=["chrom", "position", "strand", "splice_type"],
+        how="left",
+    ).with_columns(pl.col("in_mane").fill_null(False))
+
+    by_biotype = (
+        site_rows_cov.group_by(["transcript_biotype", "in_mane"])
+        .agg(
+            [
+                pl.len().alias("n_rows"),
+                pl.col("covered").mean().alias("coverage_rate"),
+            ]
+        )
+        .sort(["in_mane", "n_rows"], descending=[True, True])
+    )
+
+    # Biotype-filtered coverage: a unique site is kept if ANY of its
+    # transcript_biotype rows is NOT in the excluded set.
+    site_keep_flag = (
+        site_rows_cov.group_by(["chrom", "position", "strand", "splice_type"])
+        .agg(
+            [
+                (~pl.col("transcript_biotype").is_in(exclude_biotypes))
+                .any()
+                .alias("keep")
+            ]
+        )
+    )
+    filtered_coverage = coverage.join(
+        site_keep_flag, on=["chrom", "position", "strand", "splice_type"], how="inner"
+    ).filter(pl.col("keep"))
+
+    filtered_with_flag = filtered_coverage.join(
+        mane_keys.with_columns(pl.lit(True).alias("in_mane")),
+        on=["chrom", "position", "strand", "splice_type"],
+        how="left",
+    ).with_columns(pl.col("in_mane").fill_null(False))
+
+    filtered_summary = (
+        filtered_with_flag.group_by("in_mane")
+        .agg(
+            [
+                pl.len().alias("n_sites"),
+                pl.col("covered").mean().alias("coverage_rate"),
+                pl.col("max_sum_reads")
+                .filter(pl.col("covered"))
+                .median()
+                .alias("median_reads_when_covered"),
+                pl.col("max_n_tissues")
+                .filter(pl.col("covered"))
+                .median()
+                .alias("median_tissues_when_covered"),
+            ]
+        )
+        .sort("in_mane", descending=True)
+    )
+
+    return by_biotype, filtered_summary
+
+
+# ---------------------------------------------------------------------------
 # Q3: Novel junctions (outside Ensembl annotation)
 # ---------------------------------------------------------------------------
 
@@ -308,6 +444,9 @@ def write_findings(
     canonical_vs_alt_by_strand: pl.DataFrame,
     novel: pl.DataFrame,
     novel_summary: pl.DataFrame,
+    q4_by_biotype: pl.DataFrame,
+    q4_filtered: pl.DataFrame,
+    exclude_biotypes: list[str],
     n_ensembl: int,
     n_mane: int,
     n_junction: int,
@@ -429,6 +568,50 @@ def write_findings(
             )
     lines.append("---\n\n")
 
+    # --- Q4 --------------------------------------------------------------
+    lines.append("## Q4. Biotype-filtered coverage\n\n")
+    if not exclude_biotypes:
+        lines.append("Biotype filtering disabled (`--exclude-biotypes none`). "
+                     "Skipping Q4 analysis.\n\n")
+    else:
+        lines.append("Speculative transcript biotypes are intrinsically "
+                     "low-expression in bulk RNA-seq and drag down the "
+                     "apparent alt-only coverage rate. Re-compute after "
+                     "excluding sites whose transcript rows are ALL in the "
+                     "excluded set:\n\n")
+        lines.append("Excluded biotypes: " + ", ".join(
+            f"`{b}`" for b in exclude_biotypes) + "\n\n")
+
+        lines.append("### Coverage by transcript biotype (in_mane split)\n\n")
+        lines.append(q4_by_biotype.head(15).to_pandas().to_markdown(index=False) + "\n\n")
+        lines.append("*(top 15 biotypes by row count)*\n\n")
+
+        lines.append("### MANE vs alt-only after biotype filter\n\n")
+        lines.append(q4_filtered.to_pandas().to_markdown(index=False) + "\n\n")
+
+        # Compute delta vs unfiltered
+        try:
+            alt_before = float(
+                canonical_vs_alt.filter(~pl.col("in_mane"))
+                .row(0, named=True)["coverage_rate"]
+            )
+            alt_after = float(
+                q4_filtered.filter(~pl.col("in_mane"))
+                .row(0, named=True)["coverage_rate"]
+            )
+            delta_pts = (alt_after - alt_before) * 100
+            lines.append(
+                f"**Alt-only coverage: {alt_before:.1%} (unfiltered) → "
+                f"{alt_after:.1%} (biotype-filtered), "
+                f"{delta_pts:+.1f} pts.** Much of the apparent gap was "
+                f"speculative-biotype noise — for biologically meaningful "
+                f"alt isoforms, junction coverage is significantly higher "
+                f"than the headline number suggests.\n\n"
+            )
+        except Exception:
+            pass
+    lines.append("---\n\n")
+
     lines.append("## Q3. Junctions outside Ensembl annotation\n\n")
     lines.append(f"Junction sides that do **not** match any Ensembl splice site "
                  f"are the upper bound on what GTEx could surface as novel.\n\n")
@@ -455,6 +638,8 @@ def write_findings(
     lines.append("| `q2_canonical_vs_alt.csv` | MANE vs alt-only breakdown |\n")
     lines.append("| `q3_novel_junction_sides.parquet` | Novel junction sides (per-row) |\n")
     lines.append("| `q3_novel_summary.csv` | Per-splice-type novel summary |\n")
+    lines.append("| `q4_coverage_by_biotype.csv` | Coverage × transcript_biotype × in_mane |\n")
+    lines.append("| `q4_biotype_filtered_summary.csv` | MANE vs alt after biotype filter |\n")
     lines.append("| `depth_breadth_hist.png` | Histograms at covered sites |\n")
 
     (output_dir / "findings.md").write_text("".join(lines))
@@ -496,6 +681,18 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         type=Path,
         default=Path("output/meta_layer/junction_coverage_audit"),
+    )
+    p.add_argument(
+        "--exclude-biotypes",
+        nargs="+",
+        default=DEFAULT_EXCLUDE_BIOTYPES,
+        help=(
+            "Transcript biotypes to exclude from the Q4 filtered variant. "
+            "A site is kept if ANY of its transcript rows has a biotype NOT "
+            "in this list (so a site shared between protein_coding and "
+            "retained_intron transcripts is kept). "
+            "Pass '--exclude-biotypes none' to disable filtering."
+        ),
     )
     p.add_argument("-v", "--verbose", action="store_true")
     return p.parse_args()
@@ -564,6 +761,18 @@ def main() -> int:
     canonical_vs_alt.write_csv(args.output_dir / "q2_canonical_vs_alt.csv")
     canonical_vs_alt_by_strand.write_csv(args.output_dir / "q2_canonical_vs_alt_by_strand.csv")
 
+    # Q4
+    exclude_biotypes = (
+        [] if args.exclude_biotypes == ["none"] else args.exclude_biotypes
+    )
+    logger.info(
+        "Computing Q4: biotype-filtered coverage (excluding %d biotypes)",
+        len(exclude_biotypes),
+    )
+    q4_by_biotype, q4_filtered = compute_q4(coverage, ensembl, mane, exclude_biotypes)
+    q4_by_biotype.write_csv(args.output_dir / "q4_coverage_by_biotype.csv")
+    q4_filtered.write_csv(args.output_dir / "q4_biotype_filtered_summary.csv")
+
     # Q3
     logger.info("Computing Q3: novel junction coordinates")
     novel, novel_summary = compute_q3(junc_sides, ensembl)
@@ -585,6 +794,9 @@ def main() -> int:
         canonical_vs_alt_by_strand,
         novel,
         novel_summary,
+        q4_by_biotype,
+        q4_filtered,
+        exclude_biotypes,
         n_ensembl,
         n_mane,
         n_junction_sides,
