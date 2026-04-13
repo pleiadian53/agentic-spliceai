@@ -1,0 +1,28 @@
+{
+  "n_variants": 20,
+  "n_consequence_match": 7,
+  "consequence_concordance": 0.35,
+  "meta_mean_delta": 0.5589026296511292,
+  "meta_median_delta": 0.7314073145389557,
+  "base_mean_delta": 0.7809838127344847,
+  "base_median_delta": 0.9663562476634979,
+  "meta_detection_rate_t0.1": 0.9,
+  "base_detection_rate_t0.1": 0.95,
+  "meta_detection_rate_t0.2": 0.75,
+  "base_detection_rate_t0.2": 0.9,
+  "meta_detection_rate_t0.5": 0.55,
+  "base_detection_rate_t0.5": 0.85,
+  "meta_detection_rate_t0.8": 0.2,
+  "base_detection_rate_t0.8": 0.6,
+  "confidence_high": 11,
+  "confidence_moderate": 4,
+  "confidence_low": 5,
+  "by_effect_type": {
+    "intron_retention": {
+      "n": 20,
+      "detected_t02": 15,
+      "consequence_match": 7
+    }
+  },
+  "checkpoint": "output/meta_layer/m1s_v2_logit_blend/best.pt"
+}

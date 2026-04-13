@@ -393,7 +393,7 @@ class VariantRunner:
                 bigwig_cache_dir=self._bigwig_cache_dir,
             )
             self._extractor = DenseFeatureExtractor(feat_config)
-            logger.info("Dense feature extractor initialized (%d channels)", self._extractor.n_channels)
+            logger.info("Dense feature extractor initialized (%d channels)", self._extractor.num_channels)
         return self._extractor
 
     @staticmethod
