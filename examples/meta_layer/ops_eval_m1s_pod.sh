@@ -11,7 +11,7 @@
 #   4. Base scores:   data/mane/GRCh38/openspliceai_eval/precomputed/predictions_chr*.parquet
 #   5. BigWig cache:  /runpod-volume/bigwig_cache/*.bw  (22 files, ~17 GB)
 #   6. M1-S model:    output/meta_layer/m1s/best.pt + config.pt
-#   7. Junction data: data/mane/GRCh38/junction_data/junctions_gtex_v8.parquet
+#   7. Junction data: data/GRCh38/junction_data/junctions_gtex_v8.parquet
 #   8. eCLIP data:    data/mane/GRCh38/rbp_data/eclip_peaks.parquet
 #
 # Data staging (run from LOCAL machine):
@@ -57,7 +57,7 @@ ls "$CHECKPOINT" >/dev/null
 ls "$WORKDIR/output/meta_layer/m1s/config.pt" >/dev/null
 ls data/mane/GRCh38/splice_sites_enhanced.tsv >/dev/null
 ls data/mane/GRCh38/openspliceai_eval/precomputed/predictions_chr1.parquet >/dev/null
-ls data/mane/GRCh38/junction_data/junctions_gtex_v8.parquet >/dev/null
+ls data/GRCh38/junction_data/junctions_gtex_v8.parquet >/dev/null
 ls data/mane/GRCh38/rbp_data/eclip_peaks.parquet >/dev/null
 ls "$BIGWIG_CACHE"/hg38.phyloP100way.bw >/dev/null
 python -c "import pyBigWig" 2>/dev/null || { echo "ERROR: pyBigWig not installed"; exit 1; }

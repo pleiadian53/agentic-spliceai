@@ -19,7 +19,7 @@
 #   6. MANE splices:     data/mane/GRCh38/splice_sites_enhanced.tsv  (for set-diff)
 #   7. Base scores:      /runpod-volume/data/ensembl/GRCh38/openspliceai_eval/precomputed/
 #   8. BigWig cache:     /runpod-volume/bigwig_cache/*.bw
-#   9. Junction data:    data/mane/GRCh38/junction_data/junctions_gtex_v8.parquet
+#   9. Junction data:    data/GRCh38/junction_data/junctions_gtex_v8.parquet
 #  10. eCLIP data:       data/mane/GRCh38/rbp_data/eclip_peaks.parquet
 #
 #  For GENCODE additionally:
@@ -133,7 +133,7 @@ ls "$CHECKPOINT" >/dev/null
 ls "$(dirname "$CHECKPOINT")/config.pt" >/dev/null
 ls data/mane/GRCh38/splice_sites_enhanced.tsv >/dev/null
 ls "$BASE_SCORES"/predictions_chr1.parquet >/dev/null
-ls data/mane/GRCh38/junction_data/junctions_gtex_v8.parquet >/dev/null
+ls data/GRCh38/junction_data/junctions_gtex_v8.parquet >/dev/null
 ls data/mane/GRCh38/rbp_data/eclip_peaks.parquet >/dev/null
 ls "$BIGWIG_CACHE"/hg38.phyloP100way.bw >/dev/null 2>&1 || echo "  Warning: BigWig cache not found"
 if [ "$ANNOTATION" = "ensembl" ]; then

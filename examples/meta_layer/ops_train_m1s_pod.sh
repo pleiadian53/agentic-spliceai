@@ -30,7 +30,7 @@ echo "============================================================"
 # Verify data is staged
 echo "Checking data..."
 ls data/mane/GRCh38/openspliceai_eval/precomputed/predictions_chr1.parquet >/dev/null
-ls data/mane/GRCh38/junction_data/junctions_gtex_v8.parquet >/dev/null
+ls data/GRCh38/junction_data/junctions_gtex_v8.parquet >/dev/null
 ls data/mane/GRCh38/rbp_data/eclip_peaks.parquet >/dev/null
 ls "$BIGWIG_CACHE"/hg38.phyloP100way.bw >/dev/null
 echo "  All data present."

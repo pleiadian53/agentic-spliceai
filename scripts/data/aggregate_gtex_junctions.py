@@ -19,8 +19,8 @@ The JunctionModality converts these to exon boundary positions when loading.
 
 Usage:
     python scripts/aggregate_gtex_junctions.py \\
-        --raw-dir data/mane/GRCh38/junction_data/raw \\
-        --output data/mane/GRCh38/junction_data/junctions_gtex_v8.parquet
+        --raw-dir data/GRCh38/junction_data/raw \\
+        --output data/GRCh38/junction_data/junctions_gtex_v8.parquet
 """
 
 from __future__ import annotations
@@ -244,13 +244,13 @@ def main() -> None:
     parser.add_argument(
         "--raw-dir",
         type=Path,
-        default=Path("data/mane/GRCh38/junction_data/raw"),
+        default=Path("data/GRCh38/junction_data/raw"),
         help="Directory with raw GTEx files",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data/mane/GRCh38/junction_data"),
+        default=Path("data/GRCh38/junction_data"),
         help="Output directory for aggregated junction files",
     )
     parser.add_argument(

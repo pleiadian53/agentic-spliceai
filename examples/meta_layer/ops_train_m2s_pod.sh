@@ -17,7 +17,7 @@
 #   5. MANE base scores:    data/mane/GRCh38/openspliceai_eval/precomputed/
 #   6. Ensembl base scores: /runpod-volume/data/ensembl/GRCh38/openspliceai_eval/precomputed/
 #   7. BigWig cache:        /runpod-volume/bigwig_cache/*.bw
-#   8. Junction data:       data/mane/GRCh38/junction_data/junctions_gtex_v8.parquet
+#   8. Junction data:       data/GRCh38/junction_data/junctions_gtex_v8.parquet
 #   9. eCLIP data:          data/mane/GRCh38/rbp_data/eclip_peaks.parquet
 #
 # Usage:
@@ -50,7 +50,7 @@ echo "Checking prerequisites..."
 ls data/ensembl/GRCh38/splice_sites_enhanced.tsv >/dev/null
 ls data/ensembl/GRCh38/Homo_sapiens.GRCh38.112.gtf >/dev/null
 ls "$ENSEMBL_SCORES"/predictions_chr1.parquet >/dev/null
-ls data/mane/GRCh38/junction_data/junctions_gtex_v8.parquet >/dev/null
+ls data/GRCh38/junction_data/junctions_gtex_v8.parquet >/dev/null
 ls "$BIGWIG_CACHE"/hg38.phyloP100way.bw >/dev/null
 echo "  All prerequisites present."
 
