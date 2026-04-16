@@ -51,6 +51,25 @@ setup_example_environment()
 log = logging.getLogger(__name__)
 
 
+def _base_max_within_radius(base_delta: np.ndarray, radius: int) -> float:
+    """Max |Δ| on base model over donor/acceptor within ±radius of window center.
+
+    Mirrors DeltaResult.max_delta_within_radius() for the base_delta array,
+    so base and meta are compared on the same scoring window.
+    """
+    L = len(base_delta)
+    center = L // 2
+    lo = max(0, center - radius)
+    hi = min(L, center + radius + 1)
+    sl = base_delta[lo:hi]
+    if sl.size == 0:
+        return 0.0
+    return float(max(
+        sl[:, 0].max(), -sl[:, 0].min(),
+        sl[:, 1].max(), -sl[:, 1].min(),
+    ))
+
+
 def _load_gene_strands(gtf_path: str) -> Dict[str, str]:
     """Load gene name → strand mapping from GTF."""
     from agentic_spliceai.splice_engine.base_layer.data.genomic_extraction import (
@@ -108,6 +127,8 @@ def run_benchmark(
     device: str = "cpu",
     base_model: str = "openspliceai",
     use_multimodal: bool = False,
+    bigwig_cache_dir: Optional[Path] = None,
+    score_radius: int = 50,
 ) -> List[Dict]:
     """Score each variant and collect delta scores.
 
@@ -123,6 +144,7 @@ def run_benchmark(
         base_model=base_model,
         device=device,
         event_threshold=0.1,
+        bigwig_cache_dir=bigwig_cache_dir,
     )
 
     results = []
@@ -160,13 +182,15 @@ def run_benchmark(
                 "meta_ds_dl": float(r.max_donor_loss),
                 "meta_ds_ag": float(r.max_acceptor_gain),
                 "meta_ds_al": float(r.max_acceptor_loss),
-                "meta_max_delta": float(r.max_delta),
-                # Base model delta scores
+                "meta_max_delta": float(r.max_delta_within_radius(score_radius)),
+                "meta_max_delta_fullwindow": float(r.max_delta),
+                # Base model delta scores — slice to the same ±radius as meta
                 "base_ds_dg": float(r.base_delta[:, 0].max()),
                 "base_ds_dl": float(-r.base_delta[:, 0].min()),
                 "base_ds_ag": float(r.base_delta[:, 1].max()),
                 "base_ds_al": float(-r.base_delta[:, 1].min()),
-                "base_max_delta": float(max(
+                "base_max_delta": float(_base_max_within_radius(r.base_delta, score_radius)),
+                "base_max_delta_fullwindow": float(max(
                     r.base_delta[:, 0].max(), -r.base_delta[:, 0].min(),
                     r.base_delta[:, 1].max(), -r.base_delta[:, 1].min(),
                 )),
@@ -255,7 +279,10 @@ def generate_plots(results: List[Dict], output_dir: Path) -> None:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        from sklearn.metrics import roc_curve, precision_recall_curve
+        from sklearn.metrics import (
+            roc_curve, precision_recall_curve,
+            roc_auc_score, average_precision_score,
+        )
     except ImportError:
         print("  Skipping plots (matplotlib not available)")
         return
@@ -354,6 +381,12 @@ def main() -> int:
     parser.add_argument("--base-model", default="openspliceai")
     parser.add_argument("--no-multimodal", action="store_true")
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--bigwig-cache", type=Path, default=None,
+                        help="Local BigWig cache dir for conservation/epigenetic/chromatin features")
+    parser.add_argument("--score-radius", type=int, default=50,
+                        help="Radius (bp) around the variant for max_delta reduction. "
+                             "Matches OpenSpliceAI's dist_var=50. Set to 2500 to approximate "
+                             "the legacy full-window behavior.")
     parser.add_argument("--no-plots", action="store_true")
     args = parser.parse_args()
 
@@ -397,6 +430,8 @@ def main() -> int:
         variants, args.checkpoint, args.fasta,
         gene_strands, args.device, args.base_model,
         use_multimodal=not args.no_multimodal,
+        bigwig_cache_dir=args.bigwig_cache,
+        score_radius=args.score_radius,
     )
 
     if not results:

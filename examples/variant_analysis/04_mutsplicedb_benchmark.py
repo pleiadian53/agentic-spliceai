@@ -33,7 +33,7 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -65,6 +65,21 @@ def _load_gene_strands(gtf_path: str) -> Dict[str, str]:
     return strands
 
 
+def _base_max_within_radius(base_delta: np.ndarray, radius: int) -> float:
+    """Max |Δ| on base model over donor/acceptor within ±radius of window center."""
+    L = len(base_delta)
+    center = L // 2
+    lo = max(0, center - radius)
+    hi = min(L, center + radius + 1)
+    sl = base_delta[lo:hi]
+    if sl.size == 0:
+        return 0.0
+    return float(max(
+        sl[:, 0].max(), -sl[:, 0].min(),
+        sl[:, 1].max(), -sl[:, 1].min(),
+    ))
+
+
 def run_benchmark(
     variants: list,
     checkpoint: Path,
@@ -74,6 +89,8 @@ def run_benchmark(
     device: str = "cpu",
     delta_threshold: float = 0.1,
     use_multimodal: bool = False,
+    bigwig_cache_dir: Optional[Path] = None,
+    score_radius: int = 50,
 ) -> List[Dict]:
     """Score each MutSpliceDB variant and compare with expected effect."""
     from agentic_spliceai.splice_engine.meta_layer.inference.variant_runner import (
@@ -89,6 +106,7 @@ def run_benchmark(
         base_model="openspliceai",
         device=device,
         event_threshold=delta_threshold,
+        bigwig_cache_dir=bigwig_cache_dir,
     )
     detector = SpliceEventDetector(gtf_path=gtf_path)
 
@@ -129,8 +147,10 @@ def run_benchmark(
                 "consequence_match": consequence_match,
                 "confidence": consequence.confidence,
                 "affected_exons": consequence.affected_exons,
-                "meta_max_delta": float(r.max_delta),
-                "base_max_delta": float(max(
+                "meta_max_delta": float(r.max_delta_within_radius(score_radius)),
+                "meta_max_delta_fullwindow": float(r.max_delta),
+                "base_max_delta": float(_base_max_within_radius(r.base_delta, score_radius)),
+                "base_max_delta_fullwindow": float(max(
                     r.base_delta[:, 0].max(), -r.base_delta[:, 0].min(),
                     r.base_delta[:, 1].max(), -r.base_delta[:, 1].min(),
                 )),
@@ -217,6 +237,11 @@ def main() -> int:
     parser.add_argument("--delta-threshold", type=float, default=0.1)
     parser.add_argument("--no-multimodal", action="store_true")
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--bigwig-cache", type=Path, default=None,
+                        help="Local BigWig cache dir for conservation/epigenetic/chromatin features")
+    parser.add_argument("--score-radius", type=int, default=50,
+                        help="Radius (bp) around the variant for max_delta reduction. "
+                             "Matches OpenSpliceAI's dist_var=50.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.WARNING,
@@ -253,6 +278,8 @@ def main() -> int:
         variants, args.checkpoint, args.fasta, gtf_path,
         gene_strands, args.device, args.delta_threshold,
         use_multimodal=not args.no_multimodal,
+        bigwig_cache_dir=args.bigwig_cache,
+        score_radius=args.score_radius,
     )
 
     if not results:
