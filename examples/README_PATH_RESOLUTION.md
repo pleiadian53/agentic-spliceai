@@ -173,7 +173,6 @@ data/<annotation>/<build>/base_model_eval/
 
 ## See Also
 
-- `dev/planning/infrastructure/PATH_RESOLUTION_ROADMAP.md` - Full roadmap
 - `src/agentic_spliceai/splice_engine/config/` - Config module with `get_project_root()`
 - `src/agentic_spliceai/splice_engine/resources/` - Resource registry
 

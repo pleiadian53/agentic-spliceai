@@ -188,7 +188,7 @@ Neither PR-AUC uses 1% subsample (always ~1.0, negligible error).
 
 ## Timeline
 
-- **2026-04-03**: OOM #1 during M1-S training on A40 pod (sky-3e26-pleiadian53)
+- **2026-04-03**: OOM #1 during M1-S training on A40 pod
 - **2026-04-03**: Disk-backed cache implemented and tested locally
-- **2026-04-06**: OOM #2 during evaluation on A40 pod (sky-e74e-pleiadian53)
+- **2026-04-06**: OOM #2 during evaluation on A40 pod
 - **2026-04-06**: Streaming evaluation architecture implemented

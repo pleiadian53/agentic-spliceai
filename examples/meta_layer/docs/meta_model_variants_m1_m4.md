@@ -540,7 +540,7 @@ ref_probs, alt_probs, delta = model.predict_with_delta(
 | M1-S | Model architecture done | Dense data pipeline → training script |
 | M2-S | Same architecture as M1-S | Evaluate on Ensembl-only alternative sites |
 | M3-S | Config ready (7 channels, binary output) | Train with junction as target |
-| M4-S | `predict_with_delta()` implemented | Data engineering: SpliceVarDB + GTEx sQTLs |
+| M4-S | Benchmarked on ClinVar + MutSpliceDB (Phase 2 done) | **Phase 3**: clinical pathogenicity head stacking variant-level features (gnomAD AF, gene constraint, ESE/ISE differential disruption, protein deleteriousness) with splice-Δ score. Multimodal features alone are locus-level and carry no variant-specific Δ signal — can't move above base model on pathogenicity ranking without orthogonal variant-level inputs. |
 
 ### Data pipeline
 
@@ -582,12 +582,6 @@ ref_probs, alt_probs, delta = model.predict_with_delta(
   `examples/features/configs/meta_m3_novel.yaml`
 - Full-stack config (M2):
   `examples/features/configs/full_stack.yaml`
-
-### Key sessions
-
-- M1-M4 formalization: `dev/sessions/2026-03-17`
-- Junction wiring + full-stack baseline: `dev/sessions/2026-03-18`
-- SHAP analysis + ablation: `dev/sessions/2026-03-19`
 
 ### External
 

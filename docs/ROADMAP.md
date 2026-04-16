@@ -16,7 +16,7 @@
 | 5 | Foundation Models | Experimental |
 | 6 | Meta Layer Training | Active Research |
 | 7 | Agentic Validation Layer | Planned |
-| 8 | Variant Analysis | **Phase 1A+1B Done** |
+| 8 | Variant Analysis | **Phase 2 Done, Phase 3 Next** |
 | 9 | Isoform Discovery | Ultimate Goal |
 | 10+ | Drug Target Validation & Deployment | Future |
 
@@ -114,7 +114,7 @@ base model on alternative sites (0.775 > 0.749).
 - Self-improvement feedback loop (validation results refine meta layer)
 - **Deliverable**: AI-validated predictions with biological context
 
-### Phase 8: Variant Analysis — PHASE 1A+1B DONE
+### Phase 8: Variant Analysis — PHASE 2 DONE
 
 Use-case-driven R&D for M4 variant effect prediction.
 
@@ -122,8 +122,9 @@ Use-case-driven R&D for M4 variant effect prediction.
 |-----------|-------------|--------|
 | **1A** | VariantRunner — ref/alt delta computation | **Done** |
 | **1B** | SpliceEventDetector — consequence classification | **Done** |
-| 2 | ClinVar integration & benchmarking | Planned |
-| 3 | Saturation mutagenesis & SpliceVarDB validation | Planned |
+| **2** | ClinVar + MutSpliceDB benchmarking, radius sweep | **Done** |
+| 3 | Clinical pathogenicity head (stack variant-level features) | **Next** |
+| 4 | Saturation mutagenesis & SpliceVarDB validation | Planned |
 | 5 | Agentic variant interpretation | Planned |
 
 **Validated**: 13 disease-gene variants (10 genes, both strands), 4 SpliceAI
@@ -133,9 +134,54 @@ match within 2bp of RNA-seq ground truth).
 **Variant delta recovery**: v2 logit-space blend preserves 45-95% of base model
 signal (v1: 20-71%). Cryptic donor gains amplified beyond base model.
 
+**Phase 2 benchmark findings** (2026-04-15):
+
+- On splice-filtered ClinVar (N=2,059; 77% pathogenic prevalence), base model,
+  M1-S v2, and M2-S v2 all reach PR-AUC ≈ 0.92 / ROC-AUC ≈ 0.75 — a
+  statistical tie. Unfiltered ClinVar (N=11,310) floors at PR-AUC ≈ 0.72
+  because ~89% of pathogenic variants there are non-splicing mechanisms.
+- On MutSpliceDB (N=434), M2-S v2 wins consequence concordance by **+23 pts**
+  (68% vs 45%) — the clinically meaningful metric for "what type of splice
+  defect".
+- **Key architectural insight**: M2-S v2 is a strict feature-set superset of
+  base but doesn't outperform base on ClinVar Δ-based ranking. Reason:
+  multimodal features (conservation, junction, RBP, chromatin, epigenetic)
+  are *locus-level* and identical between ref and alt at SNV positions — so
+  they cancel in the Δ computation and carry no variant-specific signal.
+  Meta-layer value is in **locus classification** (alt-site recall,
+  consequence type), not pathogenicity ranking.
+
+### Phase 8 — Sub-phase 3: Clinical Pathogenicity Head
+
+To move PR-AUC meaningfully above the base-model ceiling on ClinVar, the
+next phase stacks **variant-level features** with the splice-Δ score in a
+downstream classifier — mirroring CADD, REVEL, ClinPred, and SpliceAI's
+own pipeline convention.
+
+Architecture: small lightweight classifier (logistic regression or
+gradient-boosted trees) on top of features that genuinely differentiate
+pathogenic from benign *at the variant level* (not just locus level):
+
+| Feature | Source | Expected contribution |
+|---|---|---:|
+| `log(gnomAD_AF + ε)` | gnomAD v4 | Single strongest non-splice feature; typically +0.05 to +0.15 PR-AUC on ClinVar |
+| Gene constraint (LOEUF, pLI) | gnomAD v4 constraint | Refines prior by gene essentiality |
+| Variant-differential motif disruption | ESEfinder / RESCUE-ESE + variant-aware scoring | Captures ESE/ISE/branchpoint disruption that splice-Δ alone misses |
+| Protein-level deleteriousness | AlphaMissense / ESM-variant | For the ~40% of splice-proximal variants that also affect coding sequence |
+| Splice-Δ score (from M1-S v2 or M2-S v2) | This pipeline | The current splice-specific signal |
+| Splice consequence type (from M2-S v2) | This pipeline | Classification-level evidence |
+
+This clinical head is **not a replacement** for the meta-layer — it sits
+downstream and composes the splice-delta signal with orthogonal variant-
+level information. M1-S v2 (or base model directly) can feed the Δ input;
+M2-S v2 feeds the consequence-type feature. The head is trained on
+ClinVar Pathogenic/Benign with a held-out test split, and evaluated on
+SpliceVarDB and HGMD (if licensed) for out-of-distribution validation.
+
 **See**:
 - `examples/variant_analysis/` for scripts and results
-- `docs/applications/variant_analysis/` for Phase 3 application plan
+- `examples/variant_analysis/results/m4_benchmark_sweep.md` for the Phase 2 benchmark report
+- `docs/applications/variant_analysis/` for Phase 3+ application plan
 
 ### Phase 9: Isoform Discovery — ULTIMATE GOAL
 
