@@ -46,21 +46,80 @@ Three hypotheses to rule out before concluding the asymmetry is real:
 
 ### 2.1 Gene-strand assignment artifact
 
-The GTEx junction parquet has no strand column; strand is inferred by
-joining each junction's `gene_id` to Ensembl's gene→strand table. If a
-junction lies in a region where + and − strand genes overlap and its
-`gene_id` was assigned to the "wrong" one, its splice sites would be
-labeled on the wrong strand and miss the Ensembl match.
+**Brief primer on the data chain.** Each row in the GTEx junction
+parquet has `(chrom, start, end, gene_id)` but **no strand column**.
+Strand is inferred later, in our audit, by joining each junction's
+`gene_id` against Ensembl's GTF (where each gene's strand is recorded
+once, unambiguously). So the inference is a two-step chain:
 
-**Test:** For each uncovered − strand alt-only site, check whether
-there's *any* junction at the same (chrom, position) on either strand.
+```
+(chrom, start, end)  ──[GTEx pipeline]──▶  gene_id
+                     ──[our GTF join]───▶  strand
+```
 
-**Result:** Of 51,257 uncovered − strand alt-only sites on test
-chromosomes, only **48 (0.1%)** have any junction at the same
-coordinate, and among those 48, both strands are represented.
+The second step (gene_id → strand) is **deterministic**: an ENSG ID
+uniquely identifies a gene, and each gene sits on exactly one strand
+in the GTF. There's no ambiguity at that lookup.
 
-**Conclusion:** Gene-strand assignment is not causing the asymmetry —
-these positions genuinely have no GTEx junction activity nearby.
+The first step (coordinate → gene_id) was done upstream by GTEx when
+they built the raw GCT file — the `Description` column in the GCT
+carries the assigned gene_id, and our aggregation script simply
+inherits it (`scripts/data/aggregate_gtex_junctions.py:147`). That
+upstream assignment is where ambiguity *could* enter, because it
+uses gene models to attach a gene_id to genomic coordinates:
+
+1. **Exact intron match.** If the junction's `(start, end)` matches
+   an intron annotated in GENCODE v26, the gene_id of that intron
+   wins. Unambiguous — this covers the majority of junctions,
+   because most junctions are for known transcripts.
+2. **Fallback by gene-body overlap.** If no annotated intron
+   matches, the pipeline picks whichever gene's body contains the
+   junction. This is usually unambiguous, but **not always**:
+   some genomic regions have two genes on opposite strands whose
+   bodies overlap. The classic example is a protein-coding gene
+   with an antisense lncRNA running underneath it. If a novel
+   junction falls inside that overlap, GTEx's pipeline must pick
+   one gene_id; the choice is deterministic-by-rule (e.g.,
+   protein-coding over lncRNA) but not necessarily *biologically
+   correct* for this particular read stack.
+
+So the hypothesis being tested in this subsection isn't "did our GTF
+lookup pick the wrong strand" (it can't — the lookup is
+deterministic). It's "did GTEx's upstream gene_id assignment
+systematically mis-attribute junctions to opposite-strand
+overlapping genes, and is that the source of our − strand
+coverage gap?"
+
+**Test.** If the hypothesis were true, then for each uncovered −
+strand alt-only Ensembl site, there should be a junction at the
+*same genomic coordinate* whose inferred strand is + (because the
+junction was mis-attributed to the overlapping + strand gene). Look
+for junctions at those 51,257 coordinates, counting matches by their
+inferred strand.
+
+**Result.** Of 51,257 uncovered − strand alt-only sites on the test
+chromosomes:
+
+- Only **48 positions (0.1%)** have *any* junction at the same
+  (chrom, position), on either strand.
+- Of those 48: 14 of the matching junctions were inferred as +
+  strand, 34 as − strand. Neither strand dominates.
+
+The 14 + strand matches are the plausible "mis-attributed" candidates.
+14 out of 51,257 is a rounding error. If the strand asymmetry were
+driven by systematic misattribution in overlapping regions, this
+bucket should be much larger — e.g., thousands.
+
+A separate cross-check on the *covered* subset shows the same
+picture: across ~182,000 junction-side-to-Ensembl matches, the
+gene-inferred strand disagreed with the Ensembl site's strand in
+only 23 cases (0.01%).
+
+**Conclusion.** GTEx's gene_id assignment is effectively
+deterministic in practice. The uncovered − strand alt-only sites
+don't have mis-attributed junctions hiding on the + strand — they
+have no junctions at all. The strand asymmetry has a different
+root cause (see §3).
 
 ### 2.2 Overlapping gene double-count
 
@@ -130,7 +189,52 @@ which are 1.5x to 3.5x more populous on − strand in these chromosomes.
 
 ### 3.2 These biotypes are intrinsically low-coverage
 
-Coverage rates by biotype for − strand alt-only sites:
+**What "coverage" means here.** Throughout this document, *coverage* is a
+binary per-site measurement:
+
+> An Ensembl splice site at `(chrom, position, strand, splice_type)` is
+> **covered** if at least one GTEx-aggregated junction in
+> `junctions_gtex_v8.parquet` has a matching derived donor or acceptor
+> position on the same strand and of the same type.
+
+The audit computes it via a left-join (§Q1 of the script): for every
+unique Ensembl site, scan all GTEx junctions; if any junction's
+exonic-boundary position and strand match, flag the site covered; else
+uncovered. **Coverage rate** = covered sites ÷ total sites, within
+whatever slice you're summarizing (by biotype, by strand, by MANE
+membership, etc.).
+
+The join is an **exact equi-join** on `(chrom, position, strand,
+splice_type)` — no tolerance window, no fuzzy matching. A junction
+whose derived donor position is one base off from an annotated site
+does not count as covered. This strictness is deliberate: splice
+sites are single-base boundaries (the exon-intron transition happens
+at one specific nucleotide, anchored by the consensus GT/AG dinucleotides
+of the intron), so a ±1 offset lands in the intron or in the next
+exon — a biologically different position, not noise. To confirm that
+a stricter match isn't hiding nearby support, the §2.3 off-by-one
+test shifted uncovered sites by ±1, ±2, ±3 bases; at every offset,
+less than 0.6% of sites recovered a junction hit. Meaningful junction
+evidence at these coordinates simply isn't there.
+
+Two things to keep in mind:
+
+1. **Coverage is a binary yes/no, not read depth.** A site with 1
+   read in 1 tissue counts the same as a site with 1M reads in 54
+   tissues. The audit reports depth and tissue breadth separately
+   (`median_reads_when_covered`, `median_tissues_when_covered`).
+2. **This is *junction* coverage, not RNA-seq coverage.** In standard
+   RNA-seq terminology, "coverage" usually means read depth at a
+   genomic position. The two are correlated but distinct: a position
+   can have lots of read depth (it's transcribed) without any reads
+   *spanning the splice junction* (that particular intron isn't
+   spliced in those reads). Retained_intron transcripts are exactly
+   this case — the genomic positions are transcribed, but the
+   splicing event isn't observed, so junction coverage is low even
+   though RNA-seq depth could be high.
+
+Coverage rates by biotype for − strand alt-only sites (see
+`q4_coverage_by_biotype.csv`):
 
 | Biotype | Coverage rate |
 |---|---:|
