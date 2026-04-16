@@ -124,11 +124,52 @@ class DeltaResult:
 
     @property
     def max_delta(self) -> float:
-        """Maximum absolute delta across all channels (SpliceAI-style)."""
+        """Maximum absolute delta across all channels and the full window.
+
+        NOTE: this is max-over-all-5001-positions by default. For the
+        SpliceAI-style ±50 bp scoring convention, use
+        ``max_delta_within_radius(50)`` instead — it restricts the
+        argmax to a window of ``2 * radius + 1`` positions centered on
+        the variant, matching OpenSpliceAI's default ``dist_var=50``.
+        """
         return max(
             self.max_donor_gain, self.max_donor_loss,
             self.max_acceptor_gain, self.max_acceptor_loss,
         )
+
+    def max_delta_within_radius(self, radius: int = 50) -> float:
+        """Maximum absolute delta restricted to ±``radius`` bp of the variant.
+
+        Matches the SpliceAI / OpenSpliceAI convention of reporting the
+        largest splice-altering delta within a fixed distance of the
+        variant. See ``openspliceai/variant/utils.py:get_delta_scores``
+        (``dist_var`` parameter, default 50) for the reference behavior.
+
+        The model still sees the full ``window_size`` + context as input
+        for its receptive field; only the aggregation step is narrowed.
+        Positions outside ``[center - radius, center + radius]`` are
+        ignored by this reduction.
+
+        Parameters
+        ----------
+        radius : int
+            Half-width of the scoring window in bases. Default 50
+            (matching OpenSpliceAI). Pass a larger value for
+            long-range analysis; pass ``window_length // 2`` for
+            equivalence with ``max_delta``.
+        """
+        L = self.window_length
+        center = L // 2  # variant sits at the center of the window
+        lo = max(0, center - radius)
+        hi = min(L, center + radius + 1)
+        sl = self.delta[lo:hi]
+        # Channel-wise max |Δ| over the slice, across donor & acceptor only
+        # (neither is intentionally excluded — see module docstring)
+        max_dg = float(sl[:, _DONOR].max()) if sl.size else 0.0
+        max_dl = float(-sl[:, _DONOR].min()) if sl.size else 0.0
+        max_ag = float(sl[:, _ACCEPTOR].max()) if sl.size else 0.0
+        max_al = float(-sl[:, _ACCEPTOR].min()) if sl.size else 0.0
+        return max(max_dg, max_dl, max_ag, max_al)
 
     def summary(self) -> str:
         """Human-readable summary of the variant effect."""
@@ -360,7 +401,10 @@ class VariantRunner:
         # Fetch the window region for the base model
         ref_seq = self._fetch_sequence(chrom, window_start, window_start + W)
         variant_offset = variant_0based - window_start
-        alt_seq = self._mutate_sequence(ref_seq, variant_offset, ref_allele, alt_allele)
+        # Normalize alleles to genomic orientation before mutating the
+        # plus-strand FASTA sequence (see _to_genomic_alleles).
+        ref_g, alt_g = self._to_genomic_alleles(ref_allele, alt_allele, strand)
+        alt_seq = self._mutate_sequence(ref_seq, variant_offset, ref_g, alt_g)
 
         ref_scores = self._run_base_model(ref_seq, strand=strand)  # [W, 3]
         alt_scores = self._run_base_model(alt_seq, strand=strand)
@@ -401,6 +445,25 @@ class VariantRunner:
         """Reverse complement a DNA sequence."""
         comp = str.maketrans("ACGTNacgtn", "TGCANtgcan")
         return seq.translate(comp)[::-1]
+
+    @classmethod
+    def _to_genomic_alleles(cls, ref: str, alt: str, strand: str) -> Tuple[str, str]:
+        """Normalize alleles to plus-strand (genomic) orientation.
+
+        Variant databases (HGVS, MutSpliceDB, some VCF derivations) often
+        report ref/alt in **transcript orientation** — for a minus-strand
+        gene, the transcript is antisense to the reference genome, so the
+        bases listed in the variant record are the reverse complement of
+        what's actually at that position in the FASTA.
+
+        This helper RC's the alleles when strand=='-' so the rest of the
+        pipeline (sequence fetching from FASTA, mutation, base-model
+        scoring) can operate uniformly in genomic coordinates. Length
+        of each allele is preserved (RC of 'ACG' is 'CGT', not 'TGC').
+        """
+        if strand == "-":
+            return cls._reverse_complement(ref), cls._reverse_complement(alt)
+        return ref, alt
 
     def _resolve_chrom(self, chrom: str) -> str:
         """Resolve chromosome name to match FASTA index (handles chr prefix)."""
@@ -453,16 +516,20 @@ class VariantRunner:
             Chromosome (e.g., 'chr17').
         position : int
             1-based variant position.
-        ref : str
-            Reference allele (plus-strand).
-        alt : str
-            Alternate allele (plus-strand).
+        ref, alt : str
+            Reference and alternate alleles. May be given in either
+            **plus-strand (genomic)** or **transcript** orientation —
+            for ``strand='-'``, alleles are reverse-complemented
+            internally to match the FASTA before mutation. HGVS-style
+            ``c.G>A`` annotations on a minus-strand transcript should
+            be passed as ``ref='G', alt='A', strand='-'`` and the
+            runner handles the conversion.
         gene : str, optional
             Gene name (for logging).
         strand : str
             Gene strand ('+' or '-').  For minus-strand genes, sequences
-            are reverse-complemented before model input and results are
-            mapped back to genomic coordinates.
+            are reverse-complemented before base-model input and outputs
+            are mapped back to genomic coordinates.
         use_multimodal : bool
             If True, extract dense multimodal features. If False, use zeros
             (faster, for quick screening).
@@ -470,7 +537,42 @@ class VariantRunner:
         Returns
         -------
         DeltaResult
-            Per-position delta scores with event detection.
+            Container with three layers of output, all in genomic
+            coordinate order over a window of ``self.window_size`` bases
+            centered on the variant:
+
+            **Probabilities** (``ref_probs``, ``alt_probs``, shape
+            ``[L, 3]``): per-position softmax outputs over the channels
+            ``[donor, acceptor, neither]``. ``ref_*`` use the FASTA
+            sequence as-is; ``alt_*`` use the mutated sequence.
+
+            **Deltas** (``delta``, shape ``[L, 3]``): position-wise
+            ``alt_probs - ref_probs``. Sign is meaningful — positive
+            means the variant *increases* the model's confidence that
+            this position is a donor/acceptor (gain); negative means the
+            model is *less* confident (loss). The base model has its
+            own analogous fields (``base_*_probs``, ``base_delta``) for
+            comparison.
+
+            **Events** (``events``, list of ``SpliceEvent``): the
+            actionable summary, derived from ``delta`` by
+            ``_detect_events``. The mapping is::
+
+                for each position p in the window:
+                  for each channel c in {donor, acceptor}:
+                    d = delta[p, c]
+                    if d >  event_threshold: emit (c + "_gain") at p
+                    if d < -event_threshold: emit (c + "_loss") at p
+
+            ``event_threshold`` defaults to 0.1. Events are sorted by
+            ``|delta|`` descending, so ``events[0]`` is the
+            strongest-magnitude effect of the variant. The ``neither``
+            channel is intentionally not surfaced as events — only
+            donor/acceptor changes are biologically meaningful as
+            splice-altering signals.
+
+        See ``meta_layer/docs/variant_runner.md`` for an end-to-end
+        tutorial and worked examples.
         """
         import torch
 
@@ -489,9 +591,11 @@ class VariantRunner:
         # Fetch reference sequence
         ref_seq_full = self._fetch_sequence(chrom, seq_start, seq_end)
 
-        # Apply variant to get alt sequence
+        # Apply variant to get alt sequence (alleles normalized to
+        # genomic orientation for minus-strand genes).
         variant_offset_in_seq = variant_0based - seq_start
-        alt_seq_full = self._mutate_sequence(ref_seq_full, variant_offset_in_seq, ref, alt)
+        ref_g, alt_g = self._to_genomic_alleles(ref, alt, strand)
+        alt_seq_full = self._mutate_sequence(ref_seq_full, variant_offset_in_seq, ref_g, alt_g)
 
         # One-hot encode both
         ref_onehot = self._one_hot_encode(ref_seq_full)  # [4, L_seq]
