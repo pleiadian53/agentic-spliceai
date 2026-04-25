@@ -86,6 +86,17 @@ app.add_middleware(
 
 
 # =========================
+# Sub-routers
+# =========================
+
+# Ingestion-layer readiness endpoints (read-only wrappers over
+# data_preparation.get_status / multimodal_features.get_status).
+from . import ingest_api  # noqa: E402
+
+app.include_router(ingest_api.router)
+
+
+# =========================
 # Page Routes
 # =========================
 
