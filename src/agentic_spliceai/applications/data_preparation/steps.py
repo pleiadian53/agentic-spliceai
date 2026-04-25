@@ -38,6 +38,30 @@ from .manifest import ArtifactRecord, IngestManifest
 logger = logging.getLogger(__name__)
 
 
+def _resolve_gtf_path(
+    *,
+    build: str,
+    annotation_source: str,
+    override: Optional[Path],
+) -> Path:
+    """Resolve the GTF path for a build via the resource manager.
+
+    Mirrors ``prepare_gene_data``'s registry-resolution logic, including
+    the GRCh38 + MANE special case. The resolved path is what
+    ``load_gene_annotations`` consumes; it does not accept build /
+    annotation_source kwargs directly.
+    """
+    if override is not None:
+        return Path(override)
+    from agentic_spliceai.splice_engine.resources import get_genomic_registry
+
+    if build == "GRCh38" and annotation_source == "mane":
+        registry = get_genomic_registry(build="GRCh38_MANE", release="1.3")
+    else:
+        registry = get_genomic_registry(build=build)
+    return Path(registry.get_gtf_path(validate=True))
+
+
 # ---------------------------------------------------------------------------
 # Result container
 # ---------------------------------------------------------------------------
@@ -98,20 +122,27 @@ def step_gene_features(
             load_gene_annotations,
         )
 
+        # Resolve GTF path. ``load_gene_annotations`` takes the path
+        # directly — it does not understand build / annotation_source.
+        # The resource manager handles the build → GTF lookup the same way
+        # ``prepare_gene_data`` does (incl. the GRCh38 + MANE special case).
+        resolved_gtf = _resolve_gtf_path(
+            build=build,
+            annotation_source=annotation_source,
+            override=gtf_path,
+        )
+
         if verbosity >= 1:
             logger.info(
-                "gene_features: extracting gene annotations "
+                "gene_features: extracting from %s "
                 "(build=%s, source=%s)...",
-                build, annotation_source,
+                resolved_gtf, build, annotation_source,
             )
 
-        kwargs: Dict[str, Any] = dict(
-            build=build, annotation_source=annotation_source,
+        gene_df = load_gene_annotations(
+            gtf_path=resolved_gtf,
+            verbosity=verbosity,
         )
-        if gtf_path is not None:
-            kwargs["gtf_path"] = str(gtf_path)
-
-        gene_df = load_gene_annotations(**kwargs)
 
         if gene_df is None or len(gene_df) == 0:
             return StepResult(
@@ -337,8 +368,14 @@ def step_validate(
             load_gene_annotations,
         )
 
+        resolved_gtf = _resolve_gtf_path(
+            build=build,
+            annotation_source=annotation_source,
+            override=None,
+        )
         gene_df = load_gene_annotations(
-            build=build, annotation_source=annotation_source,
+            gtf_path=resolved_gtf,
+            verbosity=verbosity,
         )
         ok = validate_gene_data(gene_df, verbosity=verbosity)
 
