@@ -1,0 +1,39 @@
+# Base-layer predictor manifest.
+#
+# Built-in predictors (spliceai, openspliceai) are registered in code via
+# @register_predictor decorators in src/agentic_spliceai/applications/
+# base_layer/predictors/. They don't need entries here.
+#
+# Entries below register additional predictors by dotted factory path. The
+# factory is called with no arguments and must return a BasePredictor
+# instance. Use this manifest to register foundation-model-derived
+# classifiers, external models, or project-specific variants without
+# modifying code.
+#
+# Schema
+# ------
+# predictors:
+#   <unique-predictor-name>:
+#     factory: "<package.module>:<callable>"
+#     description:                       # optional, surfaced by list-predictors
+#       training_build: GRCh38|GRCh37
+#       annotation_source: mane|ensembl|...
+#       training_annotation: "...e.g. MANE v1.3 RefSeq..."
+#       paper: "..."
+#       notes: "..."
+
+predictors:
+  # SpliceBERT-based classifier (foundation-model-derived).
+  # Adapter: src/agentic_spliceai/applications/base_layer/predictors/from_checkpoint.py
+  # Weights: data/models/splicebert_classifier/model/best_model.pt
+  #   (symlinked from output/splice_classifier/splicebert-full-genome/model/)
+  # Trained via: examples/foundation_models/07a_direct_shard_splice_predictor.py
+  splicebert_classifier:
+    factory: "agentic_spliceai.applications.base_layer.predictors.from_checkpoint:make_splicebert_classifier"
+    description:
+      training_build: GRCh38
+      annotation_source: mane
+      training_annotation: "MANE v1.3 RefSeq (held-out chromosome split)"
+      foundation_model: splicebert
+      classifier_architecture: dilated_cnn
+      notes: "SpliceBERT embeddings + dilated-CNN head; requires foundation_models sub-package."

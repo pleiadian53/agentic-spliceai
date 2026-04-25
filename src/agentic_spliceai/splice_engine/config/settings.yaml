@@ -52,6 +52,22 @@ base_models:
     paper: "Jaganathan et al., Cell 2019"
     notes: "Trained on GRCh37, best evaluated on GRCh37 Ensembl annotations"
     
+  splicebert_classifier:
+    name: "SpliceBERT Classifier"
+    training_build: "GRCh38"
+    training_annotation: "MANE v1.3 RefSeq (held-out chromosome split)"
+    annotation_source: "mane"
+    # Foundation-model-derived: SpliceBERT embeddings -> SpliceClassifier head.
+    # Trained via examples/foundation_models/07a_direct_shard_splice_predictor.py
+    foundation_model: "splicebert"
+    classifier_architecture: "dilated_cnn"
+    weights_dir: "data/models/splicebert_classifier/model"
+    notes: >
+      Foundation-model-derived splice site classifier. SpliceBERT BPE
+      embeddings + dilated-CNN head (3-class per-nt). Checkpoint at
+      data/models/splicebert_classifier/model/best_model.pt with
+      temperature.pt for post-hoc calibration.
+
   openspliceai:
     name: "OpenSpliceAI"
     training_build: "GRCh38"

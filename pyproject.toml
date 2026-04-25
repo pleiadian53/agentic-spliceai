@@ -135,6 +135,10 @@ agentic-spliceai = "agentic_spliceai.cli:main"
 agentic-spliceai-server = "agentic_spliceai.server.splice_service:main"
 agentic-spliceai-predict = "agentic_spliceai.splice_engine.cli.predict:main"
 agentic-spliceai-prepare = "agentic_spliceai.splice_engine.cli.prepare:main"
+# Application-level CLIs (src/agentic_spliceai/applications/)
+agentic-spliceai-base = "agentic_spliceai.applications.base_layer.cli:main"
+agentic-spliceai-ingest = "agentic_spliceai.applications.data_preparation.cli:main"
+agentic-spliceai-features = "agentic_spliceai.applications.multimodal_features.cli:main"
 nexus = "nexus.cli.main:main"
 nexus-server = "nexus.server.app:main"
 
