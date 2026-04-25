@@ -169,11 +169,16 @@ graph LR
 
 ## 🚀 The Agentic-SpliceAI Advantage
 
-### 1. Extensible Base Layer
-**Foundation models**: Pre-trained splice predictors (SpliceAI, OpenSpliceAI, and extensible to any new model)
-- Standardized I/O protocol for seamless integration
-- Support for GRCh37 (SpliceAI) and GRCh38 (OpenSpliceAI)
-- Easy addition of new foundation models — see [`examples/foundation_models/`](examples/foundation_models/) for Evo2, SpliceBERT prototypes
+### 1. Pluggable Base Layer
+**Model-agnostic splice prediction**: any predictor can plug into the
+base layer — classical (SpliceAI, OpenSpliceAI), foundation-model-derived
+(SpliceBERT + trained classifier head), or future models — as long as
+its output satisfies the **per-nucleotide 3-class scoring protocol**
+(neither / acceptor / donor).
+- `BasePredictor` protocol + plugin registry: decorator for built-ins, YAML manifest for external/foundation-model-derived predictors
+- Same CLI (`agentic-spliceai-base`), same downstream consumers — swapping a predictor is a registration concern, not an integration one
+- Three predictors currently registered; the set is open-ended. Adding a new predictor requires no changes to meta layer, variant analysis, or any other downstream application
+- See [`src/agentic_spliceai/applications/base_layer/protocol.py`](src/agentic_spliceai/applications/base_layer/protocol.py) for the protocol and [`examples/foundation_models/`](examples/foundation_models/) for prototype trainers (SpliceBERT, Evo2)
 
 ### 2. Adaptive Meta-Learning (Foundation-Adaptor Framework)
 **Multimodal deep learning**: Refine predictions using context-aware meta-models
@@ -198,18 +203,22 @@ graph LR
 
 ---
 
-**See**: [Applications — From Discovery to Therapeutics](docs/applications/README.md) for translational pathway, use cases, and drug discovery impact
+**See**:
+- [Applications](docs/applications/README.md) — public ledger of matured application bundles (maturity dashboard, driving examples, evaluation)
+- [Use Cases — From Discovery to Therapeutics](docs/applications/use_cases.md) — translational pathway, clinical scenarios, drug discovery impact
 
 ---
 
 ## 🎯 Key Features
 
-### 🧬 Base Layer — Extensible Splice Prediction
+### 🧬 Base Layer — Pluggable Splice Prediction
 
 | Component | Description |
 |-----------|-------------|
-| **Classical Models** | SpliceAI (GRCh37), OpenSpliceAI (GRCh38/MANE) with standardized I/O |
-| **Foundation Model Predictors** | Splice site classifiers trained on Evo2, SpliceBERT, and other DNA foundation model embeddings — frozen-head and end-to-end fine-tuning pipelines |
+| **`BasePredictor` Protocol** | Single contract that makes the base layer model-agnostic: per-nucleotide 3-class scores (neither / acceptor / donor) aligned to genomic positions. Any predictor satisfying this protocol can be registered and served. |
+| **Plugin Registry** | Decorator-based in-process registration for built-ins + YAML manifest (`configs/predictors.yaml`) for foundation-model-derived checkpoints and external models. Adding a predictor requires no downstream code changes. |
+| **Classical Models** | SpliceAI (TF, GRCh37/Ensembl), OpenSpliceAI (PyTorch, GRCh38/MANE) — wrapped as thin adapters over the existing `BaseModelRunner`. |
+| **Foundation-Model-Derived Predictors** | SpliceBERT + dilated-CNN classifier head (trained via [`examples/foundation_models/07a`](examples/foundation_models/07a_direct_shard_splice_predictor.py)) registered in the same catalog as classical models. Frozen-head and end-to-end fine-tuning pipelines for SpliceBERT, Evo2, HyenaDNA under [`foundation_models/`](foundation_models/). |
 | **10-Modality Feature Fusion** | 116 features across base scores, conservation, epigenetics, chromatin accessibility (ATAC-seq + DNase-seq), junction reads, RBP binding, DNA sequence, genomic context, annotations, and optional foundation model embeddings (Evo2, SpliceBERT) — see [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md) |
 | **YAML-Driven Configs** | 4 profiles (default, full_stack, isoform_discovery, meta_m3_novel) — add/drop modalities per modeling objective |
 
@@ -561,7 +570,9 @@ MIT License - see LICENSE file for details
 | 8 | Variant Analysis — Phase 1A+1B done, ClinVar + saturation scan next | 🔄 Active |
 | 9 | Isoform Discovery | 🎯 Ultimate Goal |
 
-**See**: [Full Roadmap](docs/ROADMAP.md) for detailed phase breakdowns, deliverables, and success metrics
+**See**:
+- [Full Roadmap](docs/ROADMAP.md) — detailed phase breakdowns, deliverables, success metrics
+- [Application Ledger](docs/applications/README.md) — maturity-tracked view of what currently runs (complements the phase-level roadmap)
 
 ---
 

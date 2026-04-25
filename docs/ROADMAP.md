@@ -22,6 +22,24 @@
 
 ---
 
+## Related views
+
+The roadmap above is the phase-level view of project progress. For a
+complementary **functionality-level** view — which user-facing
+applications exist, what maturity tier they're in, and which
+`examples/` scripts drive them — see the
+[Application Ledger](applications/README.md).
+
+The two views answer different questions: the roadmap answers "what
+comes next"; the ledger answers "what currently runs and how mature is
+it". Applications are curated bundles of example milestones; products
+(not yet any) are applications graduated to deployable commitments.
+
+See [`dev/system_design/`](../dev/system_design/) for the underlying R&D
+methodology (portable across projects).
+
+---
+
 ## Phase Details
 
 ### Phase 1: Base Layer — COMPLETE

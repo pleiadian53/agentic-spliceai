@@ -1,156 +1,132 @@
-# Applications — From Discovery to Therapeutics
+# Applications
 
-This directory (`docs/applications/`) contains domain-specific workflows and use cases for Agentic-SpliceAI. Each application demonstrates how the multi-layer pipeline translates computational predictions into biological and clinical insights. As applications mature, they graduate to `docs/products/` for production deployment guides.
+Public ledger of matured application bundles for Agentic-SpliceAI.
 
----
+An **application** is a refined, packaged bundle of use cases that
+represents a user-facing functionality aligned with project goals. Each
+entry below curates a subset of example scripts under `examples/` into a
+coherent unit, declares the `src/` surface it depends on, and records its
+current maturity.
 
-## The Translational Pathway
-
-### Current State: Limited by Canonical Annotations
-
-Drug discovery today is constrained by incomplete gene annotations:
-
-```
-Known Genes (20,000)
-    |
-Canonical Isoforms (~20,000 in MANE)
-    |
-Druggable Targets (~3,000)
-    |
-Approved Drugs (~1,500 targets)
-```
-
-**Bottleneck**: 90% of splice sites are non-canonical. Current annotations capture only the most common isoforms, leaving the vast majority of biologically active splice variants undiscovered.
-
-### Expanding the Druggable Genome
-
-Agentic-SpliceAI discovers context-specific isoforms to expand the therapeutic space. Consider **BRCA1** as a concrete example:
-
-| Scope | Splice Sites | Isoforms | Targeting Strategy |
-|-------|-------------|----------|-------------------|
-| Canonical (MANE) | 44 | 1-2 main | Target "BRCA1" broadly |
-| Full potential (Ensembl + Discovery) | 1,218+ (27x more) | 100+ (tissue/disease-specific) | Target tumor-specific isoforms selectively |
-
-By moving beyond canonical annotations, we unlock 10-100x more therapeutic targets with the potential for reduced toxicity through isoform-selective drug design.
+For the biology and translational-impact narrative (oncology, clinical
+VUS, neurology, drug development, biomarkers), see
+[use_cases.md](use_cases.md).
 
 ---
 
-## Application Domains
+## Project goals
 
-> **Note**: CLI commands shown in the workflows below reflect planned Phase 7-9 functionality. Current capabilities cover base layer prediction, feature engineering, meta layer training (Phases 1-6), and variant effect prediction (M4 Phase 1A+1B).
+Agentic-SpliceAI's applications serve a hierarchy of goals:
 
-### 0. Variant Analysis: Splice Effect Prediction and Validation
+1. **Adaptive splice prediction** — going beyond canonical annotations
+   with context-aware models
+2. **Novel isoform discovery** — identifying the 90% of splice sites
+   outside MANE/RefSeq
+3. **Drug target identification** — translating isoform discoveries into
+   therapeutically actionable targets
 
-**Status**: Active development (M4 Phase 1A+1B complete, Phase 2-3 planned)
-
-Predict how genetic variants disrupt splicing, identify cryptic splice site locations, and validate against experimental evidence.
-
-- [Saturation Mutagenesis & SpliceVarDB Validation](variant_analysis/saturation_mutagenesis_and_validation.md) — Phase 3 plan for gene-wide splice vulnerability mapping with SpliceVarDB cross-validation and GTEx junction verification
-- [Current validation results](../../examples/variant_analysis/results/variant_effect_validation.md) — 13 disease-gene variants, 4 RNA-seq validated cases from SpliceAI paper
-
-### 1. Oncology: Cancer-Specific Isoform Targets
-
-**Challenge**: Tumors express aberrant splice isoforms that drive proliferation, evade apoptosis, and resist therapy. These cancer-specific isoforms are invisible to standard genomic pipelines.
-
-**Workflow**:
-
-```bash
-# Predict splice sites for BRCA1 with cancer context
-agentic-spliceai-predict --genes BRCA1 --base-model openspliceai
-
-# Discover cancer-specific isoforms (Phase 9)
-agentic-spliceai discover --genes BRCA1 \
-  --context cancer:breast \
-  --evidence-sources gtex,tcga,clinvar
-
-# Validate with agentic layer (Phase 7)
-agentic-spliceai validate --isoforms output/brca1_novel.parquet \
-  --agents literature,expression,clinical
-```
-
-**Impact**: Identify tumor-specific BRCA1 isoforms for isoform-selective inhibitors that spare normal tissue function.
-
-### 2. Clinical Genetics: VUS Interpretation
-
-**Challenge**: Thousands of variants of uncertain significance (VUS) in clinical sequencing may affect splicing but lack functional evidence for classification.
-
-**Workflow**:
-
-```bash
-# Analyze splice impact of TP53 variants (Phase 8)
-agentic-spliceai variant --vcf patient_variants.vcf \
-  --genes TP53 \
-  --clinvar-cross-reference
-
-# Generate clinical report (Phase 7)
-agentic-spliceai report --variants output/tp53_splice_impact.parquet \
-  --format clinical \
-  --evidence-level acmg
-```
-
-**Impact**: Reclassify VUS variants by quantifying their splice-disrupting potential with multi-source evidence, enabling actionable clinical decisions.
-
-### 3. Neurology: Brain-Specific Isoforms
-
-**Challenge**: The brain has the highest rate of alternative splicing of any tissue, with many neurological disorders linked to isoform dysregulation. Autism risk genes alone have hundreds of brain-specific splice variants.
-
-**Workflow**:
-
-```bash
-# Discover brain-specific isoforms for autism risk genes (Phase 9)
-agentic-spliceai discover \
-  --genes SHANK3 NRXN1 SYNGAP1 CHD8 \
-  --context tissue:brain \
-  --evidence-sources gtex,brainspan
-
-# Cross-reference with known autism associations (Phase 7)
-agentic-spliceai validate --isoforms output/asd_novel.parquet \
-  --agents literature,expression,conservation
-```
-
-**Impact**: Map the brain-specific isoform landscape of autism risk genes to identify therapeutic targets for splice-modulating interventions.
-
-### 4. Drug Development: Isoform-Selective Therapeutics
-
-**Challenge**: Most drugs target proteins without distinguishing between isoforms, leading to off-target effects when disease-relevant and normal isoforms are both inhibited.
-
-**Workflow**:
-
-```bash
-# Identify druggable isoform-specific regions (Phase 9)
-agentic-spliceai druggability --genes BCL2 MCL1 \
-  --isoform-catalog output/novel_isoforms.parquet \
-  --assess-selectivity
-
-# Generate drug target report (Phase 7)
-agentic-spliceai report --targets output/druggable_isoforms.parquet \
-  --format pharma \
-  --include-structure-prediction
-```
-
-**Impact**: Enable isoform-selective drug design that targets disease-specific variants while sparing normal protein function, reducing toxicity and improving therapeutic windows.
-
-### 5. Biomarker Discovery: Liquid Biopsy
-
-**Challenge**: Current liquid biopsy approaches rely on known mutations and methylation patterns. Disease-specific splice isoforms detectable in circulating RNA represent an untapped biomarker source.
-
-**Workflow**:
-
-```bash
-# Discover tissue-specific isoform biomarkers (Phase 9)
-agentic-spliceai discover --gene-list data/cancer_panel.txt \
-  --context cancer:lung \
-  --biomarker-mode \
-  --min-tissue-specificity 0.8
-
-# Validate biomarker candidates (Phase 7)
-agentic-spliceai validate --isoforms output/biomarker_candidates.parquet \
-  --agents expression,clinical \
-  --cross-tissue-comparison
-```
-
-**Impact**: Identify cancer-specific splice isoforms as novel liquid biopsy biomarkers for early detection, treatment monitoring, and companion diagnostics.
+Each application below declares which goal(s) it serves.
 
 ---
 
-Last Updated: April 2026
+## Maturity tiers
+
+Applications live in one of four tiers. For the full definitions,
+graduation signals, and demotion triggers, see the methodology doc at
+[`dev/system_design/maturity_lifecycle.md`](../../dev/system_design/maturity_lifecycle.md).
+
+| Tier | Meaning |
+|------|---------|
+| **Incubating** | 1-2 scripts, proof of concept; no ledger entry typically |
+| **Active** | Multi-script workflow, results folder, benchmarks; ledger entry exists |
+| **Mature** | Stable driver, reproducible benchmarks, downstream consumers |
+| **Experimental** | Sub-project with its own lifecycle (e.g., foundation models) |
+| **Product** | Deployable commitment (see [../products/](../products/) — empty) |
+
+---
+
+## Ledger
+
+| # | Application | Goals served | Tier | Driving examples | Spec |
+|---|-------------|--------------|------|------------------|------|
+| 1 | Canonical Splice Prediction | Adaptive prediction | **Mature** | [`examples/base_layer/`](../../examples/base_layer/) | [canonical_splice_prediction/](canonical_splice_prediction/README.md) |
+| 2 | Adaptive Splice Prediction (M1/M2) | Adaptive prediction | **Active** | [`examples/meta_layer/`](../../examples/meta_layer/) | [adaptive_splice_prediction/](adaptive_splice_prediction/README.md) |
+| 3 | Multimodal Feature Engineering | Cross-cutting | **Active** | [`examples/features/`](../../examples/features/) | [multimodal_features/](multimodal_features/README.md) |
+| 4 | Genomic Data Preparation | Cross-cutting | **Active** | [`examples/data_preparation/`](../../examples/data_preparation/) | [genomic_data_preparation/](genomic_data_preparation/README.md) |
+| 5 | Variant Effect Analysis (M4) | Adaptive + drug target | **Active** | [`examples/variant_analysis/`](../../examples/variant_analysis/) | [variant_analysis/](variant_analysis/README.md) |
+| 6 | Bioinformatics Lab UI | All goals | **Mature** | [`server/bio/`](../../server/bio/), [`notebooks/bioinfo_ui/`](../../notebooks/bioinfo_ui/) | [bioinformatics_lab_ui/](bioinformatics_lab_ui/README.md) |
+| 7 | Novel Isoform Discovery (M3) | Isoform discovery | **Incubating** | (planned) | [novel_isoform_discovery/](novel_isoform_discovery/README.md) |
+| 8 | Agentic Validation | All goals | **Incubating** | [`examples/agentic_layer/`](../../examples/agentic_layer/) | [agentic_validation/](agentic_validation/README.md) |
+| 9 | Foundation Model Predictors | Adaptive prediction | **Experimental** | [`examples/foundation_models/`](../../examples/foundation_models/) | [foundation_model_predictors/](foundation_model_predictors/README.md) |
+
+**Reading the ledger**: applications are named by **user-facing
+functionality**, not by `examples/<topic>/` folder name. One topic can
+seed multiple applications; one application can pull from multiple topics.
+
+---
+
+## How to read a spec
+
+Each application spec (`docs/applications/<name>/README.md`) follows the
+same structure, adapted from the template at
+[_template.md](_template.md):
+
+- **Problem** — what biological or computational question is being
+  answered?
+- **User-facing functionality** — what does this application let a user
+  do?
+- **Goals served** — which of the three project goals does this advance?
+- **Driving examples** — the curated list of `examples/<topic>/*.py`
+  scripts that demonstrate the application
+- **`src/` surface** — the library modules the application relies on
+- **Evaluation** — benchmarks, baselines, metrics; links to results
+  folders
+- **Maturity tier** — current tier with the signals that support it
+- **Graduation signals** — what would move this to the next tier
+- **Known limitations** — scope boundaries, failure modes
+
+---
+
+## Adding a new application
+
+An application is created when an `examples/<topic>/` reaches late-Active
+maturity (see
+[`dev/system_design/maturity_lifecycle.md`](../../dev/system_design/maturity_lifecycle.md)):
+the topic has multiple scripts, reproducible benchmarks, a canonical
+driver, and a clear user-facing functionality.
+
+Process:
+
+1. Draft an internal harvest note at `dev/applications/<name>-harvest.md`
+   scoping the application
+2. Copy [_template.md](_template.md) to
+   `docs/applications/<name>/README.md`
+3. Fill in each section, linking to driving examples, `src/` modules, and
+   results
+4. Add a row to the ledger table above
+5. Cross-link from any related tutorials under `docs/tutorials/`
+
+---
+
+## Promotion to product
+
+No application is currently being promoted. Product promotion requires
+all six criteria under
+[`dev/system_design/maturity_lifecycle.md#tier-4--product`](../../dev/system_design/maturity_lifecycle.md)
+to be demonstrably met, and a deliberate decision to take on maintenance.
+
+The products catalog lives at [../products/](../products/) and is
+currently empty.
+
+---
+
+## See also
+
+- [use_cases.md](use_cases.md) — biology and translational-impact
+  narrative (oncology, clinical VUS, neurology, drug dev, biomarkers)
+- [`dev/system_design/`](../../dev/system_design/) — portable R&D
+  methodology behind this structure
+- [`dev/applications/`](../../dev/applications/) — internal WIP notes on
+  applications
+- [../products/README.md](../products/README.md) — future product catalog
+- [../ROADMAP.md](../ROADMAP.md) — phase-level project status
