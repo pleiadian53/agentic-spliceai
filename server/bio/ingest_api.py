@@ -61,9 +61,12 @@ async def data_prep_list_builds() -> dict:
         )
 
         names = list_available_models()
+        # ``get_model_info`` returns a dict whose ``name`` is the
+        # human-readable display name (e.g. "SpliceAI"). Preserve the
+        # registry key as ``id`` so callers can look up by either.
         return {
             "builds": [
-                {"name": n, **(get_model_info(n) or {})} for n in names
+                {"id": n, **(get_model_info(n) or {})} for n in names
             ],
         }
     except Exception as exc:  # noqa: BLE001

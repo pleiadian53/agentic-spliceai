@@ -370,7 +370,8 @@ def _cmd_status(args: argparse.Namespace) -> int:
             return 2
         print(
             f"[--canonical] Canonical features dir for build={args.build} "
-            f"source={args.annotation_source} base_model={args.base_model}: {out}"
+            f"source={args.annotation_source} base_model={args.base_model}: {out}",
+            file=sys.stderr,
         )
         status = get_status(out, expected_chromosomes=args.chromosomes)
     else:
@@ -416,7 +417,8 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
             logger.error("Failed to resolve canonical dir: %s", exc)
             return 2
         print(
-            f"[--inplace] Canonical features dir: {out}"
+            f"[--inplace] Canonical features dir: {out}",
+            file=sys.stderr,
         )
     else:
         out = args.output_dir

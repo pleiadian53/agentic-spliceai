@@ -234,7 +234,8 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
             return 2
         print(
             f"[--inplace] Canonical dir for build={args.build} "
-            f"source={args.annotation_source}: {out}"
+            f"source={args.annotation_source}: {out}",
+            file=sys.stderr,
         )
     else:
         out = args.output_dir
@@ -298,9 +299,12 @@ def _cmd_status(args: argparse.Namespace) -> int:
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to resolve canonical dir: %s", exc)
             return 2
+        # Send the human-readable preamble to stderr so stdout stays pure
+        # JSON when --format json is used.
         print(
             f"[--canonical] Checking canonical dir for build={args.build} "
-            f"source={args.annotation_source}: {out}"
+            f"source={args.annotation_source}: {out}",
+            file=sys.stderr,
         )
         status = get_status(out)
     else:
