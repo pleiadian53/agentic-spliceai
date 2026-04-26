@@ -183,6 +183,7 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "bio: marks tests requiring bioinformatics data",
+    "cli_smoke: marks tests as CLI smoke tests (subprocess-driven, may be slow)",
 ]
 
 [tool.black]
