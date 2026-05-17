@@ -58,6 +58,67 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG = "foundation_models/configs/gpu_config.yaml"
+_DEFAULT_DATA_LAYOUT = "foundation_models/configs/data_layout.yaml"
+
+
+def _read_data_layout(path: str | Path) -> dict | None:
+    """Read a data-layout manifest.
+
+    Returns ``None`` if the file doesn't exist (manifests are optional —
+    projects without one fall back to the single primary symlink driven
+    by ``gpu_config.yaml``).
+    """
+    import yaml  # local import: yaml may not be needed if no manifest
+
+    p = Path(path)
+    if not p.exists():
+        logger.info("No data layout manifest at %s — skipping extra symlinks.", p)
+        return None
+    with p.open() as f:
+        layout = yaml.safe_load(f) or {}
+    if "mount_root" not in layout or "symlinks" not in layout:
+        logger.warning(
+            "Data layout at %s missing 'mount_root' or 'symlinks' — ignoring.", p,
+        )
+        return None
+    return layout
+
+
+def _emit_symlink_setup_lines(layout: dict) -> list[str]:
+    """Generate shell lines that create the manifest's symlinks on the pod.
+
+    Each entry resolves to ``ln -sfn <mount_root>/<volume> <workdir>``.
+    If ``<mount_root>/<volume>`` doesn't exist at provision time, the line
+    skips with a warning instead of failing — handles "data not yet staged"
+    cleanly. Idempotent (``ln -sfn``).
+    """
+    mount_root = layout["mount_root"]
+    entries = layout.get("symlinks", []) or []
+    if not entries:
+        return []
+
+    lines = [
+        "",
+        "echo ''",
+        f"echo 'Applying data symlinks from manifest ({len(entries)} entries)...'",
+    ]
+    for entry in entries:
+        volume_rel = entry["volume"]
+        workdir_rel = entry["workdir"]
+        src = f"{mount_root}/{volume_rel}"
+        dst = workdir_rel
+        # mkdir parent of workdir entry so the symlink target exists
+        lines.extend([
+            f"mkdir -p \"$(dirname {dst})\"",
+            f"if [ -e \"{src}\" ]; then",
+            f"  ln -sfn \"{src}\" \"{dst}\"",
+            f"  echo \"  linked: {dst} -> {src}\"",
+            f"else",
+            f"  echo \"  WARN: skipped (not on volume): {src}\"",
+            f"fi",
+        ])
+    lines.append("")
+    return lines
 
 
 def _run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
@@ -286,6 +347,12 @@ def cmd_provision(args: argparse.Namespace) -> None:
     if infra.use_volume:
         run_lines.append(f"ln -sfn {infra.volume_data_dir} {data_local}")
 
+    # Apply additional data symlinks from the data-layout manifest.
+    # Project-agnostic: each project supplies its own data_layout.yaml.
+    layout = _read_data_layout(args.data_layout)
+    if layout is not None:
+        run_lines.extend(_emit_symlink_setup_lines(layout))
+
     # Validate data exists on the volume (warn, don't fail)
     run_lines.extend([
         "",
@@ -436,6 +503,13 @@ def main() -> None:
                              "(e.g., evo2, hyenadna; 'none' to skip model deps)")
     parser.add_argument("--config", type=str, default=_DEFAULT_CONFIG,
                         help=f"Config file (default: {_DEFAULT_CONFIG})")
+    parser.add_argument("--data-layout", type=str, default=_DEFAULT_DATA_LAYOUT,
+                        help=(
+                            "Optional manifest of data symlinks to create on the pod "
+                            f"(default: {_DEFAULT_DATA_LAYOUT}). Missing file is OK — "
+                            "the primary data symlink from --config still applies. "
+                            "Schema: mount_root + list of {volume, workdir} entries."
+                        ))
     parser.add_argument("--stage-data", action="store_true",
                         help="Upload local reference data to network volume during provisioning")
     parser.add_argument("--data-path", type=str, default=None,

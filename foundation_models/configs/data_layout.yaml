@@ -1,0 +1,53 @@
+# Project Data Layout — symlinks the provisioner creates on the pod.
+#
+# Each entry maps a path on the mounted persistent volume to a path inside
+# ~/sky_workdir on the pod. The provisioning script reads this file and
+# emits ``ln -sfn`` commands (idempotent). If the volume path doesn't
+# exist on a given pod, the entry is skipped with a warning — that handles
+# the "data not staged yet" case cleanly.
+#
+# Design contract (project-agnostic):
+#   - All paths are relative. No /runpod-volume/... or /root/sky_workdir/...
+#     hardcoded. Reusing this manifest on a different project just means
+#     editing the list — no script changes.
+#   - ``mount_root`` is overridable per provider/pod-type, since different
+#     SkyPilot configs land the volume at different absolute paths
+#     (RunPod: /runpod-volume, GCP: /mnt/disks/data, etc.).
+#   - The provisioner's existing primary data symlink (driven by
+#     ``data_path`` in gpu_config.yaml) is still created — this manifest
+#     is additive, not a replacement. Listing it here is harmless
+#     (``ln -sfn`` is atomic-replace).
+#
+# Add a new symlink:
+#   - { volume: <path on volume, relative to mount_root>,
+#       workdir: <path under ~/sky_workdir> }
+#
+# Remove one: delete the line. No code changes needed.
+
+mount_root: /runpod-volume
+
+symlinks:
+  # Annotation source directories
+  - { volume: data/mane/GRCh38,    workdir: data/mane/GRCh38 }
+  - { volume: data/ensembl/GRCh38, workdir: data/ensembl/GRCh38 }
+
+  # Build-level data (junction parquets, conservation cache, etc.)
+  - { volume: data/GRCh38,         workdir: data/GRCh38 }
+
+  # Variant + clinical resources
+  - { volume: data/clinvar,        workdir: data/clinvar }
+  - { volume: data/mutsplicedb,    workdir: data/mutsplicedb }
+
+  # Model weights (SpliceAI .h5, OpenSpliceAI .pt, etc.)
+  - { volume: data/models,         workdir: data/models }
+
+  # eCLIP RBP-binding peaks. The parquet lives under mane/ but is
+  # annotation-agnostic (genomic coordinates only), so we expose it under
+  # ensembl/ too — otherwise --mode m2 runs silently get RBP=0 because the
+  # auto-resolver looks at the ensembl stash. Remove once eCLIP is moved to
+  # data/<build>/rbp_data/ alongside junctions.
+  - { volume: data/mane/GRCh38/rbp_data, workdir: data/ensembl/GRCh38/rbp_data }
+
+  # Optional: uncomment if you want the bigWig cache accessible via a
+  # relative workdir path instead of the absolute /runpod-volume/bigwig_cache.
+  # - { volume: bigwig_cache,        workdir: data/bigwig_cache }
