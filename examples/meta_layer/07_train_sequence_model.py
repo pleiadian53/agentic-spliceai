@@ -220,6 +220,24 @@ def main() -> int:
         "--activation", choices=["relu", "gelu", "selu"], default="gelu",
         help="Activation function (default: relu). See meta_layer/docs/architecture_search.md",
     )
+    parser.add_argument(
+        "--seq-dilations", type=int, nargs="+", default=None, metavar="D",
+        help=(
+            "Sequence encoder dilation schedule (one int per residual block). "
+            "Default: [1,1,1,1,4,4,4,4] -> receptive field ~400 bp. "
+            "Wider example for M2-S: --seq-dilations 1 2 4 8 16 32 1 4 "
+            "-> RF ~1.3 kb. seq_n_blocks is auto-set to len(seq_dilations) "
+            "and context_padding adapts via cfg.effective_context_padding."
+        ),
+    )
+    parser.add_argument(
+        "--n-heads", type=int, default=None,
+        help=(
+            "Number of attention heads (v4_xattn and later). "
+            "Must divide --hidden-dim. Default: arch-specific (4 for v4_xattn). "
+            "Ignored for v3."
+        ),
+    )
     parser.add_argument("--window-size", type=int, default=5001)
     parser.add_argument("--samples-per-epoch", type=int, default=50_000)
     parser.add_argument("--max-genes", type=int, default=None,
@@ -258,8 +276,48 @@ def main() -> int:
              "Note: MPS has autograd bugs with BatchNorm1d backward in "
              "torch 2.5.x. CPU is fast enough for this model (~370K params).",
     )
+    # Late-imported to avoid loading heavy torch/model deps at --help time.
+    from agentic_spliceai.splice_engine.meta_layer.models.factory import (
+        ARCH_REGISTRY,
+    )
+    parser.add_argument(
+        "--arch", choices=list(ARCH_REGISTRY), default="v3",
+        help=(
+            "Model architecture. Defaults to v3 (current dilated-CNN). "
+            "Future stages (v4_attn, v4_xattn, v5_transformer) plug in via "
+            "the build_model() factory."
+        ),
+    )
+    parser.add_argument(
+        "--smoke", action="store_true",
+        help=(
+            "Smoke mode: override defaults to a tiny config that runs "
+            "end-to-end in seconds locally. Verifies the pipeline works "
+            "before paying for pod time. User-supplied values still win."
+        ),
+    )
 
     args = parser.parse_args()
+
+    # ── Smoke-mode defaults (only override if the user kept the default) ──
+    if args.smoke:
+        smoke_overrides = {
+            "epochs": 1,
+            "batch_size": 1,
+            "hidden_dim": 8,
+            "samples_per_epoch": 5,
+            "max_genes": 3,
+            "patience": 1,
+            "accumulation_steps": 1,
+            # n_heads=2 so smoke's hidden_dim=8 is divisible (v4_xattn and later).
+            "n_heads": 2,
+        }
+        applied = []
+        for k, v in smoke_overrides.items():
+            if getattr(args, k) == parser.get_default(k):
+                setattr(args, k, v)
+                applied.append(f"{k}={v}")
+        print(f"[SMOKE MODE] Tiny config applied: {', '.join(applied)}")
 
     logging.basicConfig(
         level=logging.INFO,
@@ -291,9 +349,7 @@ def main() -> int:
           f"accumulation = {eff_batch} effective")
 
     # ── Imports ──────────────────────────────────────────────────────
-    from agentic_spliceai.splice_engine.meta_layer.models.meta_splice_model_v3 import (
-        MetaSpliceModel, MetaSpliceConfig,
-    )
+    from agentic_spliceai.splice_engine.meta_layer.models.factory import build_model
     from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset import (
         SequenceLevelDataset, ShardedSequenceLevelDataset, build_gene_cache,
     )
@@ -408,21 +464,29 @@ def main() -> int:
     # ── Datasets + loaders ───────────────────────────────────────────
     mm_channels = extractor.num_channels
 
-    # Build the config first so we can derive context_padding from the
-    # encoder's receptive field instead of hardcoding it.
-    if args.mode in ("m1", "m2"):
-        variant = "M1-S" if args.mode == "m1" else "M2-S"
-        cfg = MetaSpliceConfig(
-            variant=variant, hidden_dim=args.hidden_dim,
-            mm_channels=mm_channels, num_classes=3,
-            activation=args.activation,
-        )
-    else:
-        cfg = MetaSpliceConfig(
-            variant="M3-S", hidden_dim=args.hidden_dim,
-            mm_channels=mm_channels, num_classes=2,
-            activation=args.activation,
-        )
+    # Build the model + config first so we can derive context_padding from
+    # the encoder's receptive field instead of hardcoding it.
+    arch_overrides = {}
+    if args.seq_dilations is not None:
+        # Keep seq_n_blocks in sync with the user-supplied dilation length —
+        # the encoder iterates n_blocks times, so a mismatch would silently
+        # pad with d=1 blocks and the RF property would disagree with the
+        # actual architecture.
+        arch_overrides["seq_dilations"] = list(args.seq_dilations)
+        arch_overrides["seq_n_blocks"] = len(args.seq_dilations)
+    # Arch-specific overrides — only forward to archs that accept the field.
+    if args.n_heads is not None and args.arch in ("v4_xattn",):
+        arch_overrides["n_heads"] = args.n_heads
+
+    model, cfg = build_model(
+        arch=args.arch,
+        mode=args.mode,
+        hidden_dim=args.hidden_dim,
+        mm_channels=mm_channels,
+        activation=args.activation,
+        **arch_overrides,
+    )
+    model = model.to(device)
 
     ctx_padding = cfg.effective_context_padding
 
@@ -488,15 +552,15 @@ def main() -> int:
         multiprocessing_context=_mp_ctx,
     )
 
-    # ── Model ────────────────────────────────────────────────────────
-    # cfg was constructed above (before datasets) so context_padding could
-    # be derived from cfg.effective_context_padding.
-    model = MetaSpliceModel(cfg).to(device)
+    # ── Model summary ────────────────────────────────────────────────
+    # model + cfg were constructed above (before datasets) so that
+    # context_padding could be derived from cfg.effective_context_padding.
     n_params = sum(p.numel() for p in model.parameters())
 
-    print(f"\n  Model: {cfg.variant}, {n_params:,} params, H={cfg.hidden_dim}")
+    print(f"\n  Arch: {args.arch}, variant: {cfg.variant}, {n_params:,} params, H={cfg.hidden_dim}")
     print(f"  mm_channels={mm_channels}, merge_base_scores={cfg.merge_base_scores}")
-    print(f"  Receptive field: {model.receptive_field} bp, effective_context_padding: {ctx_padding} bp")
+    rf = getattr(model, "receptive_field", cfg.receptive_field)
+    print(f"  Receptive field: {rf} bp, effective_context_padding: {ctx_padding} bp")
 
     if args.checkpoint and args.checkpoint.exists():
         model.load_state_dict(torch.load(args.checkpoint, map_location=device))
