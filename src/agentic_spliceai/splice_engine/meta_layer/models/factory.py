@@ -22,7 +22,7 @@ import torch.nn as nn
 logger = logging.getLogger(__name__)
 
 
-ARCH_REGISTRY: Tuple[str, ...] = ("v3",)
+ARCH_REGISTRY: Tuple[str, ...] = ("v3", "v4_xattn")
 
 
 def _variant_for_mode(mode: str) -> str:
@@ -78,6 +78,18 @@ def build_model(
             **extra,
         )
         return MetaSpliceModel(cfg), cfg
+
+    if arch == "v4_xattn":
+        from .meta_splice_v4_xattn import MetaSpliceXAttnConfig, MetaSpliceXAttnModel
+        cfg = MetaSpliceXAttnConfig(
+            variant=_variant_for_mode(mode),
+            hidden_dim=hidden_dim,
+            mm_channels=mm_channels,
+            num_classes=_num_classes_for_mode(mode),
+            activation=activation,
+            **extra,
+        )
+        return MetaSpliceXAttnModel(cfg), cfg
 
     raise ValueError(
         f"Unknown arch {arch!r}. Available: {ARCH_REGISTRY}. "
