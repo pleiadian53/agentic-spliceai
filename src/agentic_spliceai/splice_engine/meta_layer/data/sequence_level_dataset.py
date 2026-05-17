@@ -83,7 +83,10 @@ class SequenceLevelDataset(Dataset):
     window_size : int
         Output window length (default 5001).
     context_padding : int
-        Extra sequence context for CNN receptive field (default 400).
+        Extra sequence context for the encoder's receptive field. **Must be
+        supplied explicitly** — the dataset cannot infer the architecture's
+        receptive field. Pass ``model_config.effective_context_padding``
+        to auto-derive from the encoder, or an explicit int.
     splice_bias : float
         Fraction of windows centered on a splice site (default 0.5).
     samples_per_epoch : int
@@ -96,11 +99,19 @@ class SequenceLevelDataset(Dataset):
         self,
         gene_index: List[GeneIndexEntry],
         window_size: int = 5001,
-        context_padding: int = 400,
+        context_padding: Optional[int] = None,
         splice_bias: float = 0.5,
         samples_per_epoch: int = 50_000,
         seed: int = 42,
     ) -> None:
+        if context_padding is None:
+            raise ValueError(
+                "context_padding must be supplied explicitly. Pass "
+                "model_config.effective_context_padding (auto-derives from "
+                "encoder receptive field) or an explicit int. The dataset "
+                "cannot infer the architecture's receptive field."
+            )
+
         self.gene_index = gene_index
         self.window_size = window_size
         self.context_padding = context_padding
@@ -142,6 +153,7 @@ class SequenceLevelDataset(Dataset):
         )
 
         if use_splice:
+            # If True, this sample should be biased toward containing a real splice site
             gene_idx = self._rng.choice(self._genes_with_splices)
             entry = self.gene_index[gene_idx]
             # Load gene data from disk
@@ -247,7 +259,10 @@ class ShardedSequenceLevelDataset(Dataset):
     window_size : int
         Output window length (default 5001).
     context_padding : int
-        Extra sequence context for CNN receptive field (default 400).
+        Extra sequence context for the encoder's receptive field. **Must be
+        supplied explicitly** — the dataset cannot infer the architecture's
+        receptive field. Pass ``model_config.effective_context_padding``
+        to auto-derive from the encoder, or an explicit int.
     splice_bias : float
         Fraction of windows centered on a splice site (default 0.5).
     samples_per_epoch : int
@@ -260,11 +275,19 @@ class ShardedSequenceLevelDataset(Dataset):
         self,
         shard_index_path: Path,
         window_size: int = 5001,
-        context_padding: int = 400,
+        context_padding: Optional[int] = None,
         splice_bias: float = 0.5,
         samples_per_epoch: int = 50_000,
         seed: int = 42,
     ) -> None:
+        if context_padding is None:
+            raise ValueError(
+                "context_padding must be supplied explicitly. Pass "
+                "model_config.effective_context_padding (auto-derives from "
+                "encoder receptive field) or an explicit int. The dataset "
+                "cannot infer the architecture's receptive field."
+            )
+
         self.window_size = window_size
         self.context_padding = context_padding
         self.splice_bias = splice_bias

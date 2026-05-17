@@ -88,7 +88,8 @@ def _run_fasta_inference(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     mm_channels = cfg.mm_channels
-    min_recommended = 5001 + 400  # window + context
+    ctx_padding = cfg.effective_context_padding
+    min_recommended = cfg.window_size + ctx_padding
 
     print(f"\n{'='*70}")
     print("FASTA Inference Mode")
@@ -122,7 +123,9 @@ def _run_fasta_inference(
             "mm_features": np.zeros((seq_len, mm_channels), dtype=np.float32),
         }
 
-        probs = infer_full_gene(model, gene_data, device=device)  # [L, 3]
+        probs = infer_full_gene(
+            model, gene_data, context_padding=ctx_padding, device=device
+        )  # [L, 3]
 
         for pos in range(seq_len):
             rows.append((
@@ -293,10 +296,13 @@ def main():
     model.load_state_dict(torch.load(args.checkpoint, map_location=device, weights_only=True))
     model.eval()
 
+    ctx_padding = cfg.effective_context_padding
+
     n_params = sum(p.numel() for p in model.parameters())
     print(f"Model: {cfg.variant}, {n_params:,} params")
     print(f"  Checkpoint: {args.checkpoint}")
     print(f"  Device: {device}")
+    print(f"  Receptive field: {cfg.receptive_field} bp, context_padding: {ctx_padding} bp")
 
     # ── FASTA inference mode (Case 4) ────────────────────────────────
     if args.fasta:
@@ -499,7 +505,10 @@ def main():
                 del data
                 continue
 
-            logits = infer_full_gene(model, data, device=device, return_logits=True)
+            logits = infer_full_gene(
+                model, data, context_padding=ctx_padding, device=device,
+                return_logits=True,
+            )
             scaler.collect(logits, data["base_scores"], data["labels"])
             del data, logits
             n_cal += 1
@@ -558,14 +567,19 @@ def main():
         # Inference: one gene at a time
         if use_temperature and not _is_default_T:
             # Temperature scaling: get logits, then apply T + blend externally
-            logits = infer_full_gene(model, data, device=device, return_logits=True)
+            logits = infer_full_gene(
+                model, data, context_padding=ctx_padding, device=device,
+                return_logits=True,
+            )
             meta_probs = apply_temperature_blend(
                 logits, data["base_scores"], temperature, blend_alpha,
                 blend_mode=blend_mode,
             )
             del logits
         else:
-            meta_probs = infer_full_gene(model, data, device=device)
+            meta_probs = infer_full_gene(
+                model, data, context_padding=ctx_padding, device=device,
+            )
 
         base_probs = data["base_scores"]
         labels = data["labels"]

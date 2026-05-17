@@ -408,6 +408,24 @@ def main() -> int:
     # ── Datasets + loaders ───────────────────────────────────────────
     mm_channels = extractor.num_channels
 
+    # Build the config first so we can derive context_padding from the
+    # encoder's receptive field instead of hardcoding it.
+    if args.mode in ("m1", "m2"):
+        variant = "M1-S" if args.mode == "m1" else "M2-S"
+        cfg = MetaSpliceConfig(
+            variant=variant, hidden_dim=args.hidden_dim,
+            mm_channels=mm_channels, num_classes=3,
+            activation=args.activation,
+        )
+    else:
+        cfg = MetaSpliceConfig(
+            variant="M3-S", hidden_dim=args.hidden_dim,
+            mm_channels=mm_channels, num_classes=2,
+            activation=args.activation,
+        )
+
+    ctx_padding = cfg.effective_context_padding
+
     if args.use_shards:
         # Pack .npz → per-chromosome HDF5 shards for faster I/O
         print("  Packing training shards...")
@@ -423,28 +441,28 @@ def main() -> int:
         train_ds = ShardedSequenceLevelDataset(
             train_index_path,
             window_size=args.window_size,
-            context_padding=400,
+            context_padding=ctx_padding,
             samples_per_epoch=args.samples_per_epoch,
         )
         val_ds = ShardedSequenceLevelDataset(
             val_index_path,
             window_size=args.window_size,
-            context_padding=400,
-            samples_per_epoch=min(5000, args.samples_per_epoch // 10),
+            context_padding=ctx_padding,
+            samples_per_epoch=max(1, min(5000, args.samples_per_epoch // 10)),
             splice_bias=0.5,
         )
     else:
         train_ds = SequenceLevelDataset(
             train_index,
             window_size=args.window_size,
-            context_padding=400,
+            context_padding=ctx_padding,
             samples_per_epoch=args.samples_per_epoch,
         )
         val_ds = SequenceLevelDataset(
             val_index,
             window_size=args.window_size,
-            context_padding=400,
-            samples_per_epoch=min(5000, args.samples_per_epoch // 10),
+            context_padding=ctx_padding,
+            samples_per_epoch=max(1, min(5000, args.samples_per_epoch // 10)),
             splice_bias=0.5,
         )
 
@@ -471,26 +489,14 @@ def main() -> int:
     )
 
     # ── Model ────────────────────────────────────────────────────────
-    if args.mode in ("m1", "m2"):
-        variant = "M1-S" if args.mode == "m1" else "M2-S"
-        cfg = MetaSpliceConfig(
-            variant=variant, hidden_dim=args.hidden_dim,
-            mm_channels=mm_channels, num_classes=3,
-            activation=args.activation,
-        )
-    else:
-        cfg = MetaSpliceConfig(
-            variant="M3-S", hidden_dim=args.hidden_dim,
-            mm_channels=mm_channels, num_classes=2,
-            activation=args.activation,
-        )
-
+    # cfg was constructed above (before datasets) so context_padding could
+    # be derived from cfg.effective_context_padding.
     model = MetaSpliceModel(cfg).to(device)
     n_params = sum(p.numel() for p in model.parameters())
 
     print(f"\n  Model: {cfg.variant}, {n_params:,} params, H={cfg.hidden_dim}")
     print(f"  mm_channels={mm_channels}, merge_base_scores={cfg.merge_base_scores}")
-    print(f"  Receptive field: {model.receptive_field} bp")
+    print(f"  Receptive field: {model.receptive_field} bp, effective_context_padding: {ctx_padding} bp")
 
     if args.checkpoint and args.checkpoint.exists():
         model.load_state_dict(torch.load(args.checkpoint, map_location=device))

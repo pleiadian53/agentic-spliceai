@@ -217,10 +217,13 @@ def main():
     model.load_state_dict(torch.load(args.checkpoint, map_location=device, weights_only=True))
     model.eval()
 
+    ctx_padding = cfg.effective_context_padding
+
     n_params = sum(p.numel() for p in model.parameters())
     print(f"Model: {cfg.variant}, {n_params:,} params")
     print(f"  Checkpoint: {args.checkpoint}")
     print(f"  Device: {device}")
+    print(f"  Receptive field: {cfg.receptive_field} bp, context_padding: {ctx_padding} bp")
 
     # ── Resolve evaluation annotation ────────────────────────────────
     from agentic_spliceai.splice_engine.resources import get_model_resources, get_genomic_registry
@@ -392,7 +395,9 @@ def main():
             continue
 
         # Inference
-        meta_probs = infer_full_gene(model, data, device=device)
+        meta_probs = infer_full_gene(
+            model, data, context_padding=ctx_padding, device=device,
+        )
         base_probs = data["base_scores"]
         labels = data["labels"]
 

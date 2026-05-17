@@ -46,6 +46,14 @@ import torch.nn.functional as F
 logger = logging.getLogger(__name__)
 
 
+def _compute_receptive_field(dilations: List[int], kernel_size: int) -> int:
+    """Receptive field of a stack of residual dilated conv blocks.
+
+    Assumes 2 conv layers per block (matches :class:`ResidualDilatedBlock`).
+    """
+    return 2 * sum(d * (kernel_size - 1) for d in dilations)
+
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -97,12 +105,23 @@ class MetaSpliceConfig:
 
     # Training
     window_size: int = 5001
-    context_padding: int = 400  # dilated CNN receptive field
+    # Explicit override; if None, defaults to self.receptive_field.
+    context_padding: Optional[int] = None
+
+    @property
+    def receptive_field(self) -> int:
+        """Receptive field of the sequence encoder, in bp."""
+        return _compute_receptive_field(self.seq_dilations, self.kernel_size)
+
+    @property
+    def effective_context_padding(self) -> int:
+        """Resolved context padding: explicit override, else receptive field."""
+        return self.context_padding if self.context_padding is not None else self.receptive_field
 
     @property
     def total_input_length(self) -> int:
         """Sequence input length including context padding."""
-        return self.window_size + self.context_padding
+        return self.window_size + self.effective_context_padding
 
     @classmethod
     def m1(cls, **kwargs) -> MetaSpliceConfig:
@@ -449,9 +468,8 @@ class MetaSpliceModel(nn.Module):
 
     @property
     def receptive_field(self) -> int:
-        """Approximate receptive field of the sequence encoder in bp."""
-        k = self.config.kernel_size
-        return 2 * sum(d * (k - 1) for d in self.config.seq_dilations)
+        """Receptive field of the sequence encoder, in bp (delegates to config)."""
+        return self.config.receptive_field
 
 
 # ---------------------------------------------------------------------------

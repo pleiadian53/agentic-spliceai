@@ -577,7 +577,7 @@ class VariantRunner:
         import torch
 
         W = self.window_size
-        ctx = self.cfg.context_padding
+        ctx = self.cfg.effective_context_padding
 
         # Compute genomic window centered on variant
         variant_0based = position - 1  # convert to 0-based

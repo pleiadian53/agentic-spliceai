@@ -10,6 +10,8 @@ scaling of raw logits with residual blending.
 
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 
 
@@ -75,7 +77,7 @@ def infer_full_gene(
     model,
     gene_data: dict,
     window_size: int = 5001,
-    context_padding: int = 400,
+    context_padding: Optional[int] = None,
     device=None,
     return_logits: bool = False,
 ) -> np.ndarray:
@@ -91,7 +93,10 @@ def infer_full_gene(
     window_size : int
         Output window size (default 5001).
     context_padding : int
-        Extra DNA context for the sequence CNN (default 400).
+        Extra DNA context for the encoder's receptive field. **Must be
+        supplied explicitly** — typically as ``model.config.effective_context_padding``.
+        Auto-inference is intentionally not done here to keep this function
+        decoupled from any specific config class.
     device : torch.device, optional
         Inference device (default: cpu).
     return_logits : bool
@@ -108,6 +113,13 @@ def infer_full_gene(
     from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset import (
         _one_hot_encode,
     )
+
+    if context_padding is None:
+        raise ValueError(
+            "context_padding must be supplied explicitly. Pass "
+            "model.config.effective_context_padding (auto-derives from "
+            "encoder receptive field) or an explicit int."
+        )
 
     if device is None:
         device = torch.device("cpu")
