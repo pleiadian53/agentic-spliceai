@@ -167,10 +167,14 @@ class DenseFeatureExtractor:
         ]
         self._channel_idx = {ch: i for i, ch in enumerate(self._channels)}
 
-        # Lazy-loaded handles
+        # Lazy-loaded handles. _eclip_resolved distinguishes "never tried"
+        # from "tried and got nothing" so the miss path doesn't re-run the
+        # lookup (and re-log the warning) on every gene-window query.
+        # _junction_index uses an empty-dict sentinel for the same purpose.
         self._bigwig_handles: Dict[str, object] = {}
         self._junction_index: Optional[Dict] = None
         self._eclip_peaks: Optional[object] = None
+        self._eclip_resolved: bool = False
 
         logger.info(
             "DenseFeatureExtractor: %d channels (%s excluded)",
@@ -609,8 +613,8 @@ class DenseFeatureExtractor:
         return out
 
     def _get_eclip_peaks(self) -> Optional[object]:
-        """Load and cache eCLIP peaks parquet."""
-        if self._eclip_peaks is not None:
+        """Load and cache eCLIP peaks parquet (lazy, resolves once per extractor)."""
+        if self._eclip_resolved:
             return self._eclip_peaks
 
         path = self.config.eclip_parquet
@@ -635,12 +639,14 @@ class DenseFeatureExtractor:
         if path is None or not Path(path).exists():
             logger.info("No eCLIP parquet available; RBP channel will be zeros")
             self._eclip_peaks = None
+            self._eclip_resolved = True
             return None
 
         import polars as pl
         logger.info("Loading eCLIP peaks from %s", path)
         self._eclip_peaks = pl.read_parquet(path)
         logger.info("eCLIP peaks: %d rows", self._eclip_peaks.height)
+        self._eclip_resolved = True
         return self._eclip_peaks
 
     # ------------------------------------------------------------------
