@@ -421,7 +421,7 @@ def _build_genome_response(
     return GenomeResponse(
         gene_name=pred.get('gene_name', gene_name),
         gene_id=gene_id,
-        chrom=pred['seqname'],
+        chrom=pred.get('chrom', pred.get('seqname')),
         strand=pred['strand'],
         gene_start=pred['gene_start'],
         gene_end=pred['gene_end'],
