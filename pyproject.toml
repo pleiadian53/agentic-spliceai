@@ -36,10 +36,14 @@ classifiers = [
 # Core dependencies
 dependencies = [
     # === Agent + LLM Tools ===
+    # The agentic layer is core to this project ("agentic spliceai"), not optional.
+    # The nexus research agent (refactored from agentic-ai-lab) requires aisuite + wikipedia.
+    "aisuite",
     "anthropic",
     "markdown",
     "openai",
     "tavily-python>=0.7.12",
+    "wikipedia",
     
     # === Web Framework + API ===
     "fastapi",
