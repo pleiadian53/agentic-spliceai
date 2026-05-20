@@ -81,6 +81,14 @@ class MetaSpliceXAttnConfig:
 
     # Cross-attention fusion (new vs v3)
     n_heads: int = 4
+    # Local windowed attention. When None (default), attention is global —
+    # every output position attends to all input positions. When set to an
+    # int W, each position attends only to positions within [i - W//2, i + W//2].
+    # For splice-site prediction the canonical biology is local (~100 bp:
+    # donor/acceptor consensus + branchpoint + polypyrimidine tract), and
+    # global attention dilutes the rare positive class with the abundant
+    # "neither" majority. Recommended window: 128–256.
+    attention_window_size: Optional[int] = None
 
     # Base-score blending (same as v3)
     use_residual_blend: bool = True
@@ -123,16 +131,27 @@ class CrossAttentionFusion(nn.Module):
     Sequence features query the merged base+multimodal signal features.
     Pre-norm residual (more stable than post-norm).
 
-    Memory: O(L²) per head per sample. For L=5001, H=64, n_heads=4, B=4
-    on A40 → ~1.6 GB. Smoke config (L=512, H=8, n_heads=2, B=2) → <10 MB.
+    Memory: O(L²) per head per sample for global attention. For L=5001,
+    H=64, n_heads=4, B=4 on A40 → ~1.6 GB. When ``window_size`` is set,
+    the attention mask restricts each position to ±window_size//2
+    neighbors — PyTorch's SDPA still allocates the full attention buffer
+    but skips computation on masked positions. (Switch to an unfold-based
+    custom kernel if memory becomes the bottleneck.)
     """
 
-    def __init__(self, hidden_dim: int, n_heads: int = 4, dropout: float = 0.1) -> None:
+    def __init__(
+        self,
+        hidden_dim: int,
+        n_heads: int = 4,
+        dropout: float = 0.1,
+        window_size: Optional[int] = None,
+    ) -> None:
         super().__init__()
         if hidden_dim % n_heads != 0:
             raise ValueError(
                 f"hidden_dim ({hidden_dim}) must be divisible by n_heads ({n_heads})"
             )
+        self.window_size = window_size
         self.cross_attn = nn.MultiheadAttention(
             embed_dim=hidden_dim,
             num_heads=n_heads,
@@ -142,6 +161,24 @@ class CrossAttentionFusion(nn.Module):
         self.norm_q = nn.LayerNorm(hidden_dim)
         self.norm_kv = nn.LayerNorm(hidden_dim)
         self.dropout = nn.Dropout(dropout)
+        # Cache the band-diagonal mask by sequence length (one per process).
+        self._mask_cache: dict = {}
+
+    def _get_local_mask(self, seq_len: int, device, dtype) -> torch.Tensor:
+        """Boolean band-diagonal mask. True = position is masked OUT.
+
+        Each row i has False (allowed) for columns j in [i - W//2, i + W//2];
+        all others True (forbidden). Returns shape [L, L].
+        """
+        key = (seq_len, device, dtype)
+        if key in self._mask_cache:
+            return self._mask_cache[key]
+        half = self.window_size // 2
+        idx = torch.arange(seq_len, device=device)
+        diff = (idx.unsqueeze(0) - idx.unsqueeze(1)).abs()  # [L, L]
+        mask = diff > half
+        self._mask_cache[key] = mask
+        return mask
 
     def forward(
         self,
@@ -151,10 +188,15 @@ class CrossAttentionFusion(nn.Module):
         q = seq_feat.permute(0, 2, 1)       # [B, L, H]
         kv = signal_feat.permute(0, 2, 1)   # [B, L, H]
 
+        attn_mask = None
+        if self.window_size is not None:
+            attn_mask = self._get_local_mask(q.size(1), q.device, q.dtype)
+
         attn_out, _ = self.cross_attn(
             query=self.norm_q(q),
             key=self.norm_kv(kv),
             value=self.norm_kv(kv),
+            attn_mask=attn_mask,
             need_weights=False,
         )
         fused = q + self.dropout(attn_out)  # residual
@@ -217,6 +259,7 @@ class MetaSpliceXAttnModel(nn.Module):
             hidden_dim=H,
             n_heads=config.n_heads,
             dropout=config.dropout,
+            window_size=config.attention_window_size,
         )
 
         # Post-fusion CNN refinement (same as v3)
@@ -301,16 +344,25 @@ class MetaSpliceXAttnModel(nn.Module):
         fused_lh = fused.permute(0, 2, 1).contiguous()                # [B, L, H]
         logits = self.output_head(fused_lh)                           # [B, L, C]
 
-        # Residual blend with base scores (same protocol as v3)
+        # Residual blend with base scores. Diverges from v3 on temperature
+        # placement: v3 applies T to the blended logits (T divides both meta
+        # AND base contributions), which is fine when the meta-layer is small
+        # and well-calibrated. v4_xattn's higher capacity overfits more easily,
+        # which drives T up — and at v3's placement, that softens the
+        # well-calibrated base scores too, washing them out. Here T calibrates
+        # only the meta-layer; the base scores pass through with their
+        # original calibration. (See dev/sessions/ M2-S v4_xattn post-mortem.)
         if self.config.use_residual_blend:
             alpha = torch.sigmoid(self.blend_alpha)
 
             if self.config.blend_mode == "logit":
                 base_logits = torch.log(base_scores.clamp(min=1e-8))
-                blended = alpha * logits + (1.0 - alpha) * base_logits
                 if hasattr(self, "blend_temperature"):
                     T = self.blend_temperature.clamp(min=0.05, max=5.0)
-                    blended = blended / T
+                    meta_part = logits / T
+                else:
+                    meta_part = logits
+                blended = alpha * meta_part + (1.0 - alpha) * base_logits
                 if self.training or return_logits:
                     return blended
                 return F.softmax(blended, dim=-1)

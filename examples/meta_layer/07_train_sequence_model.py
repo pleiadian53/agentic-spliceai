@@ -238,6 +238,15 @@ def main() -> int:
             "Ignored for v3."
         ),
     )
+    parser.add_argument(
+        "--attention-window-size", type=int, default=None,
+        help=(
+            "Local windowed attention: each position attends to "
+            "[i - W//2, i + W//2] only. Default None = global attention. "
+            "Recommended 128–256 for splice prediction (biology is local). "
+            "Ignored for v3."
+        ),
+    )
     parser.add_argument("--window-size", type=int, default=5001)
     parser.add_argument("--samples-per-epoch", type=int, default=50_000)
     parser.add_argument("--max-genes", type=int, default=None,
@@ -477,6 +486,8 @@ def main() -> int:
     # Arch-specific overrides — only forward to archs that accept the field.
     if args.n_heads is not None and args.arch in ("v4_xattn",):
         arch_overrides["n_heads"] = args.n_heads
+    if args.attention_window_size is not None and args.arch in ("v4_xattn",):
+        arch_overrides["attention_window_size"] = args.attention_window_size
 
     model, cfg = build_model(
         arch=args.arch,
