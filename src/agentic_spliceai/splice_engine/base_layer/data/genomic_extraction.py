@@ -242,6 +242,56 @@ def extract_gene_annotations(
     return df
 
 
+def extract_gene_sequences(
+    gene_annotations: pl.DataFrame,
+    fasta_path: str,
+    verbosity: int = 1,
+) -> Dict[str, str]:
+    """Extract the full genomic sequence (gene span) for each annotated gene.
+
+    Used for sequence-based paralog detection in homology-aware data splitting
+    (the SpliceAI/OpenSpliceAI approach). Sequences are the ``+``-strand gene
+    span ``[start, end)`` — strand is irrelevant for paralog *similarity*.
+
+    Parameters
+    ----------
+    gene_annotations : pl.DataFrame
+        Output of :func:`extract_gene_annotations` (needs ``gene_id``, ``chrom``,
+        ``start``, ``end``).
+    fasta_path : str
+        Path to the reference FASTA (indexed with ``.fai``).
+    verbosity : int
+        If >= 1, log progress every 5000 genes.
+
+    Returns
+    -------
+    Dict[str, str]
+        ``gene_id -> uppercase DNA sequence``. Genes whose sequence can't be
+        fetched (e.g. alt/fix contigs absent from the primary assembly) are skipped.
+    """
+    import pyfaidx
+
+    fasta = pyfaidx.Fasta(fasta_path)
+    keys = set(fasta.keys())
+    seqs: Dict[str, str] = {}
+    n = 0
+    for row in gene_annotations.iter_rows(named=True):
+        chrom = row["chrom"]
+        fasta_chrom = chrom if chrom in keys else chrom.replace("chr", "")
+        if fasta_chrom not in keys:
+            fasta_chrom = f"chr{chrom}" if f"chr{chrom}" in keys else fasta_chrom
+        try:
+            seqs[row["gene_id"]] = str(fasta[fasta_chrom][int(row["start"]):int(row["end"])]).upper()
+        except Exception:
+            continue  # alt/fix contig not in primary assembly — skip
+        n += 1
+        if verbosity >= 1 and n % 5000 == 0:
+            print(f"[extract] gene sequences: {n}/{gene_annotations.height}")
+    if verbosity >= 1:
+        print(f"[extract] gene sequences: {len(seqs)} extracted")
+    return seqs
+
+
 def extract_transcript_annotations(
     gtf_file: str,
     output_file: Optional[str] = None,

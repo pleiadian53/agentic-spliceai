@@ -116,6 +116,10 @@ class GeneSplit:
 
     # Genes removed from test due to paralogy with training genes
     test_paralogs_removed: Set[str] = field(default_factory=set)
+    # Genes removed from val (moved to train) due to paralogy with training genes.
+    # Without this, a val gene's paralog can sit in train → inflated val PR-AUC,
+    # which drives early stopping AND the reported "best" metric.
+    val_paralogs_removed: Set[str] = field(default_factory=set)
 
     # Metadata
     preset: str = ""
@@ -150,6 +154,10 @@ class GeneSplit:
             lines.append(
                 f"  Paralogs removed from test: {len(self.test_paralogs_removed)} genes"
             )
+        if self.val_paralogs_removed:
+            lines.append(
+                f"  Paralogs removed from val (→train): {len(self.val_paralogs_removed)} genes"
+            )
         lines.append(f"  Total: {self.n_total} genes")
         lines.append(f"  Seed:  {self.seed}")
         return "\n".join(lines)
@@ -174,6 +182,7 @@ class GeneSplit:
             "val_genes": sorted(self.val_genes),
             "test_genes": sorted(self.test_genes),
             "test_paralogs_removed": sorted(self.test_paralogs_removed),
+            "val_paralogs_removed": sorted(self.val_paralogs_removed),
             "preset": self.preset,
             "seed": self.seed,
             "val_fraction": self.val_fraction,
@@ -190,6 +199,7 @@ class GeneSplit:
             val_genes=set(data["val_genes"]),
             test_genes=set(data["test_genes"]),
             test_paralogs_removed=set(data.get("test_paralogs_removed", [])),
+            val_paralogs_removed=set(data.get("val_paralogs_removed", [])),
             preset=data.get("preset", ""),
             seed=data.get("seed", 42),
             val_fraction=data.get("val_fraction", 0.1),
@@ -278,6 +288,9 @@ def build_gene_split(
     seed: int = 42,
     gene_families: Optional[Dict[str, str]] = None,
     exclude_test_paralogs: bool = True,
+    gene_sequences: Optional[Dict[str, str]] = None,
+    paralog_min_identity: float = 0.8,
+    paralog_min_coverage: float = 0.5,
     custom_train_chroms: Optional[Set[str]] = None,
     custom_test_chroms: Optional[Set[str]] = None,
 ) -> GeneSplit:
@@ -303,6 +316,17 @@ def build_gene_split(
     exclude_test_paralogs:
         If True and ``gene_families`` is provided, remove test genes whose
         family has any member in the training set. Default True.
+    gene_sequences:
+        Optional dict mapping gene_id -> DNA sequence (full gene span). When
+        provided, paralogs are removed **by sequence alignment** (minimap2 via
+        mappy) — the SpliceAI/OpenSpliceAI-faithful method — from BOTH the test
+        set (paralogs of train, dropped) AND the val set (paralogs of train,
+        moved back to train so honest early-stopping/val metrics aren't inflated).
+        Takes precedence over ``gene_families`` when given. Requires ``mappy``.
+    paralog_min_identity:
+        Alignment identity threshold for paralog calls (default 0.8, ~OpenSpliceAI).
+    paralog_min_coverage:
+        Alignment coverage threshold for paralog calls (default 0.5, ~OpenSpliceAI).
     custom_train_chroms:
         Train chromosomes (only used when preset="custom").
     custom_test_chroms:
@@ -359,9 +383,23 @@ def build_gene_split(
         len(train_pool), len(test_pool),
     )
 
-    # Homology-aware paralog exclusion from test set
+    # Homology-aware paralog exclusion from the TEST set
     paralogs_removed: Set[str] = set()
-    if gene_families and exclude_test_paralogs:
+    if gene_sequences is not None:
+        # Sequence-based (SpliceAI/OpenSpliceAI-faithful): drop test genes that
+        # align to any training-pool gene above the identity/coverage thresholds.
+        from ..data.homology import detect_paralogs_by_alignment
+        paralogs_removed = detect_paralogs_by_alignment(
+            {g: gene_sequences[g] for g in train_pool if g in gene_sequences},
+            {g: gene_sequences[g] for g in test_pool if g in gene_sequences},
+            min_identity=paralog_min_identity, min_coverage=paralog_min_coverage,
+        )
+        test_pool = [g for g in test_pool if g not in paralogs_removed]
+        logger.info(
+            "Paralog exclusion (alignment): removed %d test genes, %d remaining",
+            len(paralogs_removed), len(test_pool),
+        )
+    elif gene_families and exclude_test_paralogs:
         paralogs_removed = _exclude_test_paralogs(
             train_genes=set(train_pool),
             test_genes=set(test_pool),
@@ -369,7 +407,7 @@ def build_gene_split(
         )
         test_pool = [g for g in test_pool if g not in paralogs_removed]
         logger.info(
-            "Paralog exclusion: removed %d test genes, %d remaining",
+            "Paralog exclusion (family): removed %d test genes, %d remaining",
             len(paralogs_removed), len(test_pool),
         )
 
@@ -382,11 +420,32 @@ def build_gene_split(
     val_genes = set(train_pool_shuffled[:n_val])
     train_genes = set(train_pool_shuffled[n_val:])
 
+    # Homology-aware paralog exclusion from the VAL set: a val gene whose paralog
+    # is in train inflates the val PR-AUC that drives early stopping + "best".
+    # Move such val genes back to train (same chromosome pool, so no holdout
+    # violation; they just can't serve as honest validation).
+    val_paralogs_removed: Set[str] = set()
+    if gene_sequences is not None and val_genes:
+        from ..data.homology import detect_paralogs_by_alignment
+        val_paralogs_removed = detect_paralogs_by_alignment(
+            {g: gene_sequences[g] for g in train_genes if g in gene_sequences},
+            {g: gene_sequences[g] for g in val_genes if g in gene_sequences},
+            min_identity=paralog_min_identity, min_coverage=paralog_min_coverage,
+        )
+        if val_paralogs_removed:
+            val_genes = val_genes - val_paralogs_removed
+            train_genes = train_genes | val_paralogs_removed
+            logger.info(
+                "Paralog exclusion (alignment): moved %d val genes → train, %d val remaining",
+                len(val_paralogs_removed), len(val_genes),
+            )
+
     split = GeneSplit(
         train_genes=train_genes,
         val_genes=val_genes,
         test_genes=set(test_pool),
         test_paralogs_removed=paralogs_removed,
+        val_paralogs_removed=val_paralogs_removed,
         preset=preset,
         seed=seed,
         val_fraction=val_fraction,
