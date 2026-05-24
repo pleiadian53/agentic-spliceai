@@ -18,23 +18,23 @@ Metrics reported:
 Usage:
     # Build test cache + evaluate M1-S (chr1,3,5,7,9)
     python 08_evaluate_sequence_model.py \\
-        --checkpoint output/meta_layer/m1s/best.pt \\
+        --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt \\
         --build-cache
 
-    # Evaluate from existing cache
+    # Evaluate from an already-built cache (its test/ subdir must exist)
     python 08_evaluate_sequence_model.py \\
-        --checkpoint output/meta_layer/m1s/best.pt \\
-        --cache-dir output/meta_layer/gene_cache/test
+        --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt \\
+        --cache-dir output/meta_layer/gene_cache_mane_neuronal/test
 
     # Evaluate on specific chromosomes
     python 08_evaluate_sequence_model.py \\
-        --checkpoint output/meta_layer/m1s/best.pt \\
+        --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt \\
         --test-chroms chr1 chr3 \\
         --build-cache
 
     # Pure FASTA inference (no annotations, no features)
     python 08_evaluate_sequence_model.py \\
-        --checkpoint output/meta_layer/m1s/best.pt \\
+        --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt \\
         --fasta /path/to/sequences.fa
 """
 
@@ -225,6 +225,13 @@ def main():
         help="Limit number of genes for quick testing",
     )
     parser.add_argument(
+        "--remove-paralogs", action=argparse.BooleanOptionalAction, default=True,
+        help="For the default SpliceAI test set, drop test genes that are "
+             "sequence paralogs of training genes (minimap2/mappy) so the "
+             "reported test metrics are leakage-clean. Default ON; ignored when "
+             "--genes/--test-chroms is given (explicit user selection).",
+    )
+    parser.add_argument(
         "--sweep-thresholds", action="store_true",
         help="Sweep classification thresholds to find optimal precision-recall "
              "operating point.  Reports F1-optimal threshold and best precision "
@@ -339,12 +346,24 @@ def main():
         test_genes = sorted(g for g, c in gene_chroms.items() if c in test_chroms)
         print(f"  Eval genes: {len(test_genes)} on {test_chroms}")
     else:
-        gene_split = build_gene_split(gene_chroms, preset="spliceai", val_fraction=0.0)
+        gene_seqs = None
+        if args.remove_paralogs:
+            from agentic_spliceai.splice_engine.base_layer.data.genomic_extraction import (
+                extract_gene_sequences,
+            )
+            print(f"  Extracting gene sequences for paralog-clean test set "
+                  f"({gene_annotations.height} genes)...")
+            gene_seqs = extract_gene_sequences(gene_annotations, str(resources.get_fasta_path()))
+        gene_split = build_gene_split(
+            gene_chroms, preset="spliceai", val_fraction=0.0, gene_sequences=gene_seqs,
+        )
         test_genes = sorted(gene_split.test_genes)
         test_chroms = sorted(set(
             gene_chroms.get(g, "unknown") for g in test_genes if g in gene_chroms
         ))
-        print(f"  Eval genes: {len(test_genes)} (SpliceAI test: {test_chroms})")
+        n_removed = len(gene_split.test_paralogs_removed)
+        print(f"  Eval genes: {len(test_genes)} (SpliceAI test: {test_chroms}; "
+              f"{n_removed} paralogs removed)")
 
     if args.max_genes:
         test_genes = test_genes[:args.max_genes]

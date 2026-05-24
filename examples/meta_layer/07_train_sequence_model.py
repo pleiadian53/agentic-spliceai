@@ -16,7 +16,7 @@ Usage:
     python 07_train_sequence_model.py --mode m1 --max-genes 100 --epochs 5
 
     # Resume from checkpoint
-    python 07_train_sequence_model.py --mode m1 --checkpoint output/meta_layer/m1s/best.pt
+    python 07_train_sequence_model.py --mode m1 --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt
 """
 
 import argparse
@@ -298,6 +298,16 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--remove-paralogs", action=argparse.BooleanOptionalAction, default=True,
+        help=(
+            "Sequence-based (minimap2/mappy) paralog removal from BOTH the test "
+            "AND val sets, to match SpliceAI/OpenSpliceAI and prevent homology "
+            "leakage that inflates val/test metrics. Default ON; pass "
+            "--no-remove-paralogs for a quick smoke (or if mappy is unavailable). "
+            "Adds a one-time startup cost (gene-sequence extraction + alignment)."
+        ),
+    )
+    parser.add_argument(
         "--smoke", action="store_true",
         help=(
             "Smoke mode: override defaults to a tiny config that runs "
@@ -307,6 +317,28 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+
+    # ── Self-logging: tee stdout+stderr to <output-dir>/train.log ────────
+    # So every run's full log (cache build + split + epochs) is co-located with
+    # its outputs and transfers back with them. Resolve output_dir the same way
+    # the training loop does (depends only on --output-dir / --mode).
+    output_dir = args.output_dir or Path(f"output/meta_layer/{args.mode}s")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    class _Tee:
+        def __init__(self, stream, fh):
+            self._stream, self._fh = stream, fh
+        def write(self, s):
+            self._stream.write(s); self._fh.write(s); self._fh.flush()
+        def flush(self):
+            self._stream.flush(); self._fh.flush()
+        def __getattr__(self, name):
+            return getattr(self._stream, name)
+
+    _log_fh = open(output_dir / "train.log", "a")
+    _log_fh.write(f"\n{'='*70}\n# run started {time.strftime('%Y-%m-%d %H:%M:%S')}  argv: {' '.join(sys.argv[1:])}\n{'='*70}\n")
+    sys.stdout = _Tee(sys.stdout, _log_fh)
+    sys.stderr = _Tee(sys.stderr, _log_fh)
 
     # ── Smoke-mode defaults (only override if the user kept the default) ──
     if args.smoke:
@@ -424,9 +456,21 @@ def main() -> int:
     gene_annotations = extract_gene_annotations(gtf_path, verbosity=0)
     log.info("Gene annotations: %d genes (%s)", gene_annotations.height, ann_src)
 
-    # ── Gene split ───────────────────────────────────────────────────
+    # ── Gene split (SpliceAI chromosome holdout + homology-aware paralog removal) ──
     gene_chroms = gene_chromosomes_from_dataframe(gene_annotations)
-    gene_split = build_gene_split(gene_chroms, preset="spliceai", val_fraction=0.1)
+    gene_seqs = None
+    if args.remove_paralogs:
+        # Sequence-based paralog removal (SpliceAI/OpenSpliceAI-faithful) needs the
+        # full gene sequence for every gene being split. One-time startup cost.
+        from agentic_spliceai.splice_engine.base_layer.data.genomic_extraction import (
+            extract_gene_sequences,
+        )
+        print(f"  Extracting gene sequences for paralog removal ({gene_annotations.height} genes)...")
+        gene_seqs = extract_gene_sequences(gene_annotations, fasta_path)
+    gene_split = build_gene_split(
+        gene_chroms, preset="spliceai", val_fraction=0.1,
+        gene_sequences=gene_seqs,
+    )
     print(gene_split.summary())
 
     train_genes = sorted(gene_split.train_genes)

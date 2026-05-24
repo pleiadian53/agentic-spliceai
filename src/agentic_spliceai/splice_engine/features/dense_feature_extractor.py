@@ -619,17 +619,42 @@ class DenseFeatureExtractor:
 
         path = self.config.eclip_parquet
         if path is None:
-            # Auto-resolve from build. Like junction reads, eCLIP peaks are an
-            # experimental dataset (ENCODE) that applies to any base model on
-            # the same build. Currently the parquet lives under the annotation
-            # stash (data/<annotation>/<build>/rbp_data/); a future refactor
-            # should move it under data/<build>/rbp_data/ alongside junctions.
+            # Auto-resolve from build. Like junction reads, eCLIP peaks (ENCODE)
+            # are keyed by genomic coordinates and apply to any base model /
+            # annotation on the same build. The parquet currently lives under an
+            # annotation stash (data/<annotation>/<build>/rbp_data/, in practice
+            # MANE); the build-level dir (data/<build>/rbp_data/, alongside
+            # junction_data/) is the canonical target. We must NOT resolve via a
+            # single registry.stash: get_genomic_registry(build) defaults to the
+            # Ensembl annotation, whose stash lacks the parquet, so the dense
+            # path silently zero-filled RBP for every meta model (M*-S) => the
+            # position-level rbp_eclip modality resolves via the *base-model*
+            # registry stash and so found it — hence the divergence. Probe all
+            # plausible locations and take the first that exists.
             try:
                 from agentic_spliceai.splice_engine.resources import get_genomic_registry
                 registry = get_genomic_registry(build=self.config.build)
-                candidate = Path(registry.stash) / "rbp_data" / "eclip_peaks.parquet"
-                if candidate.exists():
-                    path = candidate
+                build_data_dir = registry.get_build_data_dir()  # data/<build>
+                data_root = build_data_dir.parent               # data/
+                rbp_dirs = [
+                    build_data_dir / "rbp_data",
+                    Path(registry.stash) / "rbp_data",
+                    data_root / "mane" / self.config.build / "rbp_data",
+                    data_root / "ensembl" / self.config.build / "rbp_data",
+                ]
+                # RBP is a SINGLE channel resolved internally — exactly like the
+                # epigenetic / conservation bigWig channels. There is intentionally
+                # NO per-script eclip flag: by default we harness ALL available RBP
+                # evidence (RBP is already our weakest modality — only ENCODE
+                # K562/HepG2 + neuronal SH-SY5Y/H9). So prefer the all-cell-line
+                # union (eclip_peaks_neuronal.parquet) over the ENCODE-only subset
+                # (eclip_peaks.parquet). The union is pre-deduplicated, so we take
+                # ONE file (never concat both — that double-counts shared ENCODE
+                # peaks in the rbp_n_bound count). Cell-line subsetting, if ever
+                # needed, belongs in a config file, not the CLI.
+                rbp_names = ["eclip_peaks_neuronal.parquet", "eclip_peaks.parquet"]
+                candidates = [d / n for n in rbp_names for d in rbp_dirs]
+                path = next((c for c in candidates if c.exists()), None)
             except Exception as e:
                 logger.warning(
                     "Could not resolve eCLIP parquet for build=%r: %s. "

@@ -1,9 +1,11 @@
 #!/usr/bin/env python
-"""Evaluate M1-S at alternative splice sites (M2a/M2b).
+"""Evaluate the meta model at alternative splice sites (M2a/M2b).
 
 Tests whether the meta-layer generalizes beyond MANE training annotations
 by evaluating at splice sites present in a richer annotation (Ensembl or
-GENCODE) but absent from MANE.
+GENCODE) but absent from MANE. **M2-S is the alt-site model**, so the examples
+use it; running an M1-S checkpoint here is a valid canonical-vs-alt baseline,
+not the primary use.
 
 Reports two sets of metrics:
   1. **Overall**: all sites in the evaluation annotation
@@ -13,26 +15,32 @@ For M2b with GENCODE, also reports tiered breakdown:
   - Tier 1: GENCODE ∩ Ensembl, not MANE (well-supported alternatives)
   - Tier 2: GENCODE-only (rare isoforms, computational predictions)
 
-Uses streaming evaluation — only one gene's arrays in memory at a time.
+Uses streaming evaluation — only one gene's arrays in memory at a time. The RBP
+channel resolves the full eCLIP union internally (like every modality) — no flag.
+Paths below are real; run from the repo root, or the pod's ~/sky_workdir where
+data/ and output/ are symlinked to the volume.
 
 Usage:
-    # M2a: Ensembl \\ MANE (requires Ensembl gene cache)
+    # M2a: Ensembl \\ MANE — build the Ensembl test cache, then evaluate.
+    # --remove-paralogs is ON by default (leakage-clean held-out test).
     python 09_evaluate_alternative_sites.py \\
-        --checkpoint output/meta_layer/m1s/best.pt \\
+        --checkpoint output/meta_layer/m2s_v3_neuronal/best.pt \\
         --annotation-source ensembl \\
         --build-cache \\
+        --cache-dir output/meta_layer/gene_cache_ensembl_neuronal \\
         --base-scores-dir data/ensembl/GRCh38/openspliceai_eval/precomputed
 
-    # From existing cache (--cache-dir is the parent holding train/val/test subdirs,
-    # matching the convention used by 07_train_sequence_model.py)
+    # Re-evaluate from the already-built cache (--cache-dir is the parent that
+    # holds train/val/test; its test/ subdir must have been built above).
     python 09_evaluate_alternative_sites.py \\
-        --checkpoint output/meta_layer/m1s/best.pt \\
+        --checkpoint output/meta_layer/m2s_v3_neuronal/best.pt \\
         --annotation-source ensembl \\
-        --cache-dir output/meta_layer/gene_cache_ensembl
+        --cache-dir output/meta_layer/gene_cache_ensembl_neuronal
 
-    # M2b: GENCODE \\ MANE (requires GENCODE gene cache)
+    # M2b: GENCODE \\ MANE. Requires the GENCODE GTF + splice_sites_enhanced.tsv
+    # staged under data/gencode/GRCh38/ first (not present by default).
     python 09_evaluate_alternative_sites.py \\
-        --checkpoint output/meta_layer/m1s/best.pt \\
+        --checkpoint output/meta_layer/m2s_v3_neuronal/best.pt \\
         --annotation-source gencode \\
         --gtf data/gencode/GRCh38/gencode.v47.annotation.gtf \\
         --build-cache
@@ -178,6 +186,13 @@ def main():
         help="Local directory with cached conservation bigWig files.",
     )
     parser.add_argument(
+        "--remove-paralogs", action=argparse.BooleanOptionalAction, default=True,
+        help="For the default SpliceAI test set, drop test genes that are "
+             "sequence paralogs of training genes (minimap2/mappy) so the "
+             "reported alt-site metrics are leakage-clean. Default ON; ignored "
+             "when --test-chroms is given (explicit user selection).",
+    )
+    parser.add_argument(
         "--test-chroms", nargs="+", default=None,
         help="Evaluate on genes from these chromosomes "
              "(default: SpliceAI test set chr1,3,5,7,9)",
@@ -265,12 +280,24 @@ def main():
         test_chroms = sorted(set(gene_chroms[g] for g in test_genes))
         print(f"  Eval genes: {len(test_genes)} on {test_chroms}")
     else:
-        gene_split = build_gene_split(gene_chroms, preset="spliceai", val_fraction=0.0)
+        gene_seqs = None
+        if args.remove_paralogs:
+            from agentic_spliceai.splice_engine.base_layer.data.genomic_extraction import (
+                extract_gene_sequences,
+            )
+            print(f"  Extracting gene sequences for paralog-clean test set "
+                  f"({gene_annotations.height} genes)...")
+            gene_seqs = extract_gene_sequences(gene_annotations, str(resources.get_fasta_path()))
+        gene_split = build_gene_split(
+            gene_chroms, preset="spliceai", val_fraction=0.0, gene_sequences=gene_seqs,
+        )
         test_genes = sorted(gene_split.test_genes)
         test_chroms = sorted(set(
             gene_chroms.get(g, "unknown") for g in test_genes if g in gene_chroms
         ))
-        print(f"  Eval genes: {len(test_genes)} (SpliceAI test: {test_chroms})")
+        n_removed = len(gene_split.test_paralogs_removed)
+        print(f"  Eval genes: {len(test_genes)} (SpliceAI test: {test_chroms}; "
+              f"{n_removed} paralogs removed)")
 
     if args.max_genes:
         test_genes = test_genes[:args.max_genes]
