@@ -198,11 +198,5 @@ dmypy.json
 .windsurf/
 tasks/
 
-# Obsidian
-.obsidian/workspace.json
-.obsidian/workspace-mobile.json
-.obsidian/graph.json
-.obsidian/backlink.json
-.obsidian/canvas.json
-.obsidian/plugins/*/data.json
-.obsidian/hotkeys.json
+# Obsidian (vault config / per-machine state — not part of the codebase)
+.obsidian/
