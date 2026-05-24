@@ -172,13 +172,24 @@
 <!-- Controls -->
 <div class="card genome-controls">
     <div class="control-group">
-        <label for="model-select">Model</label>
+        <label for="model-select">Base model</label>
         <select id="model-select">
             {% for m in models %}
             <option value="{{ m }}" {% if m == default_model %}selected{% endif %}>{{ m }}</option>
             {% endfor %}
         </select>
     </div>
+    {% if meta_models %}
+    <div class="control-group">
+        <label for="meta-select">Meta overlay</label>
+        <select id="meta-select">
+            <option value="">— none (base only) —</option>
+            {% for mm in meta_models %}
+            <option value="{{ mm }}">{{ mm }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
     <div class="control-group">
         <label for="threshold-range">Threshold</label>
         <input type="range" id="threshold-range" min="0" max="1" step="0.05" value="0.5">
@@ -260,12 +271,18 @@ thresholdRange.addEventListener('input', function() {
 
 async function runPrediction() {
     const model = document.getElementById('model-select').value;
+    const metaEl = document.getElementById('meta-select');
+    const meta = metaEl ? metaEl.value : '';
     const threshold = thresholdRange.value;
 
-    setState('loading', 'Running splice site prediction...', 'This may take 5-15 seconds on first load');
+    const hint = meta
+        ? 'Meta overlay — first load builds features (slow for novel genes; instant for warmed showcase genes)'
+        : 'This may take 5-15 seconds on first load';
+    setState('loading', meta ? `Running base + ${meta} overlay...` : 'Running splice site prediction...', hint);
 
     try {
-        const url = `/api/genome/${encodeURIComponent(GENE_NAME)}/predict?model=${model}&threshold=${threshold}`;
+        let url = `/api/genome/${encodeURIComponent(GENE_NAME)}/predict?model=${model}&threshold=${threshold}`;
+        if (meta) url += `&meta=${encodeURIComponent(meta)}`;
         const resp = await fetch(url);
 
         if (!resp.ok) {
@@ -288,22 +305,32 @@ async function runPrediction() {
 function renderGeneInfo(data) {
     const chips = document.getElementById('gene-info-chips');
     const len = data.gene_end - data.gene_start;
-    chips.innerHTML = `
+    let chipsHtml = `
         <div class="info-chip"><span class="label">Chr</span><span class="value">${data.chrom}</span></div>
         <div class="info-chip"><span class="label">Strand</span><span class="value">${data.strand}</span></div>
         <div class="info-chip"><span class="label">Start</span><span class="value">${data.gene_start.toLocaleString()}</span></div>
         <div class="info-chip"><span class="label">End</span><span class="value">${data.gene_end.toLocaleString()}</span></div>
         <div class="info-chip"><span class="label">Length</span><span class="value">${len.toLocaleString()} bp</span></div>
-        <div class="info-chip"><span class="label">Model</span><span class="value">${data.model}</span></div>
-        <div class="info-chip"><span class="label">Threshold</span><span class="value">${data.threshold}</span></div>
-    `;
+        <div class="info-chip"><span class="label">Base</span><span class="value">${data.model}</span></div>`;
+    if (data.meta_model) {
+        chipsHtml += `<div class="info-chip" style="background:#eafaf1;"><span class="label">Meta</span><span class="value">${data.meta_model}</span></div>`;
+    }
+    chipsHtml += `<div class="info-chip"><span class="label">Threshold</span><span class="value">${data.threshold}</span></div>`;
+    chips.innerHTML = chipsHtml;
 
     const summary = document.getElementById('class-summary');
-    summary.innerHTML = `
+    const baseTag = data.meta_model ? '<span style="font-weight:600;margin-right:6px;">Base:</span>' : '';
+    let summaryHtml = `${baseTag}
         <span class="class-badge tp"><span class="dot"></span>TP: ${data.n_tp}</span>
         <span class="class-badge fp"><span class="dot"></span>FP: ${data.n_fp}</span>
-        <span class="class-badge fn"><span class="dot"></span>FN: ${data.n_fn}</span>
-    `;
+        <span class="class-badge fn"><span class="dot"></span>FN: ${data.n_fn}</span>`;
+    if (data.meta_model) {
+        summaryHtml += `<br><span style="font-weight:600;margin-right:6px;color:#27ae60;">Meta:</span>
+            <span class="class-badge tp"><span class="dot"></span>TP: ${data.meta_n_tp}</span>
+            <span class="class-badge fp"><span class="dot"></span>FP: ${data.meta_n_fp}</span>
+            <span class="class-badge fn"><span class="dot"></span>FN: ${data.meta_n_fn}</span>`;
+    }
+    summary.innerHTML = summaryHtml;
 
     // Downsample notice
     const notice = document.getElementById('downsample-notice');
@@ -340,10 +367,10 @@ function renderTracks(data) {
         {
             x: data.positions,
             y: data.donor_prob,
-            type: 'scatter',
+            type: 'scattergl',
             mode: 'lines',
             line: { color: '#3572a5', width: 1.2 },
-            name: 'Donor Prob',
+            name: data.meta_model ? 'Base Donor' : 'Donor Prob',
             xaxis: 'x',
             yaxis: 'y',
             hovertemplate: 'Pos: %{x:,}<br>Prob: %{y:.4f}<extra>Donor</extra>',
@@ -365,10 +392,10 @@ function renderTracks(data) {
         {
             x: data.positions,
             y: data.acceptor_prob,
-            type: 'scatter',
+            type: 'scattergl',
             mode: 'lines',
             line: { color: '#e74c3c', width: 1.2 },
-            name: 'Acceptor Prob',
+            name: data.meta_model ? 'Base Acceptor' : 'Acceptor Prob',
             xaxis: 'x',
             yaxis: 'y2',
             hovertemplate: 'Pos: %{x:,}<br>Prob: %{y:.4f}<extra>Acceptor</extra>',
@@ -425,6 +452,40 @@ function renderTracks(data) {
             hovertemplate: 'Pos: %{x:,}<br>Score: %{y:.4f}<br>%{customdata}<extra>FN</extra>',
         },
     ];
+
+    // --- Meta overlay (base-vs-meta): dashed green prob lines + open-diamond markers ---
+    if (data.meta_model) {
+        traces.push({
+            x: data.positions, y: data.meta_donor_prob,
+            type: 'scattergl', mode: 'lines',
+            line: { color: '#27ae60', width: 1.5, dash: 'dot' },
+            name: 'Meta Donor', xaxis: 'x', yaxis: 'y',
+            hovertemplate: 'Pos: %{x:,}<br>Prob: %{y:.4f}<extra>Meta Donor</extra>',
+        });
+        traces.push({
+            x: data.positions, y: data.meta_acceptor_prob,
+            type: 'scattergl', mode: 'lines',
+            line: { color: '#27ae60', width: 1.5, dash: 'dot' },
+            name: 'Meta Acceptor', xaxis: 'x', yaxis: 'y2',
+            hovertemplate: 'Pos: %{x:,}<br>Prob: %{y:.4f}<extra>Meta Acceptor</extra>',
+        });
+        const mtp = data.meta_markers.filter(m => m.pred_type === 'TP');
+        const mfp = data.meta_markers.filter(m => m.pred_type === 'FP');
+        const mfn = data.meta_markers.filter(m => m.pred_type === 'FN');
+        const metaMarker = (arr, color, sym, name) => ({
+            x: arr.map(m => m.position),
+            y: arr.map(m => m.site_type === 'donor' ? m.donor_score : m.acceptor_score),
+            type: 'scatter', mode: 'markers',
+            marker: { color: color, size: 8, symbol: sym, line: { color: color, width: 1.5 } },
+            name: name, xaxis: 'x', yaxis: 'y3',
+            customdata: arr.map(m => `${m.site_type} | D=${m.donor_score.toFixed(3)} A=${m.acceptor_score.toFixed(3)}`),
+            hovertemplate: 'Pos: %{x:,}<br>Score: %{y:.4f}<br>%{customdata}<extra>' + name + '</extra>',
+        });
+        // Open diamonds distinguish meta classifications from the base markers above.
+        traces.push(metaMarker(mtp, '#27ae60', 'diamond-open', `Meta TP (${mtp.length})`));
+        traces.push(metaMarker(mfp, '#e74c3c', 'diamond-open', `Meta FP (${mfp.length})`));
+        traces.push(metaMarker(mfn, '#f39c12', 'diamond-open', `Meta FN (${mfn.length})`));
+    }
 
     // Ground truth as vertical line shapes on the classification track
     const shapes = [];

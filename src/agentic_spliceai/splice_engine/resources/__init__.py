@@ -23,6 +23,8 @@ from .model_resources import (
     ModelResources,
     get_model_resources,
     list_available_models,
+    list_available_meta_models,
+    get_meta_model_config,
     get_model_info,
 )
 from .schema import (
@@ -42,6 +44,8 @@ __all__ = [
     'ModelResources',
     'get_model_resources',
     'list_available_models',
+    'list_available_meta_models',
+    'get_meta_model_config',
     'get_model_info',
     # Registry
     'Registry',

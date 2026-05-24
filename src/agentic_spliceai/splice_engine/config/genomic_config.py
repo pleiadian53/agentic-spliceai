@@ -22,6 +22,7 @@ class Config:
     derived_datasets: dict = None  # Filenames for derived datasets
     annotation_sources: dict = None  # Available annotation sources (Ensembl, MANE, GENCODE)
     base_models: dict = None  # Base model specifications
+    meta_models: dict = None  # Meta-layer model specifications (M*-S checkpoints)
     default_annotation_source: str = "ensembl"  # Default annotation source
     
     def get_annotation_source(self, build: str = None) -> str:
@@ -287,6 +288,7 @@ def load_config(path: str = None) -> Config:
         derived_datasets=y.get("derived_datasets", {}),
         annotation_sources=y.get("annotation_sources", {}),
         base_models=y.get("base_models", {}),
+        meta_models=y.get("meta_models", {}),
         default_annotation_source=y.get("default_annotation_source", "ensembl")
     )
 

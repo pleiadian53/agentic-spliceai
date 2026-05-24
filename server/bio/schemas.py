@@ -75,3 +75,15 @@ class GenomeResponse(BaseModel):
     n_fn: int
     downsample_factor: int
     total_positions: int
+
+    # ── Meta-layer overlay (populated only when a meta model is requested) ──
+    # When set, donor_prob/acceptor_prob/markers/n_* above are the BASE model's
+    # (the exact OpenSpliceAI scores the meta layer refines), and these carry the
+    # meta layer's prediction at the same positions — for a base-vs-meta overlay.
+    meta_model: Optional[str] = None
+    meta_donor_prob: Optional[List[float]] = None
+    meta_acceptor_prob: Optional[List[float]] = None
+    meta_markers: Optional[List[SpliceSiteMarker]] = None
+    meta_n_tp: Optional[int] = None
+    meta_n_fp: Optional[int] = None
+    meta_n_fn: Optional[int] = None

@@ -282,6 +282,33 @@ def list_available_models() -> list[str]:
     return list(cfg.base_models.keys()) if cfg.base_models else []
 
 
+def list_available_meta_models() -> list[str]:
+    """List configured meta-layer models (M*-S).
+
+    Returns the names from the ``meta_models`` block of settings.yaml
+    (e.g. ``['m1s_v3_neuronal', 'm2s_v3_neuronal']``). Empty if none configured.
+    """
+    cfg = load_config()
+    return list(cfg.meta_models.keys()) if cfg.meta_models else []
+
+
+def get_meta_model_config(name: str) -> dict:
+    """Return the settings.yaml config dict for a meta-layer model.
+
+    Raises
+    ------
+    ValueError
+        If ``name`` is not in the ``meta_models`` block.
+    """
+    cfg = load_config()
+    meta = cfg.meta_models or {}
+    if name not in meta:
+        raise ValueError(
+            f"Unknown meta model: {name}. Configured: {list(meta.keys())}"
+        )
+    return meta[name]
+
+
 def get_model_info(model_name: str) -> dict:
     """Get full configuration information for a model.
     

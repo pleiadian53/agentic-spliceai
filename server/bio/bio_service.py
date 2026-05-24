@@ -21,6 +21,8 @@ from fastapi.templating import Jinja2Templates
 from agentic_spliceai.splice_engine.resources import (
     get_model_resources,
     list_available_models,
+    list_available_meta_models,
+    get_meta_model_config,
 )
 from agentic_spliceai.splice_engine.base_layer.data.preparation import (
     prepare_splice_site_annotations,
@@ -36,6 +38,7 @@ from agentic_spliceai.splice_engine.base_layer.prediction.evaluation import (
 from . import config
 from .gene_cache import get_genes, get_gene_stats, get_chromosomes
 from .model_cache import get_models as get_cached_models, is_cached as is_model_cached
+from .meta_inference import build_overlay_predictions
 from .schemas import (
     GeneRecord, GeneListResponse, GeneStatsResponse, ModelInfo,
     GenomeResponse, SpliceSiteMarker,
@@ -315,6 +318,7 @@ async def genome_view_page(request: Request, gene_name: str):
         "gene_name": gene_name,
         "models": models,
         "default_model": models[0] if models else None,
+        "meta_models": list_available_meta_models(),
     })
 
 
@@ -441,22 +445,209 @@ def _build_genome_response(
     ).model_dump()
 
 
+# =========================
+# Meta-layer overlay (Phase B–E): base vs meta prediction
+# =========================
+
+# Meta-overlay LRU cache: (gene_name, meta_model) -> (base_pred, meta_pred, annotations_df)
+_meta_prediction_cache: OrderedDict[tuple[str, str], tuple[dict, dict, pl.DataFrame]] = OrderedDict()
+
+
+def _meta_cache_put(key: tuple[str, str], value: tuple[dict, dict, pl.DataFrame]) -> None:
+    _meta_prediction_cache[key] = value
+    _meta_prediction_cache.move_to_end(key)
+    while len(_meta_prediction_cache) > config.MAX_CACHED_PREDICTIONS:
+        ek, _ = _meta_prediction_cache.popitem(last=False)
+        logger.info(f"Meta prediction cache evicted: {ek[0]}/{ek[1]}")
+
+
+def _meta_cache_get(key: tuple[str, str]) -> tuple[dict, dict, pl.DataFrame] | None:
+    if key in _meta_prediction_cache:
+        _meta_prediction_cache.move_to_end(key)
+        return _meta_prediction_cache[key]
+    return None
+
+
+def _markers_and_counts(positions_df: pl.DataFrame):
+    """Build SpliceSiteMarkers + (n_tp, n_fp, n_fn) from an evaluated positions_df."""
+    markers = []
+    if positions_df.height > 0:
+        for row in positions_df.filter(
+            pl.col('pred_type').is_in(['TP', 'FP', 'FN'])
+        ).iter_rows(named=True):
+            markers.append(SpliceSiteMarker(
+                position=row['position'], site_type=row['splice_type'],
+                pred_type=row['pred_type'],
+                donor_score=row.get('donor_score', 0.0),
+                acceptor_score=row.get('acceptor_score', 0.0),
+            ))
+        pred_types = positions_df['pred_type'].to_list()
+    else:
+        pred_types = []
+    return markers, pred_types.count('TP'), pred_types.count('FP'), pred_types.count('FN')
+
+
+def _build_overlay_response(
+    gene_name: str, base_model_name: str, meta_model_name: str,
+    base_pred: dict, meta_pred: dict, annotations_df: pl.DataFrame,
+    base_positions_df: pl.DataFrame, meta_positions_df: pl.DataFrame,
+    threshold: float,
+) -> dict:
+    """Build a base-vs-meta overlay response (shared, peak-preserving downsample)."""
+    import numpy as np
+    gene_id = next(iter(base_pred))
+    bp, mp = base_pred[gene_id], meta_pred[gene_id]
+    positions = bp['positions']
+    n_total = len(positions)
+    bd, ba = np.asarray(bp['donor_prob']), np.asarray(bp['acceptor_prob'])
+    md, ma = np.asarray(mp['donor_prob']), np.asarray(mp['acceptor_prob'])
+
+    # Shared downsample indices: peaks in EITHER base or meta + background.
+    # The meta layer fires on far more positions than the (sparse) base model,
+    # so a 0.01 floor floods the point set; use a higher 0.05 floor and a hard
+    # cap, but ALWAYS keep called sites (prob > threshold in either model) so no
+    # TP/FP peak is dropped from the line.
+    factor = max(1, n_total // MAX_PLOT_POINTS)
+    if factor <= 1:
+        idx = list(range(n_total))
+    else:
+        called = (bd > threshold) | (ba > threshold) | (md > threshold) | (ma > threshold)
+        called_idx = set(np.where(called)[0].tolist())
+        peak = (bd > 0.05) | (ba > 0.05) | (md > 0.05) | (ma > 0.05)
+        peak_idx = set(np.where(peak)[0].tolist())
+        bg_idx = set(range(0, n_total, factor))
+        idx_set = called_idx | peak_idx | bg_idx
+        cap = 3 * MAX_PLOT_POINTS
+        if len(idx_set) > cap:
+            # subsample the non-called points; never drop a called site
+            droppable = sorted(idx_set - called_idx)
+            step = max(1, len(droppable) // max(1, cap - len(called_idx)))
+            idx_set = called_idx | set(droppable[::step])
+        idx = sorted(idx_set)
+
+    base_markers, b_tp, b_fp, b_fn = _markers_and_counts(base_positions_df)
+    meta_markers, m_tp, m_fp, m_fn = _markers_and_counts(meta_positions_df)
+
+    if 'gene_name' in annotations_df.columns:
+        gene_annot = annotations_df.filter(pl.col('gene_name') == gene_name)
+    else:
+        gene_annot = annotations_df
+    gt_positions = gene_annot['position'].to_list() if gene_annot.height > 0 else []
+    gt_site_types = gene_annot['splice_type'].to_list() if gene_annot.height > 0 else []
+
+    return GenomeResponse(
+        gene_name=bp.get('gene_name', gene_name), gene_id=gene_id,
+        chrom=bp.get('chrom', bp.get('seqname')), strand=bp['strand'],
+        gene_start=bp['gene_start'], gene_end=bp['gene_end'],
+        model=base_model_name, threshold=threshold,
+        positions=[positions[i] for i in idx],
+        donor_prob=[float(bd[i]) for i in idx],
+        acceptor_prob=[float(ba[i]) for i in idx],
+        gt_positions=gt_positions, gt_site_types=gt_site_types,
+        markers=base_markers, n_tp=b_tp, n_fp=b_fp, n_fn=b_fn,
+        downsample_factor=factor, total_positions=n_total,
+        meta_model=meta_model_name,
+        meta_donor_prob=[float(md[i]) for i in idx],
+        meta_acceptor_prob=[float(ma[i]) for i in idx],
+        meta_markers=meta_markers, meta_n_tp=m_tp, meta_n_fp=m_fp, meta_n_fn=m_fn,
+    ).model_dump()
+
+
+async def _genome_predict_meta(gene_name: str, meta_model_name: str,
+                               threshold: float, loop) -> dict:
+    """Genome prediction with a meta-layer overlay (base vs meta)."""
+    base_model_name = get_meta_model_config(meta_model_name).get('base_model', 'openspliceai')
+    cache_key = (gene_name, meta_model_name)
+
+    cached = _meta_cache_get(cache_key)
+    if cached is not None:
+        logger.info(f"Meta prediction cache hit: {gene_name}/{meta_model_name}")
+        base_pred, meta_pred, annotations_df = cached
+    else:
+        logger.info(f"Meta prediction cache miss: {gene_name}/{meta_model_name}")
+        resources = get_model_resources(base_model_name)
+        build, annotation_source = resources.build, resources.annotation_source
+        annotations_dir = resources.get_annotations_dir(create=True)
+
+        annotations_result = await loop.run_in_executor(
+            None, lambda: prepare_splice_site_annotations(
+                output_dir=str(annotations_dir), genes=[gene_name],
+                build=build, annotation_source=annotation_source, verbosity=0),
+        )
+        annotations_df = annotations_result['splice_sites_df']
+
+        genes_df = await loop.run_in_executor(
+            None, lambda: prepare_gene_data(
+                genes=[gene_name], build=build,
+                annotation_source=annotation_source, verbosity=0),
+        )
+        if genes_df.height == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Gene '{gene_name}' not found in {build}/{annotation_source}",
+            )
+        row = genes_df.row(0, named=True)
+        try:
+            base_pred, meta_pred = await loop.run_in_executor(
+                None, lambda: build_overlay_predictions(
+                    meta_model_name, row['gene_id'], gene_name,
+                    row['chrom'], row['strand'], row['start'], row['end']),
+            )
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        _meta_cache_put(cache_key, (base_pred, meta_pred, annotations_df))
+
+    filtered_annot = filter_annotations_by_transcript(
+        annotations_df, mode='canonical', verbosity=0,
+    )
+    base_eval, meta_eval = await asyncio.gather(
+        loop.run_in_executor(None, lambda: evaluate_splice_site_predictions(
+            predictions=base_pred, annotations_df=filtered_annot, threshold=threshold,
+            consensus_window=2, collect_tn=False, verbosity=0, return_pr_metrics=False)),
+        loop.run_in_executor(None, lambda: evaluate_splice_site_predictions(
+            predictions=meta_pred, annotations_df=filtered_annot, threshold=threshold,
+            consensus_window=2, collect_tn=False, verbosity=0, return_pr_metrics=False)),
+    )
+    return _build_overlay_response(
+        gene_name, base_model_name, meta_model_name, base_pred, meta_pred,
+        filtered_annot, base_eval[1], meta_eval[1], threshold,
+    )
+
+
 @app.get("/api/genome/{gene_name}/predict")
 async def genome_predict(
     gene_name: str,
-    model: str = Query(..., description="Model type (e.g., openspliceai)"),
+    model: str = Query(..., description="Base model type (e.g., openspliceai)"),
     threshold: float = Query(0.5, ge=0.0, le=1.0, description="Classification threshold"),
+    meta: str | None = Query(None, description="Optional meta model (e.g. m1s_v3_neuronal) for a base-vs-meta overlay"),
 ):
     """Run on-demand splice site prediction for a single gene.
 
     Caches the expensive prediction + annotation steps per (gene, model).
     Only the lightweight evaluation is re-run when threshold changes.
+
+    If ``meta`` is given, returns a base-vs-meta overlay instead: the base
+    arrays carry the OpenSpliceAI scores the meta layer refines, and the
+    ``meta_*`` fields carry the meta layer's prediction at the same positions.
     """
     available = list_available_models()
     if model not in available:
         raise HTTPException(status_code=400, detail=f"Unknown model: {model}")
 
     loop = asyncio.get_event_loop()
+
+    # Meta-layer overlay path (base vs meta) when a meta model is requested.
+    if meta:
+        if meta not in list_available_meta_models():
+            raise HTTPException(status_code=400, detail=f"Unknown meta model: {meta}")
+        try:
+            return await _genome_predict_meta(gene_name, meta, threshold, loop)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Meta prediction failed for {gene_name}/{meta}")
+            raise HTTPException(status_code=500, detail=str(e))
+
     cache_key = (gene_name, model)
 
     try:

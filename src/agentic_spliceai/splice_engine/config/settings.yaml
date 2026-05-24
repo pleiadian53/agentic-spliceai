@@ -76,6 +76,24 @@ base_models:
     paper: "OpenSpliceAI GitHub"
     notes: "Trained on GRCh38 MANE, best evaluated on GRCh38 MANE annotations"
 
+# Meta-layer models (M*-S): sequence-level multimodal refiners that sit ON TOP of
+# a base model's per-position scores. Checkpoints live under output/meta_layer/;
+# each refines the `base_model` (here OpenSpliceAI, GRCh38/MANE) using dense
+# multimodal features (conservation, epigenetic, chromatin, junction, RBP).
+meta_models:
+  m1s_v3_neuronal:
+    name: "M1-S (canonical)"
+    variant: "M1-S"
+    dir: "output/meta_layer/m1s_v3_neuronal"
+    base_model: "openspliceai"
+    notes: "Canonical splice-site refiner; held-out FN −93% vs base."
+  m2s_v3_neuronal:
+    name: "M2-S (alternative)"
+    variant: "M2-S"
+    dir: "output/meta_layer/m2s_v3_neuronal"
+    base_model: "openspliceai"
+    notes: "Alternative-site model; alt-site recall ~6× vs base (Ensembl\\MANE)."
+
 # External genomic tracks (conservation, epigenetic, etc.)
 # Used by feature modalities that access bigWig/bigBed files.
 # Each track has build-specific URLs and local filenames.
