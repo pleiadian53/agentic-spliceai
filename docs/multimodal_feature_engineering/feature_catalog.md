@@ -15,7 +15,7 @@ feature engineering pipeline. Each modality is a registered `Modality` subclass 
 | `conservation` | 9 | External data | UCSC PhyloP/PhastCons bigWig tracks | Evolutionary constraint from multi-species alignment |
 | `epigenetic` | 12 | External data | ENCODE ChIP-seq bigWig tracks | Histone modification signals across cell types |
 | `junction` | 12 | External data | STAR SJ.out.tab / GTEx / recount3 | RNA-seq splice junction read evidence |
-| `rbp_eclip` | 8 | External data | ENCODE eCLIP narrowPeak (K562, HepG2) | RNA-binding protein occupancy at splice sites |
+| `rbp_eclip` | 8 | External data | ENCODE eCLIP (K562, HepG2); the M\*-S dense channel adds neuronal CLIP (SH-SY5Y/H9 — TARDBP/TDP-43) | RNA-binding protein occupancy at splice sites |
 | `chrom_access` | 12 | External data | ENCODE ATAC-seq (5 cell lines) + DNase-seq (5 primary tissues) | Chromatin accessibility (open vs closed chromatin) |
 | `fm_embeddings` | 8 | Foundation model | Pre-extracted embeddings (Evo2, SpliceBERT, etc.) | Label-agnostic scalar features from foundation model representations |
 
@@ -266,14 +266,28 @@ Source file: `modalities/junction.py`
 
 #### rbp_eclip (8 columns)
 
-RNA-binding protein (RBP) occupancy from ENCODE eCLIP experiments. Features are
-**sparse** — most positions have zero values (no overlapping peaks). Uses pre-aggregated
-parquet from `scripts/data/aggregate_eclip_peaks.py` which queries the ENCODE REST API
-for IDR-filtered replicate-merged narrowPeak files.
+RNA-binding protein (RBP) occupancy from eCLIP/CLIP experiments. Features are
+**sparse** — most positions have zero values (no overlapping peaks). Uses a pre-aggregated
+peaks parquet: `scripts/data/aggregate_eclip_peaks.py` queries the ENCODE REST API for
+IDR-filtered replicate-merged narrowPeak files (`eclip_peaks.parquet`).
 
-Default cell lines: K562, HepG2. GRCh38 only; GRCh37 returns zero-filled columns.
+**Neuronal RBP evidence (added 2026-05).** A neuronal-augmented union
+`eclip_peaks_neuronal.parquet` (1,006,734 peaks, 4 cell lines) extends ENCODE
+K562/HepG2 with **neuronal CLIP** from SH-SY5Y and H9 — most importantly **TARDBP
+(TDP-43)**, the single largest RBP at 100,691 peaks and the splicing repressor behind
+the project's ALS/FTD cryptic-exon use cases (UNC13A, STMN2). Two consumers resolve it
+differently:
+- **Position-level modality** (these 8 columns → 116-col feature parquet / XGBoost
+  baseline): defaults to `cell_lines=("K562", "HepG2")` and *filters to them*.
+- **M\*-S sequence-model dense channel** (`DenseFeatureExtractor._get_eclip_peaks`):
+  harnesses the **full union — all evidence incl. neuronal — by default**, resolved
+  internally as ONE pre-deduplicated file, no per-script flag (the "one RBP channel,
+  all evidence" design; see `feedback_rbp_single_channel`).
 
-Source file: `modalities/rbp_eclip.py`
+GRCh38 only; GRCh37 returns zero-filled columns.
+
+Source files: `modalities/rbp_eclip.py` (position-level),
+`features/dense_feature_extractor.py` (M\*-S dense channel).
 
 **See**: [`examples/features/docs/rbp-eclip-tutorial.md`](../../examples/features/docs/rbp-eclip-tutorial.md) for biology background and interpretation guide.
 
@@ -285,7 +299,7 @@ Source file: `modalities/rbp_eclip.py`
 | `rbp_has_splice_regulator` | Derived | Binary: 1.0 if any known splice regulator (SR protein, hnRNP, or core factor) is bound |
 | `rbp_n_sr_proteins` | Derived | Count of SR proteins (SRSF1, SRSF3, etc.) with peaks at this position |
 | `rbp_n_hnrnps` | Derived | Count of hnRNP proteins (HNRNPA1, HNRNPC, etc.) with peaks |
-| `rbp_cell_line_breadth` | Derived | Number of cell lines (0-2) with binding evidence at this position |
+| `rbp_cell_line_breadth` | Derived | Number of cell lines with binding evidence (0–2 for the K562/HepG2 modality default; up to 4 — +SH-SY5Y, H9 — with the neuronal union) |
 | `rbp_mean_signal` | Derived | Mean fold-enrichment across all overlapping peaks |
 
 #### chrom_access (12 columns)

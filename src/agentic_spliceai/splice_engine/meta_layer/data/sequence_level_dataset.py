@@ -421,6 +421,53 @@ class ShardedSequenceLevelDataset(Dataset):
 # ---------------------------------------------------------------------------
 
 
+def _assert_channels_live(
+    index: List["GeneIndexEntry"],
+    channel_names: List[str],
+    sample: int = 64,
+) -> None:
+    """Raise if any declared multimodal channel is all-zero across the cache.
+
+    Guards against the "dead channel" failure mode — e.g. an RBP/eCLIP channel
+    zero-filled because a pre-fix resolver couldn't find its parquet, then baked
+    into a `.npz` cache and silently reused (resume path). A channel that is
+    identically zero in every sampled gene is treated as dead and aborts the run,
+    so no use-case script trains or infers on a modality it never actually saw.
+    Excluded channels are not in ``channel_names``, so legitimately-omitted
+    modalities (e.g. RBP on GRCh37) are not flagged. Disable via
+    ``build_gene_cache(check_live_channels=False)`` only for deliberate edge cases.
+    """
+    if not index or not channel_names:
+        return
+    rng = np.random.default_rng(0)
+    pick = (index if len(index) <= sample
+            else [index[i] for i in rng.choice(len(index), sample, replace=False)])
+    n_ch = len(channel_names)
+    any_nonzero = np.zeros(n_ch, dtype=bool)
+    n_checked = 0
+    for entry in pick:
+        try:
+            mm = np.load(entry.npz_path, allow_pickle=True)["mm_features"]
+        except Exception:
+            continue
+        if mm.ndim != 2 or mm.shape[1] != n_ch:
+            return  # shape/name mismatch — skip rather than false-alarm
+        any_nonzero |= (mm != 0).any(axis=0)
+        n_checked += 1
+    if n_checked == 0:
+        return
+    dead = [channel_names[i] for i in range(n_ch) if not any_nonzero[i]]
+    if dead:
+        raise ValueError(
+            f"Dead feature channel(s) {dead}: all-zero across {n_checked} sampled "
+            f"gene(s). Likely a stale cache or an unresolved data source (e.g. the "
+            f"RBP/eCLIP parquet not found by the resolver). Confirm the modality "
+            f"resolves to real data and rebuild the cache (delete the stale .npz) — "
+            f"do not train/infer on a dead channel. See dev/tasks/lessons.md "
+            f"(2026-05-21 / 2026-05-28 dead-channel entries)."
+        )
+
+
 def build_gene_cache(
     gene_ids: List[str],
     splice_sites_df: "pandas.DataFrame",
@@ -429,6 +476,7 @@ def build_gene_cache(
     feature_extractor: "DenseFeatureExtractor",
     gene_annotations: "polars.DataFrame",
     cache_dir: Path = Path("/tmp/gene_cache"),
+    check_live_channels: bool = True,
 ) -> List[GeneIndexEntry]:
     """Build disk-backed gene cache for training.
 
@@ -507,6 +555,8 @@ def build_gene_cache(
 
     if not genes_to_build:
         logger.info("Gene cache complete: %d genes in %s (all resumed)", len(index), cache_dir)
+        if check_live_channels:
+            _assert_channels_live(index, feature_extractor.channel_names)
         return index
 
     logger.info(
@@ -613,6 +663,8 @@ def build_gene_cache(
         _log_mem(f"{chrom} done")
 
     logger.info("Gene cache complete: %d genes in %s", len(index), cache_dir)
+    if check_live_channels:
+        _assert_channels_live(index, feature_extractor.channel_names)
     return index
 
 

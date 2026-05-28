@@ -150,9 +150,19 @@ could be extended to ingest POSTAR3 data as a future enhancement.
 ### ENCODE Phase 4 Status
 
 ENCODE Phase 4 has expanded chromatin profiling (ChIP-seq, ATAC-seq) to 234 cell types,
-but eCLIP profiling has **not** been expanded to new cell lines as of March 2026. The
-high per-experiment cost (~$5K) and antibody requirements make scaling eCLIP to many
-cell types more challenging than scaling histone ChIP-seq.
+but the ENCODE *eCLIP* program itself has **not** been expanded to new cell lines as of
+March 2026. The high per-experiment cost (~$5K) and antibody requirements make scaling
+eCLIP to many cell types more challenging than scaling histone ChIP-seq.
+
+> **Update (2026-05) — neuronal CLIP added.** Rather than wait on ENCODE, we
+> supplemented the K562/HepG2 eCLIP with **neuronal CLIP from ENCORI** (SH-SY5Y and
+> H9), focused on **TARDBP (TDP-43)** — the ALS/FTD splicing repressor central to our
+> cryptic-exon use cases (UNC13A, STMN2). The result is a pre-deduplicated union
+> `eclip_peaks_neuronal.parquet` (**1,006,734 peaks, 4 cell lines**; TARDBP is the
+> largest RBP at 100,691 peaks). The **M\*-S sequence models' dense RBP channel uses
+> this full union by default** (all evidence, internally resolved, no per-script flag —
+> the "one RBP channel, all evidence" design). The position-level `rbp_eclip` modality
+> (the 8 columns above) still defaults to the K562/HepG2 subset.
 
 ### Practical Implications
 
@@ -231,7 +241,54 @@ Several features in the current design hedge against cancer bias:
 3. **Binary features are cell-type-robust**: `rbp_has_splice_regulator` captures
    whether a regulatory motif *exists* at the position, which is sequence-determined.
 
+### What M3 (and the M*-S sequence models) actually use
+
+⚠️ **The three mitigations above describe the 8-column *tabular* feature set
+(`feature_schema.py RBP_ECLIP_COLS`, used by the XGBoost M1-P baseline).** The
+sequence-level meta-models — **M1-S / M2-S / M3** — consume the *dense* feature
+extractor, which emits a **single** RBP channel: **`rbp_n_bound`** (a count of
+overlapping eCLIP peaks, with the resolver loading the all-cell-line **neuronal
+union**). It therefore **collapses both cell line and RBP identity**. Two
+consequences for the cancer-bias hedge in M3:
+
+- **Mitigations #1 (`rbp_cell_line_breadth`) and #3 (binary `rbp_has_splice_regulator`)
+  do NOT apply to M3** — those columns are not in its feature vector. The
+  breadth=2 ⇒ constitutive discount is unavailable.
+- **Mitigation #2's junction self-correction is also unavailable in M3:** M3
+  drops the `junction` modality from its *inputs* (junctions are the *label*
+  side for novel-site discovery). The surviving cross-modal check is
+  **conservation** (a cancer neo-site with RBP binding but low phyloP is
+  discountable) plus base scores / sequence / epigenetic / chromatin.
+
+**The real hedge for M3 is the label side, not the feature side.** A cancer
+false positive would require the model to *learn* "cancer-RBP-binding ⇒ splice
+site," and that association is driven by the positive labels — which are **not
+cancer-derived**: SpliceVault (multi-tissue, 335K GTEx+SRA samples) + GTEx-novel
+(healthy). The cancer catalogs (SF3B1, ENCODE-KD) are **held-out eval anchors,
+not training positives**. So the training target never rewards firing at cancer
+artifacts. The dominant residual effect of K562/HepG2-only coverage is a
+**missing-signal (coverage) gap** on genes those lines don't express
+(`rbp_n_bound = 0`), which *weakens* M3 there — it does not *fabricate* sites.
+
+**Framing.** M3 is a *recognizer of latent splice-site potential* + post-filter.
+A cancer neo-site with real RBP binding and splice grammar *is* a latent splice
+site; calling it is not a recognizer error. "Healthy-novel vs cancer-specific"
+is a downstream annotation/filtering question (the disease-context / agentic
+layer), not an M3 precision failure. (See `feedback_rbp_single_channel`,
+`feedback_splice_site_coordinate_validation`, and `examples/meta_layer/docs/M3/m3_design.md` §5.)
+
+**M3-applicable checks:** RBP ablation evaluated against the **multi-tissue
+ENCODE4 long-read truth set** (cancer artifacts won't appear in healthy
+long-read data) is the key arbiter; coverage stratification (expressed in
+K562/HepG2 vs not) replaces the tabular breadth stratification below; IG
+attribution to confirm `rbp_n_bound` contributes alongside (not dominates)
+sequence/conservation.
+
 ### Recommended Evaluation Checkpoints
+
+> Note: checkpoints #2 (breadth stratification) and #3 (cancer-RBP flag) assume
+> the *tabular* feature set; for M3 use the dense-path checks in the subsection
+> above (long-read ablation + coverage stratification).
 
 After full-genome meta-layer training with RBP features:
 

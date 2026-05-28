@@ -101,6 +101,13 @@ class RBPEclipConfig(ModalityConfig):
     eclip_data_path: Optional[Path] = None
     aggregation: str = "summarized"
     cell_lines: tuple[str, ...] = ("K562", "HepG2")
+    # TODO(rbp-neuronal-align): the M*-S dense channel (DenseFeatureExtractor) uses the
+    # full neuronal union (eclip_peaks_neuronal.parquet — adds SH-SY5Y/H9 TARDBP) by
+    # default per the "one RBP channel, all evidence" design; this position-level
+    # modality still defaults to the ENCODE K562/HepG2 subset. Deferred: the XGBoost
+    # baseline probes subsampled positions (not full sequence-wise scoring), so the
+    # subset is acceptable for now; aligning means re-deriving the 116-col parquets.
+    # See dev/planning/meta_layer/BACKLOG.md.
     min_neg_log10_pvalue: float = 2.0
     batch_size: int = 5000
 
