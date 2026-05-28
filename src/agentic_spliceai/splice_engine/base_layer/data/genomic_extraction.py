@@ -491,9 +491,13 @@ def extract_splice_sites_from_exons(
     """
     Extract splice sites from exon annotations.
     
-    Splice sites are derived from exon boundaries:
-    - Donor sites: 3' end of exons (except last exon)
-    - Acceptor sites: 5' start of exons (except first exon)
+    Splice sites are derived from exon boundaries, strand-aware:
+    - Donor sites: 3' end of each exon in transcript direction
+      (+: exon end, except the last transcript exon;
+       -: exon start, except the last transcript exon = genomically-first)
+    - Acceptor sites: 5' end of each exon in transcript direction
+      (+: exon start, except the first transcript exon;
+       -: exon end, except the first transcript exon = genomically-last)
     
     Parameters
     ----------
@@ -537,14 +541,25 @@ def extract_splice_sites_from_exons(
             if exon.get('exon_rank', 0) == 0:
                 exon['exon_rank'] = i + 1
         
+        # Exons are sorted by genomic 'start' (ascending). Which terminal exon
+        # lacks a donor / acceptor depends on strand: transcription runs
+        # low->high on '+' but high->low on '-'.
+        #   '+': first transcript exon = genomically-first (i==0)  -> no acceptor
+        #        last  transcript exon = genomically-last (i==n-1) -> no donor
+        #   '-': first transcript exon = genomically-last (i==n-1) -> no acceptor
+        #        last  transcript exon = genomically-first (i==0)  -> no donor
+        n_exons = len(exons)
         for i, exon in enumerate(exons):
-            # Donor site: end of exon (except last)
-            if i < len(exons) - 1:
+            has_donor = (i < n_exons - 1) if strand == '+' else (i > 0)
+            has_acceptor = (i > 0) if strand == '+' else (i < n_exons - 1)
+
+            # Donor site: 3' end of exon in transcript direction
+            if has_donor:
                 if strand == '+':
                     donor_pos = exon['end']
                 else:
                     donor_pos = exon['start']
-                
+
                 splice_sites.append({
                     'chrom': chrom,
                     'start': donor_pos,
@@ -562,8 +577,8 @@ def extract_splice_sites_from_exons(
                     'exon_rank': exon.get('exon_rank', exon.get('exon_number', 0)),
                 })
             
-            # Acceptor site: start of exon (except first)
-            if i > 0:
+            # Acceptor site: 5' end of exon in transcript direction
+            if has_acceptor:
                 if strand == '+':
                     acceptor_pos = exon['start']
                 else:
