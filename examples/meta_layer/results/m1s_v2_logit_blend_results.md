@@ -1,5 +1,14 @@
 # M1-S v2: Logit-Space Residual Blend Results
 
+> ⚠️ **SUPERSEDED by `m1s_v4_cleanannot` (2026-05-28).** This v2 logit-blend run validated
+> the architecture but predates two later changes: (1) homology-clean splitting (paralog
+> removal on val *and* test) and neuronal RBP, and (2) the minus-strand annotation fix +
+> retrain. The current held-out canonical result is **macro PR-AUC 0.9986 → 0.9998** vs
+> base; reported at the **F1-optimal** operating point (0.5 is meaningless under class
+> imbalance): recall **0.997, FP 346, FN 279** — the meta PR curve dominates base on both
+> precision and recall. This doc is retained as the record of the logit-blend architecture
+> decision; its numbers are not the current baseline.
+
 **Date**: 2026-04-09
 **Model**: M1-S v2 (367K params, logit-space blend + learned per-class temperature)
 **Training**: 50 epochs on A40 GPU pod, best at epoch 42

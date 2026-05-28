@@ -156,7 +156,7 @@ genes, SpliceAI chromosome split):
 | Model | Val Accuracy | Val PR-AUC (macro) | Architecture |
 |-------|-------------|-------------------|--------------|
 | OpenSpliceAI (base) | — | — | 5M params, 10kb context |
-| M1-S (epoch 46/50) | **99.99%** | **0.9899** | 367K params, 400bp + 9ch multimodal |
+| M1-S (v4_cleanannot, best epoch 8) | **99.99%** | **0.9984** | 367K params, 400bp + 9ch multimodal |
 
 M1-S achieves near-perfect canonical accuracy with 14x fewer parameters
 than the base model. The 2-stream dilated CNN + residual blending
@@ -642,7 +642,7 @@ ref_probs, alt_probs, delta = model.predict_with_delta(
 
 | Variant | Status | Next milestone |
 |---------|--------|----------------|
-| M1-S | **Done** (epoch 46, PR-AUC 0.9899, 99.99% acc) | M2a evaluation |
+| M1-S | **Done** — v4_cleanannot (held-out test macro PR-AUC 0.9998, FN −94% vs base) | M2a/alt-site eval done (09) |
 | M2a | Next | Evaluate M1-S on Ensembl \ MANE sites |
 | M2b | Planned | Evaluate M1-S on GENCODE \ MANE sites |
 | M2c-S | Planned | Train on GENCODE with tier-weighted labels |

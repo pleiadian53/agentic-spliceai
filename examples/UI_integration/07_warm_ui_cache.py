@@ -34,7 +34,7 @@ import urllib.request
 
 # BRCA1 + ALS panel — the showcase set warmed by 02_build_showcase_feature_cache.py.
 DEFAULT_GENES = ["BRCA1", "STMN2", "UNC13A", "SOD1", "TARDBP", "FUS", "C9orf72"]
-DEFAULT_META = ["m1s_v3_neuronal", "m2s_v3_neuronal"]
+DEFAULT_META = ["m1s_v4_cleanannot", "m2s_v4_cleanannot"]
 
 
 def _get(url: str, timeout: float = 900.0) -> dict:

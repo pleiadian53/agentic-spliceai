@@ -29,7 +29,7 @@ Usage (pod uses the container python; locally the agentic-spliceai env):
     PY=~/miniforge3/envs/agentic-spliceai/bin/python
     $PY examples/UI_integration/05_explainability_integrated_gradients.py \
         --gene UNC13A --kind donor \
-        --model-dir output/meta_layer/m2s_v3_neuronal
+        --model-dir output/meta_layer/m2s_v4_cleanannot
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ setup_example_environment()
 
 from als_cryptic_sites import EVENTS  # noqa: E402
 
-DEFAULT_MODEL_DIR = Path("output/meta_layer/m2s_v3_neuronal")
+DEFAULT_MODEL_DIR = Path("output/meta_layer/m2s_v4_cleanannot")
 DEFAULT_CACHE_DIR = Path("output/meta_layer/ui_cache/gene_cache")
 LOGO_HALF_WINDOW = 40  # bp each side of the site for the sequence saliency track
 

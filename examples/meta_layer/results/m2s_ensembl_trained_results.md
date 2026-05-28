@@ -1,5 +1,17 @@
 # M2-S: Ensembl-Trained Meta-Layer Results
 
+> ⚠️ **SUPERSEDED by `m2s_v4_cleanannot` (2026-05-28).** The v1/v2 numbers below were
+> computed against an Ensembl annotation with a **minus-strand splice-site bug**
+> (terminal-exon mis-assignment → 46.9% of alt sites at wrong coordinates). After the
+> fix + retrain on the corrected annotation, the current held-out alt-site result is:
+> **alt-site PR-AUC base 0.911 → meta 0.990**, recall **~17% → ~90% (5.3×)**, **FN −88%**,
+> at near-equal precision (70,923 alt sites / 14,724 genes, paralog-clean). Report FP/FN
+> at the **F1-optimal** operating point (overall Ensembl test: P 0.97 / R 0.94 / F1 0.956),
+> **not** at the 0.5 cutoff — splice prediction is extreme class imbalance. The clean
+> labels also raised the *base* model (it was penalized at spurious sites), so the
+> meta-vs-base gap is narrower than the old "0.745→0.967 / 6×" implied, but still strong.
+> The v1/v2 analysis below is retained as a historical record of the resolver-fix ablation.
+
 **Date**: 2026-04-12 (v2 — junction/RBP chromosome-naming fix)
 **Model**: M2-S v2 (367K params, logit-space blend, trained on Ensembl labels)
 **Training**: 31 epochs on A40 (early stopped, patience=10, best at epoch 21)

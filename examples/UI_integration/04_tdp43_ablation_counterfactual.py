@@ -45,8 +45,8 @@ from als_cryptic_sites import EVENTS  # noqa: E402
 
 CACHE_DIR = Path("output/meta_layer/ui_cache/gene_cache")
 MODELS = {
-    "M1-S": Path("output/meta_layer/m1s_v3_neuronal"),
-    "M2-S": Path("output/meta_layer/m2s_v3_neuronal"),
+    "M1-S": Path("output/meta_layer/m1s_v4_cleanannot"),
+    "M2-S": Path("output/meta_layer/m2s_v4_cleanannot"),
 }
 PROBE_HALF_WINDOW = 3
 

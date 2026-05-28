@@ -57,7 +57,7 @@ log = logging.getLogger(__name__)
 # in MANE GRCh38 and have precomputed OpenSpliceAI base scores.
 DEFAULT_GENES = ["BRCA1", "STMN2", "UNC13A", "SOD1", "TARDBP", "FUS", "C9orf72"]
 
-DEFAULT_MODEL_DIR = Path("output/meta_layer/m1s_v3_neuronal")
+DEFAULT_MODEL_DIR = Path("output/meta_layer/m1s_v4_cleanannot")
 DEFAULT_CACHE_DIR = Path("output/meta_layer/ui_cache/gene_cache")
 
 # The 6 dense bigWig-derived channels (conservation + epigenetic + chromatin).
