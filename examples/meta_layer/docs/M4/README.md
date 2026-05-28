@@ -26,6 +26,6 @@ the architecture is built around.
 
 ## Related
 - `../meta_model_variants_m1_m4.md` — the M1–M4 variant overview.
-- `../m3_prerequisites.md`, `../ood_generalization.md`.
+- `../M3/` (incl. `m3_prerequisites.md`), `../ood_generalization.md`.
 - Demo/experiment scripts: `examples/UI_integration/` (03 cryptic detection,
   04 TDP-43 ablation counterfactual, 05 Integrated Gradients, 06 demo synthesis).

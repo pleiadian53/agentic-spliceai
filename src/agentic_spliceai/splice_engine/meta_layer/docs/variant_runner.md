@@ -359,6 +359,6 @@ pathogenic/benign labels for AUROC / PR-AUC.
   current as of 2026-04-14.
 - `splice_event_detector.py` — alternative event-detection logic
   used by the consequence-prediction pipeline.
-- `examples/meta_layer/docs/m3_prerequisites.md` — broader
+- `examples/meta_layer/docs/M3/m3_prerequisites.md` — broader
   context on what the meta layer is for and how it relates to
   novel-site discovery.

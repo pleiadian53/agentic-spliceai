@@ -211,5 +211,5 @@ The honest negative is itself the result — and the spec for the next step.
 - Feature substrate: `splice_engine/features/dense_feature_extractor.py`
   (`_query_rbp`, the `rbp_n_bound` channel); RBP union parquet under
   `data/mane/GRCh38/rbp_data/`.
-- Related docs: `../meta_model_variants_m1_m4.md`, `../m3_prerequisites.md`,
+- Related docs: `../meta_model_variants_m1_m4.md`, `../M3/m3_prerequisites.md`,
   `../ood_generalization.md`.

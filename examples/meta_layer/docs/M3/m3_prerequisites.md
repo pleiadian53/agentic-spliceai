@@ -18,7 +18,7 @@ This document walks through:
 
 Everything here is grounded in the audit outputs in
 `output/meta_layer/junction_coverage_audit*`. Companion document
-[junction_coverage_findings.md](junction_coverage_findings.md)
+[junction_coverage_findings.md](../junction_coverage_findings.md)
 documents the strand asymmetry and biotype composition effects that
 surfaced during the investigation.
 
@@ -85,7 +85,7 @@ retained_intron, pseudogene, NMD, and protein_coding_CDS_not_defined
 sites lifts alt-only coverage by ~3 points. Modest, which means
 most of the gap is *real* thin junction support for annotated
 alternatives, not annotation artifacts. See
-[junction_coverage_findings.md](junction_coverage_findings.md).
+[junction_coverage_findings.md](../junction_coverage_findings.md).
 
 ---
 
@@ -307,9 +307,10 @@ drug-target identification.
 - The 67,490 novel candidates are a pool, but without independent
   confirmation (§2.3) they're a mix of real novelty, annotation
   lag, and alignment artifacts.
-- M2-S v2 already achieves PR-AUC 0.967 on alt sites. The
-  marginal return on adding an M3 head (which would compete for
-  capacity with M2-S) may be small.
+- M2-S (v4_cleanannot) already achieves alt-site PR-AUC 0.990 on the
+  corrected annotation (the earlier 0.967 was computed against a
+  minus-strand-buggy annotation). The marginal return on adding an M3
+  head (which would compete for capacity with M2-S) may be small.
 - Development cost: training pipeline, label generation, evaluation
   strategy, agentic validation for biological sanity. Non-trivial.
 
@@ -383,11 +384,11 @@ jupyter notebook notebooks/meta_layer/junction_coverage_audit.ipynb
 
 ## Related
 
-- [junction_coverage_findings.md](junction_coverage_findings.md) —
+- [junction_coverage_findings.md](../junction_coverage_findings.md) —
   detailed findings on strand asymmetry and biotype composition
-- [meta_model_variants_m1_m4.md](meta_model_variants_m1_m4.md) —
+- [meta_model_variants_m1_m4.md](../meta_model_variants_m1_m4.md) —
   overall M1/M2/M3/M4 design doc
-- [ood_generalization.md](ood_generalization.md) — why training
+- [ood_generalization.md](../ood_generalization.md) — why training
   labels matter for alt-site detection
 - `notebooks/meta_layer/junction_coverage_audit.ipynb` — tutorial
   version of the analysis with inline commentary

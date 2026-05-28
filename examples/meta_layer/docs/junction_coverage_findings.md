@@ -11,7 +11,7 @@ non-obvious results that surfaced during the investigation:
 
 For the research framing, the "is M3 worth developing?" decision, and
 the connection to alternative data sources, see
-[m3_prerequisites.md](m3_prerequisites.md).
+[m3_prerequisites.md](M3/m3_prerequisites.md).
 
 ---
 
@@ -350,7 +350,7 @@ is harder.
   are real raw material with median depth 4–7K reads and 51/54
   tissues, but their biological validity needs independent
   confirmation.
-- See [m3_prerequisites.md](m3_prerequisites.md) for the M3 go/no-go
+- See [m3_prerequisites.md](M3/m3_prerequisites.md) for the M3 go/no-go
   analysis.
 
 ### For the splice-sites TSV generation pipeline
