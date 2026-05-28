@@ -280,10 +280,10 @@ def main() -> int:
                         help="Resume from checkpoint")
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument(
-        "--device", default="cpu",
-        help="Device: cpu (default, recommended), cuda, mps, or auto. "
-             "Note: MPS has autograd bugs with BatchNorm1d backward in "
-             "torch 2.5.x. CPU is fast enough for this model (~370K params).",
+        "--device", default="auto",
+        help="Device: 'auto' (default) = cuda if available else cpu (never "
+             "auto-selects MPS — torch 2.5.x BatchNorm1d autograd bugs). "
+             "Override with cuda/cpu/mps. See splice_engine/utils/device.py.",
     )
     # Late-imported to avoid loading heavy torch/model deps at --help time.
     from agentic_spliceai.splice_engine.meta_layer.models.factory import (
@@ -366,15 +366,10 @@ def main() -> int:
     )
 
     # ── Device ───────────────────────────────────────────────────────
-    if args.device == "auto":
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
-    else:
-        device = torch.device(args.device)
+    # 'auto' = cuda if available else cpu (never MPS). One canonical rule so a
+    # GPU pod uses the GPU with no flag and an M1 laptop falls back to CPU.
+    from agentic_spliceai.splice_engine.utils.device import resolve_device
+    device = resolve_device(args.device)
     print(f"Device: {device}")
 
     # ── Environment-aware defaults ──────────────────────────────────

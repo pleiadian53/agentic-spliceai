@@ -206,8 +206,9 @@ def main():
         help="Directory for results (default: checkpoint dir)",
     )
     parser.add_argument(
-        "--device", default="cpu",
-        help="Device for inference (default: cpu)",
+        "--device", default="auto",
+        help="Device: 'auto' (default) = cuda if available else cpu (never MPS). "
+             "Override with cuda/cpu/mps. See splice_engine/utils/device.py.",
     )
     args = parser.parse_args()
 
@@ -224,8 +225,10 @@ def main():
     from agentic_spliceai.splice_engine.meta_layer.models.meta_splice_model_v3 import (
         MetaSpliceModel, MetaSpliceConfig,
     )
+    from agentic_spliceai.splice_engine.utils.device import resolve_device
 
-    device = torch.device(args.device)
+    device = resolve_device(args.device)
+    print(f"Device: {device}")
     torch.serialization.add_safe_globals([MetaSpliceConfig])
     cfg = torch.load(config_path, map_location="cpu", weights_only=True)
     model = MetaSpliceModel(cfg).to(device)
