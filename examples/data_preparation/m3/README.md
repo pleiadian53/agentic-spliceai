@@ -48,8 +48,9 @@ annotation passes the strand-validation gate (donor→GT / acceptor→AG, ~0.98
 | 07 | `07_ingest_tdp43_anchors.py` | `anchors/anchors_tdp43.parquet` | held-out disease anchor (ALS STMN2/UNC13A) |
 | 08 | `08_finalize_anchors.py` | `disease_anchors.parquet` + decontaminated pool | combines anchors; anti-joins them out of training |
 | 09 | `09_build_negatives.py` | `negatives.parquet` + `annotation_mask.parquet` | hard/easy negatives + loss ignore-mask |
+| 10 | `10_build_longread_truth.py` | `longread_splice_sites.parquet`, `longread_truth_novel.parquet` (→ `data/encode_longread/GRCh38/`) + adds `longread_confirmed` to positives | **validation / eval-prep** — ENCODE4 long-read functional confirmation of the pool + the anti-circular D1 truth set (681,809 long-read novel sites). Needs the 56 per-biosample long-read GTFs (`data/encode_longread/GRCh38/manifest.tsv`). |
 
-All outputs land in `data/mane/GRCh38/m3_labels/`.
+Steps 01–09 outputs land in `data/mane/GRCh38/m3_labels/`; step 10 in `data/encode_longread/GRCh38/`.
 
 ## Final label set (consumed by Phase C training)
 

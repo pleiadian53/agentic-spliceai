@@ -198,16 +198,17 @@ def verify_evaluation_metrics() -> None:
 
     # Define all result files with their model/protocol labels
     results = [
-        # (label, json_path, extract_fn). Current leakage-clean v3_neuronal outputs
-        # (full-RBP, paralog-clean). Older m2a/m2c/m2b_* experiments are superseded.
+        # (label, json_path, extract_fn). Current leakage-clean v4_cleanannot outputs
+        # (minus-strand-corrected annotation, full-RBP, paralog-clean). Older v2/v3
+        # and m2a/m2c/m2b_* experiments are superseded.
         ("M1-S v2 on Eval-MANE",
          result_dir / "m1s_v2_logit_blend/eval_results.json",
          _extract_canonical_metrics),
         ("M1-S v3 (neuronal) on Eval-MANE",
-         result_dir / "m1s_v3_neuronal/eval_results.json",
+         result_dir / "m1s_v4_cleanannot/eval_results.json",
          _extract_canonical_metrics),
         ("M2-S v3 (neuronal) on Eval-Ensembl-Alt",
-         result_dir / "m2s_v3_neuronal_alt_eval/m2a_eval_results.json",
+         result_dir / "m2s_v4_cleanannot_alt_eval/m2a_eval_results.json",
          _extract_alt_metrics),
     ]
 
@@ -261,9 +262,9 @@ def verify_comparison_table() -> None:
 
     eval_ensembl = [
         ("Base (OpenSpliceAI)",
-         result_dir / "m2s_v3_neuronal_alt_eval/m2a_eval_results.json", "base"),
+         result_dir / "m2s_v4_cleanannot_alt_eval/m2a_eval_results.json", "base"),
         ("M2-S v3 (Ensembl-trained, neuronal RBP)",
-         result_dir / "m2s_v3_neuronal_alt_eval/m2a_eval_results.json", "meta"),
+         result_dir / "m2s_v4_cleanannot_alt_eval/m2a_eval_results.json", "meta"),
     ]
 
     for label, path, model_key in eval_ensembl:
@@ -286,12 +287,12 @@ def verify_comparison_table() -> None:
     print(f"  {'-'*83}")
 
     # GENCODE eval is a documented protocol but not yet run (GENCODE not staged);
-    # these populate when m2s_v3_neuronal_gencode_alt/ is produced.
+    # these populate when m2s_v4_cleanannot_gencode_alt/ is produced.
     eval_gencode = [
         ("Base (OpenSpliceAI)",
-         result_dir / "m2s_v3_neuronal_gencode_alt/m2a_eval_results.json", "base"),
+         result_dir / "m2s_v4_cleanannot_gencode_alt/m2a_eval_results.json", "base"),
         ("M2-S v3 (Ensembl-trained)",
-         result_dir / "m2s_v3_neuronal_gencode_alt/m2a_eval_results.json", "meta"),
+         result_dir / "m2s_v4_cleanannot_gencode_alt/m2a_eval_results.json", "meta"),
     ]
 
     for label, path, model_key in eval_gencode:
@@ -317,7 +318,7 @@ def verify_comparison_table() -> None:
         ("M1-S v2 (MANE-trained)",
          result_dir / "m1s_v2_logit_blend/eval_results.json"),
         ("M1-S v3 (neuronal, MANE-trained)",
-         result_dir / "m1s_v3_neuronal/eval_results.json"),
+         result_dir / "m1s_v4_cleanannot/eval_results.json"),
     ]
 
     for label, path in eval_mane:
@@ -339,8 +340,8 @@ def verify_comparison_table() -> None:
 
     train_metrics = [
         ("M1-S v2", result_dir / "m1s_v2_logit_blend/best_metrics.json"),
-        ("M1-S v3 neuronal", result_dir / "m1s_v3_neuronal/best_metrics.json"),
-        ("M2-S v3 neuronal", result_dir / "m2s_v3_neuronal/best_metrics.json"),
+        ("M1-S v4 cleanannot", result_dir / "m1s_v4_cleanannot/best_metrics.json"),
+        ("M2-S v4 cleanannot", result_dir / "m2s_v4_cleanannot/best_metrics.json"),
     ]
 
     for label, path in train_metrics:

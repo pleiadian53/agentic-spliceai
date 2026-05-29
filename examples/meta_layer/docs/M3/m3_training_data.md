@@ -95,31 +95,49 @@ So **coordinate accuracy — including the SpliceVault-derived coordinates — i
 validated**: every positive sits at a real splice-signal dinucleotide on the
 correct strand, and the offset reconstruction was gated on that oracle.
 
-### NOT yet validated ⚠️ (functional reality)
-The dinucleotide oracle confirms a position *looks like* a splice site at the
-sequence level. It does **not** confirm the position is a **functional** splice
-site vs. an alignment artifact or low-frequency noisy splicing. Two open gaps:
+### Functional validation — Phase B3 DONE (2026-05-28)
+The dinucleotide oracle only confirms a position *looks like* a splice site. **B3**
+closes the functional gap with an **independent ENCODE4 long-read** truth set: 56
+tissue-diverse transcriptome GTFs → 1,309,595 canonical long-read splice sites
+(120K noisy non-canonical dropped; convention verified offset-0 ≫ ±1). Built by
+[`../../../data_preparation/m3/10_build_longread_truth.py`](../../../data_preparation/m3/10_build_longread_truth.py);
+outputs in `data/encode_longread/GRCh38/`.
 
-1. **Positive functional reality** — pending **Phase B3**: an independent
-   **ENCODE4 long-read** truth set (full-transcript-spanning reads) to confirm
-   positives are real, and to evaluate M3 without the circularity of "novel =
-   not in annotation." Not built yet.
-2. **Negative purity** — negatives are *set-defined* non-sites (excluded from
-   annotation ∪ novel), not *functionally* confirmed non-sites; a small unknown
-   fraction could be real-but-undiscovered sites. Bounded by the easy/hard mix
-   and the large negative pool; revisit if precision is suspect.
+**Positive-pool confirmation (fraction appearing in long-read transcripts):**
+
+| Arm | Confirmed | Read |
+|---|---:|---|
+| **GTEx-novel** | **667/707 (94.3%)** | strong — within-project novel sites are functionally real |
+| GTEx-novel ∩ SpliceVault | 36/37 (97.3%) | strong |
+| **SpliceVault** | 77,176/153,369 (50.3%) | **coverage-limited lower bound** — SpliceVault spans 335K short-read samples; our 56 long-read biosamples can't express them all. The confirmed half is validated; unconfirmed = "not seen in these 56 tissues," not "artifact." |
+| **Disease anchors** (held-out) | **6,196/6,351 (97.6%)** | strong |
+| **Pool total** | 77,879/154,113 (50.5%) | dominated by SpliceVault's coverage-limited rate |
+
+A `longread_confirmed` (bool) + `longread_n_biosamples` (int) column is now on
+`positives_pooled.parquet` — usable as a high-confidence training subset
+(52,079 confirmed in ≥2 tissues) and for stratified eval.
+
+The **anti-circular D1 eval truth set** = `longread_truth_novel.parquet`
+(**681,809** long-read-confirmed sites absent from annotation): M3 will be
+scored against these, not against "absent from annotation."
+
+### Still open ⚠️
+- **Negative purity** — negatives are *set-defined* non-sites (excluded from
+  annotation ∪ novel ∪ long-read sites can be added), not *functionally*
+  confirmed; bounded by the large pool, revisit if precision is suspect.
 
 (Cancer-cell-line RBP coverage bias is a separate, documented consideration —
 see the RBP tutorial's "What M3 actually uses" note; it's a coverage gap, not a
 coordinate-accuracy issue, and the label side is not cancer-derived.)
 
 ## 5. Next steps
-1. **B3** — build the ENCODE4 long-read held-out truth set (functional positive
-   validation + anti-circular eval). Local-ish.
+1. ~~**B3** — ENCODE4 long-read truth set~~ **DONE** (2026-05-28; see §4).
 2. **Phase C (pod)** — extract multimodal features at the labeled positions
    (bigWig streaming) → gene/position cache → train `MetaSpliceModel` (M3,
-   junction dropped). Same bigWig cost as M1/M2 → a pod job.
-3. **D2** — evaluate generalization on the held-out disease anchors.
+   junction dropped). Same bigWig cost as M1/M2 → a pod job. Consider training
+   on / up-weighting the `longread_confirmed` high-confidence subset.
+3. **D1** — score M3 against `longread_truth_novel.parquet` (anti-circular).
+4. **D2** — evaluate generalization on the held-out disease anchors.
 
 ## Related
 - Data workflow + run order: [`../../../data_preparation/m3/README.md`](../../../data_preparation/m3/README.md)

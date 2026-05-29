@@ -16,31 +16,34 @@ For M2b with GENCODE, also reports tiered breakdown:
   - Tier 2: GENCODE-only (rare isoforms, computational predictions)
 
 Uses streaming evaluation — only one gene's arrays in memory at a time. The RBP
-channel resolves the full eCLIP union internally (like every modality) — no flag.
-Paths below are real; run from the repo root, or the pod's ~/sky_workdir where
-data/ and output/ are symlinked to the volume.
+channel resolves the full eCLIP union internally (like every modality).
+
+The paths in the examples below reflect my local setup; adjust them for your 
+environment as needed. Run these commands from either the repository root 
+or the pod’s `~/sky_workdir`, where `data/` and `output/` are symlinked 
+to the mounted volume.
 
 Usage:
     # M2a: Ensembl \\ MANE — build the Ensembl test cache, then evaluate.
     # --remove-paralogs is ON by default (leakage-clean held-out test).
     python 09_evaluate_alternative_sites.py \\
-        --checkpoint output/meta_layer/m2s_v3_neuronal/best.pt \\
+        --checkpoint output/meta_layer/m2s_v4_cleanannot/best.pt \\
         --annotation-source ensembl \\
         --build-cache \\
-        --cache-dir output/meta_layer/gene_cache_ensembl_neuronal \\
+        --cache-dir output/meta_layer/gene_cache_ensembl_cleanannot \\
         --base-scores-dir data/ensembl/GRCh38/openspliceai_eval/precomputed
 
     # Re-evaluate from the already-built cache (--cache-dir is the parent that
     # holds train/val/test; its test/ subdir must have been built above).
     python 09_evaluate_alternative_sites.py \\
-        --checkpoint output/meta_layer/m2s_v3_neuronal/best.pt \\
+        --checkpoint output/meta_layer/m2s_v4_cleanannot/best.pt \\
         --annotation-source ensembl \\
-        --cache-dir output/meta_layer/gene_cache_ensembl_neuronal
+        --cache-dir output/meta_layer/gene_cache_ensembl_cleanannot
 
     # M2b: GENCODE \\ MANE. Requires the GENCODE GTF + splice_sites_enhanced.tsv
     # staged under data/gencode/GRCh38/ first (not present by default).
     python 09_evaluate_alternative_sites.py \\
-        --checkpoint output/meta_layer/m2s_v3_neuronal/best.pt \\
+        --checkpoint output/meta_layer/m2s_v4_cleanannot/best.pt \\
         --annotation-source gencode \\
         --gtf data/gencode/GRCh38/gencode.v47.annotation.gtf \\
         --build-cache

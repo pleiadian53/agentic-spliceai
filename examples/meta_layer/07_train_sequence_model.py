@@ -5,18 +5,34 @@ Two-phase pipeline:
   Phase 1: Build gene cache (base scores + dense features + labels)
   Phase 2: Train MetaSpliceModel on windowed samples
 
-Usage:
-    # M1-S: canonical classification, all 9 modalities
-    python 07_train_sequence_model.py --mode m1
+Usage (examples are real; adjust paths to your environment):
+    # M1-S: canonical refiner (MANE, all 9 modalities). Device auto-selects
+    # cuda when available, else CPU; --use-shards speeds disk-backed I/O.
+    python 07_train_sequence_model.py --mode m1 --use-shards \
+        --bigwig-cache /path/to/bigwig_cache \
+        --output-dir output/meta_layer/m1s_v4_cleanannot
 
-    # M3-S: novel site prediction, junction excluded
-    python 07_train_sequence_model.py --mode m3
+    # M2-S: alternative-site model (Ensembl labels + Ensembl base scores)
+    python 07_train_sequence_model.py --mode m2 --use-shards \
+        --bigwig-cache /path/to/bigwig_cache \
+        --base-scores-dir data/ensembl/GRCh38/openspliceai_eval/precomputed \
+        --output-dir output/meta_layer/m2s_v4_cleanannot
 
-    # Quick test on 2 chromosomes
-    python 07_train_sequence_model.py --mode m1 --max-genes 100 --epochs 5
+    # Quick smoke: tiny config (3 genes, 1 epoch) to verify the pipeline before
+    # paying for pod time. --no-remove-paralogs skips the all-gene alignment and
+    # --bigwig-cache avoids slow remote bigWig streaming, so it finishes fast.
+    python 07_train_sequence_model.py --mode m1 --smoke --no-remove-paralogs \
+        --bigwig-cache /path/to/bigwig_cache
 
-    # Resume from checkpoint
-    python 07_train_sequence_model.py --mode m1 --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt
+    # Resume from a checkpoint
+    python 07_train_sequence_model.py --mode m1 \
+        --checkpoint output/meta_layer/m1s_v4_cleanannot/best.pt
+
+Note: `--mode m3` (novel-site recognizer) is NOT a runnable workflow yet — it
+currently only drops the junction features and still trains on MANE *canonical*
+labels. The curated novel-site label set (positives / negatives / annotation
+loss-ignore mask) lives in `examples/data_preparation/m3/` and gets wired into
+this trainer for Phase C.
 """
 
 import argparse
@@ -201,7 +217,8 @@ def main() -> int:
         help="Model variant: "
              "m1 (canonical, MANE, all modalities), "
              "m2 (alternative sites, Ensembl, all modalities), "
-             "m3 (novel sites, no junction features). "
+             "m3 (junction-excluded; currently trains on MANE canonical labels — "
+             "novel-site label wiring is pending, Phase C). "
              "m2 defaults to --annotation-source=ensembl.",
     )
     parser.add_argument(
@@ -312,7 +329,30 @@ def main() -> int:
         help=(
             "Smoke mode: override defaults to a tiny config that runs "
             "end-to-end in seconds locally. Verifies the pipeline works "
-            "before paying for pod time. User-supplied values still win."
+            "before paying for pod time. User-supplied values still win. "
+            "Implies --allow-dead-channels (a 3-gene cache may have sparse "
+            "channels)."
+        ),
+    )
+    parser.add_argument(
+        "--exclude-channels", nargs="+", default=None, metavar="CH",
+        help=(
+            "Drop these multimodal channels from the feature set. The extractor "
+            "only fetches NON-excluded channels, so this skips their data access "
+            "entirely — e.g. exclude the 6 bigWig channels (phylop_score "
+            "phastcons_score h3k36me3_max h3k4me3_max atac_max dnase_max) for a "
+            "fully-local run with no remote streaming/download (keeps the local "
+            "junction + RBP channels). Reduces mm_channels; a model trained with "
+            "an exclusion must be evaluated (08/09) with the SAME exclusion."
+        ),
+    )
+    parser.add_argument(
+        "--allow-dead-channels", action="store_true",
+        help=(
+            "Bypass the dead-channel guard: don't abort if a KEPT channel is "
+            "all-zero across the cache. For deliberate reduced-feature or tiny "
+            "correctness runs where a sparse channel (e.g. junction_has_support) "
+            "may be empty on a few genes. --smoke implies this."
         ),
     )
 
@@ -393,7 +433,7 @@ def main() -> int:
         pack_gene_cache_to_shards, verify_shard_integrity,
     )
     from agentic_spliceai.splice_engine.features.dense_feature_extractor import (
-        DenseFeatureExtractor, DenseFeatureConfig, M3_EXCLUDE,
+        DenseFeatureExtractor, DenseFeatureConfig, M3_EXCLUDE, CHANNEL_NAMES,
     )
     from agentic_spliceai.splice_engine.eval.splitting import (
         build_gene_split, gene_chromosomes_from_dataframe,
@@ -477,7 +517,18 @@ def main() -> int:
         print(f"  Limited to {len(train_genes)} train, {len(val_genes)} val genes")
 
     # ── Build gene caches ────────────────────────────────────────────
-    exclude_channels = M3_EXCLUDE if args.mode == "m3" else set()
+    user_exclude = set(args.exclude_channels or [])
+    unknown = user_exclude - set(CHANNEL_NAMES)
+    if unknown:
+        print(f"ERROR: --exclude-channels unknown channel(s): {sorted(unknown)}")
+        print(f"  Valid channels: {CHANNEL_NAMES}")
+        return 1
+    exclude_channels = (M3_EXCLUDE if args.mode == "m3" else set()) | user_exclude
+    if user_exclude:
+        print(f"  Excluding channels (skips their fetch): {sorted(user_exclude)}")
+    # Dead-channel guard: abort if a kept channel is all-zero across the cache,
+    # unless bypassed (--allow-dead-channels, or --smoke's tiny/sparse set).
+    check_live = not (args.allow_dead_channels or args.smoke)
     feat_config = DenseFeatureConfig(
         build="GRCh38",
         exclude_channels=exclude_channels,
@@ -496,6 +547,7 @@ def main() -> int:
         train_genes, splice_sites_df, fasta_path,
         base_scores_dir, extractor, gene_annotations,
         cache_dir=cache_dir / "train",
+        check_live_channels=check_live,
     )
     print(f"    Cached {len(train_index)} genes in {time.time() - t0:.1f}s")
 
@@ -504,6 +556,7 @@ def main() -> int:
         val_genes, splice_sites_df, fasta_path,
         base_scores_dir, extractor, gene_annotations,
         cache_dir=cache_dir / "val",
+        check_live_channels=check_live,
     )
     print(f"    Cached {len(val_index)} genes")
 

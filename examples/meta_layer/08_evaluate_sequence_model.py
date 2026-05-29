@@ -18,23 +18,23 @@ Metrics reported:
 Usage:
     # Build test cache + evaluate M1-S (chr1,3,5,7,9)
     python 08_evaluate_sequence_model.py \\
-        --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt \\
+        --checkpoint output/meta_layer/m1s_v4_cleanannot/best.pt \\
         --build-cache
 
     # Evaluate from an already-built cache (its test/ subdir must exist)
     python 08_evaluate_sequence_model.py \\
-        --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt \\
-        --cache-dir output/meta_layer/gene_cache_mane_neuronal/test
+        --checkpoint output/meta_layer/m1s_v4_cleanannot/best.pt \\
+        --cache-dir output/meta_layer/gene_cache_mane_cleanannot/test
 
     # Evaluate on specific chromosomes
     python 08_evaluate_sequence_model.py \\
-        --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt \\
+        --checkpoint output/meta_layer/m1s_v4_cleanannot/best.pt \\
         --test-chroms chr1 chr3 \\
         --build-cache
 
     # Pure FASTA inference (no annotations, no features)
     python 08_evaluate_sequence_model.py \\
-        --checkpoint output/meta_layer/m1s_v3_neuronal/best.pt \\
+        --checkpoint output/meta_layer/m1s_v4_cleanannot/best.pt \\
         --fasta /path/to/sequences.fa
 """
 
