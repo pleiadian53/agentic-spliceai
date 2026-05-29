@@ -91,9 +91,38 @@ src/nexus/knowledge/
 dev/
 dev/**/*
 
-# Tests directory (NOT for public - development only)
-tests/
-tests/**/*
+# Tests: source IS tracked (*.py, *.md, *.sh, conftest, small fixtures).
+# But NEVER commit generated data/outputs or large artifacts from test runs.
+# Belt-and-suspenders: scripts/git-hooks/pre-commit also hard-blocks ANY staged
+# file over the size limit, regardless of path/extension.
+tests/**/output/
+tests/**/outputs/
+tests/**/tmp/
+tests/**/.cache/
+tests/**/_generated/
+tests/**/*.parquet
+tests/**/*.npz
+tests/**/*.npy
+tests/**/*.h5
+tests/**/*.hdf5
+tests/**/*.pt
+tests/**/*.pth
+tests/**/*.ckpt
+tests/**/*.safetensors
+tests/**/*.fa
+tests/**/*.fasta
+tests/**/*.fai
+tests/**/*.bw
+tests/**/*.bigWig
+tests/**/*.bam
+tests/**/*.bai
+tests/**/*.vcf
+tests/**/*.gtf
+tests/**/*.gff
+tests/**/*.bed
+tests/**/*.gz
+tests/**/*.zip
+tests/**/*.csv
 
 # SkyPilot generated configs (user-specific, may contain tokens)
 foundation_models/configs/skypilot/generated/

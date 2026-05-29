@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+#
+# Pre-commit guard: block accidentally committing large files.
+#
+# Project policy (CLAUDE.md): "Large files (models, FASTA, GTF) belong in
+# data/ via symlinks, never in git." This hook enforces it at the commit
+# boundary for EVERY staged file, regardless of path or extension — the
+# belt-and-suspenders complement to .gitignore (which only catches files
+# matching known patterns). Especially relevant now that tests/ is tracked
+# and may generate artifacts during runs.
+#
+# Checks the blob size as it would land in the index (not the working-tree
+# file), so it's exact.
+#
+# Threshold: override per-invocation with  MAX_FILE_SIZE_KB=20000 git commit ...
+# Bypass entirely (use sparingly):         GIT_ALLOW_LARGE=1 git commit ...
+#                                    or:    git commit --no-verify
+#
+# Enable in a fresh clone:  git config core.hooksPath scripts/git-hooks
+
+set -euo pipefail
+
+MAX_FILE_SIZE_KB="${MAX_FILE_SIZE_KB:-5120}"   # 5 MB default
+
+if [[ "${GIT_ALLOW_LARGE:-0}" == "1" ]]; then
+    exit 0
+fi
+
+# Staged adds/copies/modifications (NUL-delimited for path safety).
+offenders=()
+while IFS= read -r -d '' path; do
+    # Blob size of the staged content (bytes). ':path' = index version.
+    size_bytes=$(git cat-file -s ":$path" 2>/dev/null || echo 0)
+    size_kb=$(( size_bytes / 1024 ))
+    if (( size_kb > MAX_FILE_SIZE_KB )); then
+        offenders+=("$(printf '%6d MB  %s' "$(( size_kb / 1024 ))" "$path")")
+    fi
+done < <(git diff --cached --name-only -z --diff-filter=ACM)
+
+if (( ${#offenders[@]} > 0 )); then
+    echo "✗ pre-commit: refusing to commit file(s) larger than ${MAX_FILE_SIZE_KB} KB:" >&2
+    printf '    %s\n' "${offenders[@]}" >&2
+    cat >&2 <<'EOF'
+
+Large binaries (models, FASTA/GTF, parquet, .npz, etc.) belong in data/ via
+symlinks, not in git. If this file is genuinely meant to be committed:
+
+    MAX_FILE_SIZE_KB=<bigger> git commit ...   # raise the limit for this commit
+    GIT_ALLOW_LARGE=1 git commit ...           # bypass the size check
+    git commit --no-verify                     # bypass all pre-commit hooks
+
+Otherwise: unstage it (git restore --staged <file>) and add it to .gitignore.
+EOF
+    exit 1
+fi
+
+exit 0
