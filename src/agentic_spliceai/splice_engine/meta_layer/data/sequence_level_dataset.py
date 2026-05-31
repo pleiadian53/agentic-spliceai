@@ -185,25 +185,35 @@ class SequenceLevelDataset(Dataset):
 
         base_scores = gene["base_scores"][out_start:out_end]
         mm_features = gene["mm_features"][out_start:out_end]
-        labels = gene["labels"][out_start:out_end]
+        # int64 for CrossEntropy/Focal targets (m3 labels are stored uint8).
+        labels = gene["labels"][out_start:out_end].astype(np.int64)
 
-        return {
+        sample = {
             "sequence": torch.from_numpy(seq_onehot),
             "base_scores": torch.from_numpy(base_scores),
             "mm_features": torch.from_numpy(mm_features.T.copy()),  # [C, W]
             "labels": torch.from_numpy(labels),
         }
+        if "weights" in gene:
+            sample["weights"] = torch.from_numpy(
+                gene["weights"][out_start:out_end].astype(np.float32)
+            )
+        return sample
 
 
 def _load_gene_npz(path: Path) -> Dict[str, np.ndarray]:
     """Load one gene's data from a .npz file."""
     data = np.load(path, allow_pickle=True)
-    return {
+    out = {
         "sequence": str(data["sequence"]),
         "base_scores": data["base_scores"],
         "mm_features": data["mm_features"],
         "labels": data["labels"],
     }
+    # Per-position sample weights are only present for m3 caches.
+    if "weights" in data.files:
+        out["weights"] = data["weights"]
+    return out
 
 
 def _one_hot_encode(seq: str) -> np.ndarray:
@@ -406,14 +416,21 @@ class ShardedSequenceLevelDataset(Dataset):
         # Slice reads: only the window, not the full gene
         base_scores = grp["base_scores"][out_start:out_end]
         mm_features = grp["mm_features"][out_start:out_end]
-        labels = grp["labels"][out_start:out_end]
+        # int64 for CrossEntropy/Focal targets (m3 labels are stored uint8).
+        labels = grp["labels"][out_start:out_end].astype(np.int64)
 
-        return {
+        sample = {
             "sequence": torch.from_numpy(seq_onehot),
             "base_scores": torch.from_numpy(base_scores),
             "mm_features": torch.from_numpy(np.ascontiguousarray(mm_features.T)),
             "labels": torch.from_numpy(labels),
         }
+        # Per-position sample weights are only present for m3 shards.
+        if "weights" in grp:
+            sample["weights"] = torch.from_numpy(
+                grp["weights"][out_start:out_end].astype(np.float32)
+            )
+        return sample
 
 
 # ---------------------------------------------------------------------------
@@ -477,6 +494,11 @@ def build_gene_cache(
     gene_annotations: "polars.DataFrame",
     cache_dir: Path = Path("/tmp/gene_cache"),
     check_live_channels: bool = True,
+    *,
+    mode: str = "m1",
+    positives_df: "Optional[pandas.DataFrame]" = None,
+    annotation_mask_df: "Optional[pandas.DataFrame]" = None,
+    confirmed_weight: float = 2.0,
 ) -> List[GeneIndexEntry]:
     """Build disk-backed gene cache for training.
 
@@ -506,6 +528,21 @@ def build_gene_cache(
     cache_dir:
         Directory for ``.npz`` files.  Existing files are reused
         (resume-safe).
+    mode:
+        ``"m1"``/``"m2"`` (default) build canonical/alternative-site labels via
+        ``build_splice_labels`` (chunking convention, remapped to meta). ``"m3"``
+        builds the novel-site recognizer labels via ``build_m3_labels`` directly
+        in meta convention (0=donor, 1=acceptor, 2=neither, **255=ignore** for
+        annotated sites) plus per-position ``weights``, and requires
+        *positives_df* + *annotation_mask_df*.
+    positives_df, annotation_mask_df:
+        M3 only. Novel positives (``chrom, position, splice_type``, optional
+        ``longread_confirmed``) and the annotated-site loss-ignore mask
+        (``chrom, position``). These are coordinate-keyed (NO gene_id) and use
+        **bare** ``chrom`` (``"1"``); labels are assigned to each gene window by
+        interval overlap. The cache builder subsets them per chromosome.
+    confirmed_weight:
+        M3 only. Per-position sample weight for long-read-confirmed positives.
 
     Returns
     -------
@@ -513,7 +550,18 @@ def build_gene_cache(
     """
     import pyfaidx
     import polars as pl
-    from foundation_models.utils.chunking import build_splice_labels
+    # build_splice_labels lives in src/ now — src/ must not depend on the
+    # experimental foundation_models/ sub-project (memory: feedback-no-foundation-models-dep-in-src).
+    from agentic_spliceai.splice_engine.meta_layer.data.labels import (
+        build_splice_labels, build_m3_labels,
+    )
+
+    if mode == "m3":
+        if positives_df is None or annotation_mask_df is None:
+            raise ValueError(
+                "mode='m3' requires positives_df and annotation_mask_df "
+                "(the novel-site positives + annotated-site loss-ignore mask)."
+            )
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     fasta = pyfaidx.Fasta(fasta_path)
@@ -537,7 +585,9 @@ def build_gene_cache(
             try:
                 data = np.load(npz_path, allow_pickle=True)
                 labels = data["labels"]
-                sp = np.where(labels != 2)[0]
+                # labels < 2 == donor(0) or acceptor(1); excludes neither(2)
+                # AND the m3 ignore sentinel (255). Equivalent to != 2 for m1/m2.
+                sp = np.where(labels < 2)[0]
                 index.append(GeneIndexEntry(
                     gene_id=gene_id,
                     npz_path=npz_path,
@@ -599,6 +649,17 @@ def build_gene_cache(
         # Load base scores for ALL genes on this chromosome in one read
         chrom_scores = _load_chrom_base_scores(base_scores_dir, chrom, gene_ranges)
 
+        # M3: subset the per-position label sources to this chromosome ONCE
+        # (avoids re-scanning the full positives / annotation frames per gene).
+        # The M3 label files use BARE chrom ("1"); gene_annotations uses "chr1".
+        pos_chrom = ann_chrom = None
+        if mode == "m3":
+            bare = chrom[3:] if chrom.startswith("chr") else chrom
+            pos_chrom = positives_df[positives_df["chrom"].astype(str) == bare]
+            ann_chrom = annotation_mask_df[
+                annotation_mask_df["chrom"].astype(str) == bare
+            ]
+
         # Process each gene on this chromosome
         batch_count = 0
         for gid, start, end, _ in gene_ranges:
@@ -614,9 +675,20 @@ def build_gene_cache(
 
             gene_len = len(sequence)
 
-            # Labels
-            raw_labels = build_splice_labels(gid, start, gene_len, splice_sites_df)
-            labels = _CHUNKING_TO_META[raw_labels].astype(np.int64)
+            # Labels (+ per-position weights for m3)
+            weights = None
+            if mode == "m3":
+                # build_m3_labels emits the meta convention DIRECTLY
+                # (0=donor, 1=acceptor, 2=neither, 255=ignore) — no remap.
+                # Labels are coordinate-keyed (no gene_id): assigned by overlap
+                # with [start, start+gene_len) on this chromosome's subset.
+                labels, weights = build_m3_labels(
+                    start, gene_len,
+                    pos_chrom, ann_chrom, confirmed_weight=confirmed_weight,
+                )
+            else:
+                raw_labels = build_splice_labels(gid, start, gene_len, splice_sites_df)
+                labels = _CHUNKING_TO_META[raw_labels].astype(np.int64)
 
             # Base model scores (from pre-loaded chromosome data)
             base_scores = chrom_scores.get(gid)
@@ -626,18 +698,21 @@ def build_gene_cache(
             # Dense multimodal features
             mm_features = feature_extractor.extract_window(chrom, start, end)
 
-            # Save to disk
-            np.savez_compressed(
-                npz_path,
+            # Save to disk (weights only present for m3)
+            save_arrays = dict(
                 sequence=np.array(sequence, dtype=object),
                 base_scores=base_scores,
                 mm_features=mm_features,
                 labels=labels,
                 length=np.array(gene_len),
             )
+            if weights is not None:
+                save_arrays["weights"] = weights
+            np.savez_compressed(npz_path, **save_arrays)
 
-            # Add to index
-            sp = np.where(labels != 2)[0]
+            # Add to index. labels < 2 == donor/acceptor; excludes neither(2)
+            # and the m3 ignore sentinel (255).
+            sp = np.where(labels < 2)[0]
             index.append(GeneIndexEntry(
                 gene_id=gid,
                 npz_path=npz_path,
@@ -646,7 +721,7 @@ def build_gene_cache(
                 splice_positions=sp,
             ))
 
-            del sequence, base_scores, mm_features, labels, raw_labels
+            del sequence, base_scores, mm_features, labels, weights
             n_done += 1
             batch_count += 1
 

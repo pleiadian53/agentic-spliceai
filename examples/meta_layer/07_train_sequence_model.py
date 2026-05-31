@@ -28,11 +28,17 @@ Usage (examples are real; adjust paths to your environment):
     python 07_train_sequence_model.py --mode m1 \
         --checkpoint output/meta_layer/m1s_v4_cleanannot/best.pt
 
-Note: `--mode m3` (novel-site recognizer) is NOT a runnable workflow yet — it
-currently only drops the junction features and still trains on MANE *canonical*
-labels. The curated novel-site label set (positives / negatives / annotation
-loss-ignore mask) lives in `examples/data_preparation/m3/` and gets wired into
-this trainer for Phase C.
+    # M3-S: novel-site recognizer. Drops the junction modality and trains on
+    # the curated novel-site label set (positives = novel donors/acceptors;
+    # annotated sites MASKED out of the loss; long-read-confirmed positives
+    # up-weighted via --confirmed-weight). Novelty itself is applied as a
+    # post-filter (set subtraction) at inference, not learned.
+    python 07_train_sequence_model.py --mode m3 --use-shards \
+        --bigwig-cache /path/to/bigwig_cache --confirmed-weight 2.0 \
+        --output-dir output/meta_layer/m3_v1
+
+M3 label set: `data/mane/GRCh38/m3_labels/{positives_pooled,annotation_mask}.parquet`
+(built by `examples/data_preparation/m3/`). meta convention with 255=ignore.
 """
 
 import argparse
@@ -69,29 +75,50 @@ class FocalLoss(nn.Module):
         alpha: Optional[torch.Tensor] = None,
         gamma: float = 2.0,
         reduction: str = "mean",
+        ignore_index: int = -100,
     ) -> None:
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.reduction = reduction
+        self.ignore_index = ignore_index
 
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        logits: torch.Tensor,
+        targets: torch.Tensor,
+        sample_weight: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """
         Parameters
         ----------
         logits : [B, L, C] raw logits (before softmax)
-        targets : [B, L] integer class labels
+        targets : [B, L] integer class labels. Positions equal to
+            ``ignore_index`` (e.g. m3's 255 annotated-site mask) are dropped
+            from the loss.
+        sample_weight : [B, L] optional per-position weights (m3 up-weights
+            long-read-confirmed positives). Ignored positions contribute 0.
         """
         B, L, C = logits.shape
         logits_flat = logits.reshape(-1, C)
         targets_flat = targets.reshape(-1)
 
-        ce = F.cross_entropy(logits_flat, targets_flat, weight=self.alpha, reduction="none")
+        # ignore_index zeroes the loss at masked positions (reduction="none").
+        ce = F.cross_entropy(
+            logits_flat, targets_flat, weight=self.alpha,
+            reduction="none", ignore_index=self.ignore_index,
+        )
         p_t = torch.exp(-ce)
         focal = ((1 - p_t) ** self.gamma) * ce
 
+        if sample_weight is not None:
+            focal = focal * sample_weight.reshape(-1)
+
         if self.reduction == "mean":
-            return focal.mean()
+            # Divide by the number of UN-ignored positions, not the full count,
+            # so a window that is mostly ignore-masked isn't diluted toward 0.
+            n_valid = (targets_flat != self.ignore_index).sum().clamp(min=1)
+            return focal.sum() / n_valid
         return focal.sum()
 
 
@@ -120,9 +147,12 @@ def train_one_epoch(
         base = batch["base_scores"].to(device)
         mm = batch["mm_features"].to(device)
         labels = batch["labels"].to(device)
+        weights = batch.get("weights")  # m3 only; None for m1/m2
+        if weights is not None:
+            weights = weights.to(device)
 
         logits = model(seq, base, mm)  # [B, L, C] raw logits (model.training=True)
-        loss = criterion(logits, labels) / accumulation_steps
+        loss = criterion(logits, labels, sample_weight=weights) / accumulation_steps
         loss.backward()
 
         if (i + 1) % accumulation_steps == 0:
@@ -168,9 +198,12 @@ def evaluate(
         base = batch["base_scores"].to(device)
         mm = batch["mm_features"].to(device)
         labels = batch["labels"].to(device)
+        weights = batch.get("weights")  # m3 only; None for m1/m2
+        if weights is not None:
+            weights = weights.to(device)
 
         logits = model(seq, base, mm, return_logits=True)  # [B, L, C]
-        loss = criterion(logits.contiguous(), labels)
+        loss = criterion(logits.contiguous(), labels, sample_weight=weights)
         total_loss += loss.item()
         n_batches += 1
 
@@ -181,6 +214,13 @@ def evaluate(
 
     probs = np.concatenate(all_probs)
     labels = np.concatenate(all_labels)
+
+    # Drop ignore-masked positions (m3's 255 annotated-site mask) so they don't
+    # count as negatives and deflate precision. No-op for m1/m2 (no 255 labels).
+    valid = labels < 100
+    if not valid.all():
+        probs = probs[valid]
+        labels = labels[valid]
 
     # Per-class PR-AUC
     label_names = {0: "donor", 1: "acceptor", 2: "neither"} if num_classes == 3 else {0: "positive", 1: "negative"}
@@ -355,6 +395,14 @@ def main() -> int:
             "may be empty on a few genes. --smoke implies this."
         ),
     )
+    parser.add_argument(
+        "--confirmed-weight", type=float, default=2.0,
+        help=(
+            "M3 only: per-position loss weight for long-read-confirmed novel "
+            "positives (others weight 1.0). Default 2.0. Set 1.0 for the "
+            "unweighted v1.1 comparison."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -483,6 +531,27 @@ def main() -> int:
     splice_sites_df = pd.read_csv(splice_sites_path, sep="\t")
     log.info("Splice sites: %d rows", len(splice_sites_df))
 
+    # ── M3 novel-site labels (recognizer + post-filter framing) ──────
+    # m3 trains on a curated novel-site label set instead of the canonical
+    # splice_sites_enhanced.tsv: positives = novel donors/acceptors, annotated
+    # sites are MASKED out of the loss (255), everything else is "neither".
+    m3_positives_df = m3_annotation_mask_df = None
+    if args.mode == "m3":
+        m3_dir = Path("data/mane/GRCh38/m3_labels")
+        pos_path = m3_dir / "positives_pooled.parquet"
+        ann_path = m3_dir / "annotation_mask.parquet"
+        if not pos_path.exists() or not ann_path.exists():
+            print(f"ERROR: M3 label set not found under {m3_dir}/")
+            print(f"  expected: {pos_path}\n            {ann_path}")
+            return 1
+        m3_positives_df = pd.read_parquet(pos_path)
+        m3_annotation_mask_df = pd.read_parquet(ann_path)
+        print(
+            f"  M3 positives: {len(m3_positives_df):,} "
+            f"({int(m3_positives_df['longread_confirmed'].sum()):,} long-read-confirmed); "
+            f"annotation mask: {len(m3_annotation_mask_df):,}"
+        )
+
     # Load gene annotations for coordinates
     from agentic_spliceai.splice_engine.base_layer.data.genomic_extraction import (
         extract_gene_annotations,
@@ -510,6 +579,52 @@ def main() -> int:
 
     train_genes = sorted(gene_split.train_genes)
     val_genes = sorted(gene_split.val_genes)
+
+    # ── M3: order genes that contain >=1 novel positive FIRST ───────────────
+    # M3 labels are coordinate-keyed (no gene_id) and every non-labeled position
+    # in a gene window is automatically class 2 (neither) — so we train on the
+    # FULL split like M1/M2 (no negative sampling; negatives.parquet unused).
+    # We only reorder so a --smoke / --max-genes subset contains real positives
+    # to verify; full-run sampling is gene-order-independent. Overlap is tested
+    # by binary search over each chromosome's sorted positive positions.
+    if args.mode == "m3":
+        ga_rows = {
+            r["gene_id"]: (str(r["chrom"]), int(r["start"]), int(r["end"]))
+            for r in gene_annotations.select(
+                ["gene_id", "chrom", "start", "end"]
+            ).iter_rows(named=True)
+        }
+        _pos_by_chrom = {
+            str(ch): np.sort(sub["position"].to_numpy())
+            for ch, sub in m3_positives_df.groupby(
+                m3_positives_df["chrom"].astype(str)
+            )
+        }
+
+        def _gene_has_positive(gene_id: str) -> bool:
+            row = ga_rows.get(gene_id)
+            if row is None:
+                return False
+            ch, start, end = row
+            ch = ch[3:] if ch.startswith("chr") else ch
+            arr = _pos_by_chrom.get(ch)
+            if arr is None or arr.size == 0:
+                return False
+            return np.searchsorted(arr, end, "left") > np.searchsorted(arr, start, "left")
+
+        def _positives_first(genes):
+            flagged = [(g, _gene_has_positive(g)) for g in genes]
+            return [g for g, h in flagged if h] + [g for g, h in flagged if not h]
+
+        train_genes = _positives_first(train_genes)
+        val_genes = _positives_first(val_genes)
+        n_tr = sum(_gene_has_positive(g) for g in train_genes)
+        n_va = sum(_gene_has_positive(g) for g in val_genes)
+        print(
+            f"  M3: {n_tr}/{len(train_genes)} train, {n_va}/{len(val_genes)} val "
+            f"genes contain >=1 novel positive (training on full split; "
+            f"negatives.parquet unused)"
+        )
 
     if args.max_genes:
         train_genes = train_genes[:args.max_genes]
@@ -543,11 +658,18 @@ def main() -> int:
     print(f"\n  Building training gene cache ({len(train_genes)} genes)...")
     print(f"    Cache dir: {cache_dir}")
     t0 = time.time()
+    m3_cache_kwargs = dict(
+        mode=args.mode,
+        positives_df=m3_positives_df,
+        annotation_mask_df=m3_annotation_mask_df,
+        confirmed_weight=args.confirmed_weight,
+    )
     train_index = build_gene_cache(
         train_genes, splice_sites_df, fasta_path,
         base_scores_dir, extractor, gene_annotations,
         cache_dir=cache_dir / "train",
         check_live_channels=check_live,
+        **m3_cache_kwargs,
     )
     print(f"    Cached {len(train_index)} genes in {time.time() - t0:.1f}s")
 
@@ -557,6 +679,7 @@ def main() -> int:
         base_scores_dir, extractor, gene_annotations,
         cache_dir=cache_dir / "val",
         check_live_channels=check_live,
+        **m3_cache_kwargs,
     )
     print(f"    Cached {len(val_index)} genes")
 
@@ -676,7 +799,9 @@ def main() -> int:
     else:
         weights = torch.tensor([1.0, 1.0], device=device)
 
-    criterion = FocalLoss(alpha=weights, gamma=2.0)
+    # m3 masks annotated splice sites out of the loss via the 255 sentinel.
+    ignore_index = 255 if args.mode == "m3" else -100
+    criterion = FocalLoss(alpha=weights, gamma=2.0, ignore_index=ignore_index)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 

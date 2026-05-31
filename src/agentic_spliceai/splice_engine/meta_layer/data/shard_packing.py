@@ -158,6 +158,12 @@ def pack_gene_cache_to_shards(
                     "labels", data=data["labels"],
                     dtype="int64",
                 )
+                # Per-position sample weights are only present for m3 caches.
+                if "weights" in data.files:
+                    grp.create_dataset(
+                        "weights", data=data["weights"],
+                        dtype="float32",
+                    )
                 # Encode sequence as uint8 for efficient slice reads
                 seq_str = str(data["sequence"])
                 grp.create_dataset(

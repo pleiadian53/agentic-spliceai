@@ -131,7 +131,7 @@ class MetaSpliceConfig:
     @classmethod
     def m3(cls, **kwargs) -> MetaSpliceConfig:
         """M3-S: novel site prediction, junction excluded (7 channels)."""
-        return cls(variant="M3-S", mm_channels=7, num_classes=2, **kwargs)
+        return cls(variant="M3-S", mm_channels=7, num_classes=3, **kwargs)
 
 
 # ---------------------------------------------------------------------------

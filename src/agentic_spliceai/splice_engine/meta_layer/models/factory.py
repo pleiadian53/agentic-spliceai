@@ -30,7 +30,11 @@ def _variant_for_mode(mode: str) -> str:
 
 
 def _num_classes_for_mode(mode: str) -> int:
-    return 2 if mode == "m3" else 3
+    # All variants are 3-class (donor/acceptor/neither). M3-S keeps the same
+    # head as M1-S/M2-S; its only difference is the 255=ignore loss mask for
+    # annotated sites (recognizer + post-filter framing). The earlier 2-class
+    # M3-S stub was from a superseded per-site binary sketch.
+    return 3
 
 
 def build_model(
