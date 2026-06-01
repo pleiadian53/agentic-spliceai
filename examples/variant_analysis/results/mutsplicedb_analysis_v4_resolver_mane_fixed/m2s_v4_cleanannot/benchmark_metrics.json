@@ -1,0 +1,33 @@
+{
+  "n_variants": 434,
+  "n_consequence_match": 313,
+  "consequence_concordance": 0.7211981566820277,
+  "meta_mean_delta": 0.7350418876496053,
+  "meta_median_delta": 0.7900467216968536,
+  "base_mean_delta": 0.8495820352146702,
+  "base_median_delta": 0.9738549888134003,
+  "meta_detection_rate_t0.1": 0.9930875576036866,
+  "base_detection_rate_t0.1": 0.9723502304147466,
+  "meta_detection_rate_t0.2": 0.9838709677419355,
+  "base_detection_rate_t0.2": 0.9608294930875576,
+  "meta_detection_rate_t0.5": 0.8824884792626728,
+  "base_detection_rate_t0.5": 0.8940092165898618,
+  "meta_detection_rate_t0.8": 0.4815668202764977,
+  "base_detection_rate_t0.8": 0.7649769585253456,
+  "confidence_high": 388,
+  "confidence_moderate": 40,
+  "confidence_low": 6,
+  "by_effect_type": {
+    "intron_retention": {
+      "n": 427,
+      "detected_t02": 420,
+      "consequence_match": 312
+    },
+    "exon_skipping": {
+      "n": 7,
+      "detected_t02": 7,
+      "consequence_match": 1
+    }
+  },
+  "checkpoint": "/runpod-volume/output/meta_layer/m2s_v4_cleanannot/best.pt"
+}

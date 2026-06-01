@@ -1,5 +1,9 @@
 # M4 Benchmark Sweep v2 — ClinVar (splice-filtered + unfiltered) × MutSpliceDB × M1-S v2 / M2-S v2 × ±50 / ±100 bp
 
+> **SUPERSEDED (2026-05-30) for MutSpliceDB consequence concordance** — the M1-S / M2-S numbers were re-run on `m1s_v4_cleanannot` / `m2s_v4_cleanannot` (strand-fixed annotation + neuronal RBP union). New numbers: **M1-S 50.7%** (was 44.7%) and **M2-S 72.1%** (was 68.0%) consequence concordance; +6 pt / +4 pt vs v2, +21 pt M2-vs-M1 gap. Results: [`mutsplicedb_analysis_v4/`](mutsplicedb_analysis_v4/). The ClinVar splice-filtered / unfiltered runs in this sweep were NOT re-run.
+>
+> **Validated 2026-05-31 with HGVS-aware loader** — an HGVS resolver (`agentic_spliceai.splice_engine.utils.HgvsResolver`) was wired into `MutSpliceDBLoader` to correct ~53% of rows where the TSV's `strand` column was wrong (real bug, distinct from the initial position-offset hypothesis). Re-running with the corrected strand annotations gave **identical numbers** (50.7% / 72.1%) — confirming the consequence-concordance metric is robust to allele orientation. The metric scores splice-site perturbation patterns (donor/acceptor delta over a local window) rather than allele-specific responses, so wrong-strand mutations at the right position still produced the same consequence calls. The v4 numbers above are therefore correct as-is, not biased low. Results from the validation re-run: [`mutsplicedb_analysis_v4_resolver_mane_fixed/`](mutsplicedb_analysis_v4_resolver_mane_fixed/).
+
 **Date**: 2026-04-15
 **Hardware**: A40 GPU
 **Orchestrator**: [`examples/variant_analysis/ops_m4_benchmarks_pod.sh`](../ops_m4_benchmarks_pod.sh)
