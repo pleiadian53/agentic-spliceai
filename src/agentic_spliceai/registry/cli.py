@@ -82,6 +82,71 @@ def _cmd_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_stub(args: argparse.Namespace) -> int:
+    """Write starter MANIFESTs for every unmanaged artifact dir under output/.
+
+    Retroactive catch-up for cases where training scripts (or pod-side
+    jobs, or rushed sessions) produced new artifact dirs without ever
+    registering them. Doesn't touch dirs that already have a MANIFEST.
+    """
+    import datetime
+    import os
+
+    output_root = Path(args.output_root).resolve()
+    if not output_root.is_dir():
+        print(f"ERROR: not a directory: {output_root}", file=sys.stderr)
+        return 2
+
+    from .discovery import find_unmanaged_dirs
+
+    unmanaged = find_unmanaged_dirs(output_root)
+    if not unmanaged:
+        print("(no unmanaged artifact dirs found)")
+        return 0
+
+    default_tags = list(args.tag or [])
+
+    print(f"Found {len(unmanaged)} unmanaged dir(s).")
+    if args.dry_run:
+        for d in unmanaged:
+            rel = d.relative_to(output_root)
+            print(f"  [dry-run] would stub: {output_root.name}/{rel}")
+        print("\n(no files written; re-run without --dry-run to commit)")
+        return 0
+
+    n_written = 0
+    for artifact_dir in unmanaged:
+        manifest_path = artifact_dir / MANIFEST_FILENAME
+        if manifest_path.exists():
+            # Race condition guard (find_unmanaged_dirs ran a moment ago).
+            continue
+
+        # Best-effort inference of `created`: directory mtime.
+        try:
+            mtime = os.path.getmtime(artifact_dir)
+            created = datetime.date.fromtimestamp(mtime).isoformat()
+        except OSError:
+            created = datetime.date.today().isoformat()
+
+        manifest = starter_manifest(
+            path=artifact_dir,
+            status=args.status,
+            produced_by=[],
+            notes="",
+            tags=default_tags,
+        )
+        manifest.created = created
+        manifest_path.write_text(manifest.to_yaml())
+        rel = artifact_dir.relative_to(output_root)
+        print(f"  stubbed: {output_root.name}/{rel}/MANIFEST.yaml  (status={args.status}, created={created})")
+        n_written += 1
+
+    print(f"\n{n_written} starter manifest(s) written.")
+    print("Edit each MANIFEST.yaml to fill in `produced_by`, `notes`, `tags`,")
+    print("then run: python -m agentic_spliceai.registry build")
+    return 0
+
+
 def _cmd_list(args: argparse.Namespace) -> int:
     output_root = Path(args.output_root).resolve()
     manifests = load_all_manifests(output_root)
@@ -158,6 +223,32 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("--tag", action="append", help="Tag (repeatable), e.g. --tag demo:ui_integration.")
     pa.add_argument("--force", action="store_true", help="Overwrite an existing MANIFEST.")
     pa.set_defaults(func=_cmd_add)
+
+    # stub
+    ps = sub.add_parser(
+        "stub",
+        help="Write starter MANIFESTs for every unmanaged artifact dir (retroactive catch-up).",
+    )
+    ps.add_argument(
+        "--status",
+        default="experimental",
+        choices=list(ALLOWED_STATUSES),
+        help="Default status to assign. `experimental` is the conservative choice "
+             "for fresh training output; promote to `active` once you've decided "
+             "to canonicalize.",
+    )
+    ps.add_argument(
+        "--tag",
+        action="append",
+        help="Tag to apply to every stubbed manifest (repeatable). Useful for "
+             "bulk-tagging a session's worth of training runs, e.g. --tag meta:v2.",
+    )
+    ps.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List what would be stubbed; don't write anything.",
+    )
+    ps.set_defaults(func=_cmd_stub)
 
     # list
     pl = sub.add_parser("list", help="Print a filtered listing of artifacts.")

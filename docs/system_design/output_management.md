@@ -189,19 +189,45 @@ is a violation. If the dir name needs to change, edit `settings.yaml`.
 
 ### Adding a new artifact
 
-1. Place it under `output/<topic>/<self_describing_name>/`.
-2. Create the manifest:
-   ```bash
-   python -m agentic_spliceai.registry add output/<topic>/<name> \
-       --status active \
-       --produced-by "<script or command>" \
-       --tag <namespace>:<value>
-   ```
-   Then edit the generated `MANIFEST.yaml` to fill in `notes` and
-   `referenced_by`.
-3. If it's a model that downstream code should load, also add it to
+Two flows depending on how you got here:
+
+**(a) You just ran a training script (or any producer) and a new dir
+appeared under `output/<topic>/`.** Stub a starter manifest for it (and
+any other unregistered dirs from the same session) with one command:
+
+```bash
+python -m agentic_spliceai.registry stub --tag meta:v2 --tag m3
+# Found 1 unmanaged dir(s).
+#   stubbed: output/meta_layer/m3_v2_longread_aware/MANIFEST.yaml
+#     (status=experimental, created=2026-06-01)
+```
+
+The stub writes a `MANIFEST.yaml` with `status: experimental`, today's
+date (inferred from directory mtime), and whatever default tags you pass.
+Then edit the manifest in place to fill in `produced_by`, `notes`, and
+any artifact-specific tags. The intentional friction of editing is what
+catches stale defaults.
+
+Producer scripts do NOT write manifests themselves — they should focus
+on their job. The stub command is the retroactive contract.
+
+**(b) Targeted creation for a single known artifact:**
+
+```bash
+python -m agentic_spliceai.registry add output/<topic>/<name> \
+    --status active \
+    --produced-by "<script or command>" \
+    --tag <namespace>:<value>
+```
+
+Then edit the generated `MANIFEST.yaml` to flesh out `notes` and
+`referenced_by`.
+
+After either flow:
+
+1. If it's a model that downstream code should load, add it to
    `settings.yaml` under `base_models:` or `meta_models:`.
-4. Regenerate the index: `python -m agentic_spliceai.registry build`.
+2. Regenerate the index: `python -m agentic_spliceai.registry build`.
 
 ### Promoting a model
 
