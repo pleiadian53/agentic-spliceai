@@ -21,9 +21,12 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional
+from typing import TYPE_CHECKING, Dict, Iterator, List, Optional
 
 import polars as pl
+
+if TYPE_CHECKING:
+    from agentic_spliceai.splice_engine.utils.hgvs_resolver import HgvsResolver
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,7 @@ class MutSpliceDBRecord:
     evidence_source: str  # "GDC/TCGA"
     evidence_samples: str  # TCGA sample IDs
     confidence: str  # "medium", "high"
+    resolved: bool = False  # True if (chrom, position, strand, ref, alt) come from HgvsResolver
 
     @property
     def is_intron_retention(self) -> bool:
@@ -99,19 +103,49 @@ class MutSpliceDBLoader:
         Path to ``splice_sites_induced.tsv`` (parsed MutSpliceDB data).
     raw_csv_path : Path or str, optional
         Path to raw MutSpliceDB CSV export (for additional fields).
+    resolver : HgvsResolver, optional
+        If given, the loader resolves each row's HGVS string to its exact
+        genomic ``(chrom, position, strand)`` via the gffutils-backed
+        transcript database and OVERRIDES the TSV's ``chrom``,
+        ``position``, and ``strand`` fields with the resolved values.
+        ``ref_allele`` / ``alt_allele`` are left in **transcript
+        orientation** (as parsed from the HGVS string) — downstream
+        ``variant_runner`` performs its own strand-aware RC step using
+        the strand field, so handing it pre-RC'd genomic alleles would
+        double-flip minus-strand variants. This corrects two upstream
+        bugs:
+
+        - **`strand` is wrong for ~53% of rows** in the shipped TSV
+          (e.g. MTHFR is on minus-strand but tagged ``+``). Without
+          resolution, variant_runner skips the allele RC step and
+          mutates with wrong-orientation bases.
+        - **`position` is the splice-site locus center**, off by up
+          to ±100 bp from the actual variant. Empirically ~99%
+          accurate in MutSpliceDB but worth normalizing.
+
+        Rows where HGVS cannot be resolved (transcript not in DB,
+        complex variant) keep their TSV ``position``/``strand`` and
+        are marked ``resolved=False``. Default ``None`` preserves
+        legacy behavior.
     """
 
     def __init__(
         self,
         tsv_path: str | Path = "data/mutsplicedb/splice_sites_induced.tsv",
         raw_csv_path: Optional[str | Path] = None,
+        resolver: Optional["HgvsResolver"] = None,
     ) -> None:
         self.tsv_path = Path(tsv_path)
         self.raw_csv_path = Path(raw_csv_path) if raw_csv_path else None
+        self.resolver = resolver
         self._records: Optional[List[MutSpliceDBRecord]] = None
 
     def load_all(self) -> List[MutSpliceDBRecord]:
         """Parse TSV and return all records with ref/alt extracted from HGVS.
+
+        If a :class:`HgvsResolver` was provided to ``__init__``, each
+        record's ``position``, ``strand``, ``ref_allele``, ``alt_allele``
+        are replaced with the GTF-resolved genomic values where possible.
 
         Results are cached after first load.
         """
@@ -126,6 +160,8 @@ class MutSpliceDBLoader:
 
         df = pl.read_csv(str(self.tsv_path), separator="\t")
         records = []
+        n_resolved = 0
+        n_resolution_failed = 0
 
         for row in df.iter_rows(named=True):
             hgvs = row.get("inducing_variant", "")
@@ -135,10 +171,33 @@ class MutSpliceDBLoader:
                 logger.debug("Skipping unparseable HGVS: %s", hgvs)
                 continue
 
+            chrom = row["chrom"]
+            position = int(row["position"])
+            strand = row.get("strand", "+")
+            resolved = False
+
+            if self.resolver is not None:
+                v = self.resolver.resolve_or_none(hgvs)
+                if v is not None:
+                    # Override location + strand from the GTF. Do NOT touch
+                    # ref/alt — the resolver returns them in genomic orientation
+                    # (useful for FASTA audits), but downstream variant_runner
+                    # expects TRANSCRIPT orientation and runs its own
+                    # _to_genomic_alleles(strand) RC step. If we passed
+                    # resolver.ref/alt here, variant_runner would RC again →
+                    # all minus-strand alleles end up flipped twice.
+                    chrom = v.chrom
+                    position = v.position
+                    strand = v.strand
+                    resolved = True
+                    n_resolved += 1
+                else:
+                    n_resolution_failed += 1
+
             records.append(MutSpliceDBRecord(
-                chrom=row["chrom"],
-                position=int(row["position"]),
-                strand=row.get("strand", "+"),
+                chrom=chrom,
+                position=position,
+                strand=strand,
                 gene=row.get("gene", ""),
                 transcript_id=row.get("transcript_id", ""),
                 hgvs=hgvs,
@@ -149,13 +208,23 @@ class MutSpliceDBLoader:
                 evidence_source=row.get("evidence_source", ""),
                 evidence_samples=row.get("evidence_samples", ""),
                 confidence=row.get("confidence", ""),
+                resolved=resolved,
             ))
 
         self._records = records
-        logger.info(
-            "MutSpliceDB: loaded %d records from %s (%d skipped)",
-            len(records), self.tsv_path.name, len(df) - len(records),
-        )
+        if self.resolver is not None:
+            logger.info(
+                "MutSpliceDB: loaded %d records from %s "
+                "(%d HGVS-resolved, %d resolution-failed, %d unparseable)",
+                len(records), self.tsv_path.name,
+                n_resolved, n_resolution_failed,
+                len(df) - len(records),
+            )
+        else:
+            logger.info(
+                "MutSpliceDB: loaded %d records from %s (%d skipped)",
+                len(records), self.tsv_path.name, len(df) - len(records),
+            )
         return records
 
     def get_intron_retention(self) -> List[MutSpliceDBRecord]:

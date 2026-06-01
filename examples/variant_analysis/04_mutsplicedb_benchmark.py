@@ -242,6 +242,18 @@ def main() -> int:
     parser.add_argument("--score-radius", type=int, default=50,
                         help="Radius (bp) around the variant for max_delta reduction. "
                              "Matches OpenSpliceAI's dist_var=50.")
+    parser.add_argument("--resolve-hgvs", action=argparse.BooleanOptionalAction,
+                        default=True,
+                        help="Resolve each MutSpliceDB row's HGVS string to exact "
+                             "genomic (chrom, position, strand, ref, alt) via the "
+                             "gffutils DB, overriding the TSV's `position`/`strand` "
+                             "(known to be wrong-strand for ~53%% of rows). "
+                             "Default: enabled.")
+    parser.add_argument("--gffutils-db", type=Path,
+                        default=Path("data/mane/GRCh38/annotations.db"),
+                        help="gffutils FeatureDB used for HGVS resolution. "
+                             "MANE covers ~95.4%% of MutSpliceDB transcripts; "
+                             "use a full RefSeq DB to lift to ~100%%.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.WARNING,
@@ -251,12 +263,31 @@ def main() -> int:
     print("MutSpliceDB Benchmark (RNA-seq Validated Variants)")
     print("=" * 60)
 
-    # Load MutSpliceDB
+    # Load MutSpliceDB. If --resolve-hgvs (default), wire HgvsResolver into
+    # the loader so each row's (position, strand, ref, alt) come from the
+    # gffutils DB rather than the TSV's per-row fields (the TSV's `strand`
+    # is wrong for ~53% of rows; see dev/planning/meta_layer/BACKLOG.md §1).
     from agentic_spliceai.splice_engine.meta_layer.data.mutsplicedb_loader import (
         MutSpliceDBLoader,
     )
-    loader = MutSpliceDBLoader(args.mutsplicedb)
+    resolver = None
+    if args.resolve_hgvs:
+        from agentic_spliceai.splice_engine.utils.hgvs_resolver import HgvsResolver
+        if not args.gffutils_db.exists():
+            raise FileNotFoundError(
+                f"gffutils DB not found at {args.gffutils_db}. "
+                "Build it (gffutils.create_db) or pass --no-resolve-hgvs."
+            )
+        resolver = HgvsResolver(args.gffutils_db)
+        print(f"\n  HGVS resolver: enabled (db={args.gffutils_db.name})")
+    else:
+        print("\n  HGVS resolver: disabled (legacy mode; expect strand-flip artifacts)")
+    loader = MutSpliceDBLoader(args.mutsplicedb, resolver=resolver)
     variants = list(loader.iter_variants())
+    if resolver is not None:
+        n_resolved = sum(1 for v in variants if getattr(v, "resolved", False))
+        print(f"  Resolved: {n_resolved}/{len(variants)} "
+              f"({100*n_resolved/len(variants):.1f}%) — rest fall back to TSV values")
 
     if args.max_variants:
         variants = variants[:args.max_variants]
