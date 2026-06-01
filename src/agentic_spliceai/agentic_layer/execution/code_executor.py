@@ -1,10 +1,10 @@
-"""Utility functions for chart_agent package.
+"""Code execution and display helpers for code-as-plan workflows.
 
-This module provides helper functions for:
-- Model listing and selection
-- HTML display and formatting
-- Chart result presentation
-- Code execution and visualization
+`execute_chart_code` is the primary public surface — it runs LLM-generated
+plotting code in a constrained namespace and returns the captured figure +
+stdout. The rest of the module is notebook/HTML presentation utilities
+(model listing, result cards, analysis summaries) used by the
+`examples/agentic_layer/` demos. Splice-agnostic.
 """
 
 from __future__ import annotations

@@ -94,8 +94,8 @@ import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend for server/batch execution
 import matplotlib.pyplot as plt
 
-from agentic_spliceai.llm_client import call_llm_json, call_llm_text
-from agentic_spliceai.utils import execute_chart_code
+from agentic_spliceai.agentic_layer.clients.llm_client import call_llm_json, call_llm_text
+from agentic_spliceai.agentic_layer.execution.code_executor import execute_chart_code
 
 # Load environment variables from .env file
 try:
@@ -580,7 +580,7 @@ Generate IMPROVED chart code that addresses all the issues and implements the su
 The code should be complete and executable with 'df' as the DataFrame variable.
 """
     
-    from agentic_spliceai.planning import generate_chart_code
+    from agentic_spliceai.agentic_layer.planning.code_as_plan import generate_chart_code
     result = generate_chart_code(
         dataset=dataset,
         user_request=refinement_prompt,
@@ -657,14 +657,14 @@ def generate_analysis_insight(
     print(f"Query returned {len(query_result)} rows")
     
     # Step 2: Create dataset from query result
-    from agentic_spliceai.data_access import DataFrameDataset
+    from agentic_spliceai.agentic_layer.data.data_access import DataFrameDataset
     query_dataset = DataFrameDataset(query_result, name=analysis_type)
     
     # Step 3: Generate chart with domain context
     print(f"\nGenerating visualization code...")
     chart_prompt = template["chart_prompt"].format(context=SPLICE_SITE_CONTEXT)
     
-    from agentic_spliceai.planning import generate_chart_code
+    from agentic_spliceai.agentic_layer.planning.code_as_plan import generate_chart_code
     result = generate_chart_code(
         dataset=query_dataset,
         user_request=chart_prompt,
@@ -819,8 +819,8 @@ Respond in JSON format:
     print(f"Query returned {len(query_result)} rows")
     
     # Step 3: Generate visualization
-    from agentic_spliceai.data_access import DataFrameDataset
-    from agentic_spliceai.planning import generate_chart_code
+    from agentic_spliceai.agentic_layer.data.data_access import DataFrameDataset
+    from agentic_spliceai.agentic_layer.planning.code_as_plan import generate_chart_code
     
     query_dataset = DataFrameDataset(query_result, name="exploratory_analysis")
     
@@ -1004,7 +1004,7 @@ def main():
         print(f"Reflection: Disabled (use --reflect to enable)")
     
     # Load dataset with DuckDB
-    from agentic_spliceai.data_access import DuckDBDataset
+    from agentic_spliceai.agentic_layer.data.data_access import DuckDBDataset
     
     print(f"\nLoading dataset with DuckDB...")
     # Use all_varchar=True for genomic data to handle mixed chromosome types (1,2,3,X,Y)

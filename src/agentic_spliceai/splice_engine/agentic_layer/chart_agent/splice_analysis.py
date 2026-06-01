@@ -17,9 +17,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 
-from agentic_spliceai.data_access import ChartDataset
-from agentic_spliceai.planning import generate_chart_code
-from agentic_spliceai.llm_client import call_llm_json
+from agentic_spliceai.agentic_layer.data.data_access import ChartDataset
+from agentic_spliceai.agentic_layer.planning.code_as_plan import generate_chart_code
+from agentic_spliceai.agentic_layer.clients.llm_client import call_llm_json
 from openai import OpenAI
 
 

@@ -11,8 +11,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from agentic_spliceai import create_dataset
-from agentic_spliceai.splice_analysis import (
+from agentic_spliceai.agentic_layer.data.data_access import create_dataset
+from agentic_spliceai.splice_engine.agentic_layer.chart_agent.splice_analysis import (
     generate_analysis_insight,
     generate_exploratory_insight,
     list_available_analyses,

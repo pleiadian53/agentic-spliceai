@@ -1,14 +1,16 @@
 """Unified LLM client helpers for chat + responses API.
 
-This module provides thin wrappers so the rest of the chart_agent code
-can call a single helper function and transparently work with either:
+Thin wrappers so callers can use a single helper and transparently work
+with either:
 
 - Chat Completions API models (gpt-4o, gpt-4o-mini, gpt-4.1, etc.)
-- Responses API–only models (gpt-5.x, gpt-5.1-codex-mini, etc.)
+- Responses API-only models (gpt-5.x, gpt-5.1-codex-mini, etc.)
 
 Usage
 -----
-from .llm_client import call_llm_text, call_llm_json
+from agentic_spliceai.agentic_layer.clients.llm_client import (
+    call_llm_text, call_llm_json,
+)
 
 text = call_llm_text(client, model, messages=[...])
 obj  = call_llm_json(client, model, messages=[...])

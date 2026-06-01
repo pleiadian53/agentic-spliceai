@@ -24,8 +24,8 @@ from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
-from agentic_spliceai.data_access import create_dataset
-from agentic_spliceai.splice_analysis import (
+from agentic_spliceai.agentic_layer.data.data_access import create_dataset
+from agentic_spliceai.splice_engine.agentic_layer.chart_agent.splice_analysis import (
     ANALYSIS_TEMPLATES,
     generate_analysis_insight,
     generate_exploratory_insight,

@@ -1,7 +1,10 @@
-"""LLM-based chart code generation (code-as-plan approach).
+"""LLM-based code-as-plan generator for chart workflows.
 
-This module generates Python plotting code from user requests and dataset descriptions.
-Similar to customer_service planning.py but specialized for chart generation.
+Generates Python plotting code from a user request plus a dataset description.
+The chart-generation prompt is one instantiation of the broader code-as-plan
+pattern (LLM emits executable code that the caller runs in a sandbox); the
+splice-domain chart agent is the current primary consumer, but the generator
+itself is splice-agnostic.
 """
 
 from __future__ import annotations
@@ -10,9 +13,8 @@ from typing import Any, Optional
 
 from openai import OpenAI
 
-from .data_access import ChartDataset
-
-from .llm_client import call_llm_text
+from agentic_spliceai.agentic_layer.data.data_access import ChartDataset
+from agentic_spliceai.agentic_layer.clients.llm_client import call_llm_text
 
 
 # =========================

@@ -45,11 +45,11 @@ def check_splice_agent_imports():
     
     modules = [
         ("splice_agent", "Main package"),
-        ("agentic_spliceai.data_access", "Data access layer"),
-        ("agentic_spliceai.planning", "Code generation"),
-        ("agentic_spliceai.llm_client", "LLM client"),
-        ("agentic_spliceai.utils", "Utilities"),
-        ("agentic_spliceai.splice_analysis", "Splice-specific analysis"),
+        ("agentic_spliceai.agentic_layer.data.data_access", "Data access layer"),
+        ("agentic_spliceai.agentic_layer.planning.code_as_plan", "Code-as-plan generator"),
+        ("agentic_spliceai.agentic_layer.clients.llm_client", "LLM client"),
+        ("agentic_spliceai.agentic_layer.execution.code_executor", "Code executor"),
+        ("agentic_spliceai.splice_engine.agentic_layer.chart_agent.splice_analysis", "Splice chart agent"),
     ]
     
     all_ok = True

@@ -1,12 +1,17 @@
-"""Data access layer for chart generation.
+"""Generic tabular dataset adapter for agentic code-as-plan workflows.
 
-Provides unified interface for loading and describing datasets from various sources:
+Provides a unified `ChartDataset` ABC over several backends:
 - CSV files
 - SQLite databases
 - pandas DataFrames
 - Excel files
+- DuckDB (optional dependency)
 
-Similar to CustomerServiceStore but optimized for chart generation workflows.
+The adapter exposes a uniform schema + sample-rows interface that the
+code-as-plan generator
+(`agentic_spliceai.agentic_layer.planning.code_as_plan`) can pass to the
+LLM as context. Splice-agnostic — used by the splice-domain chart agent
+but reusable for any future agentic workflow.
 """
 
 from __future__ import annotations
@@ -509,9 +514,35 @@ class DuckDBDataset(ChartDataset):
         self.close()
 
 
+def create_dataset(file_path: str | Path, **kwargs: Any) -> "ChartDataset":
+    """Extension-based factory for the common file-backed datasets.
+
+    Dispatch:
+        .csv         -> CSVDataset
+        .tsv / .tab  -> CSVDataset(sep="\\t")
+        .xlsx / .xls -> ExcelDataset
+
+    For SQLite or DuckDB sources, instantiate the relevant `*Dataset` class
+    directly — they need parameters (table name, query) that don't fit a
+    path-only factory.
+    """
+    suffix = Path(file_path).suffix.lower()
+    if suffix == ".csv":
+        return CSVDataset(file_path, **kwargs)
+    if suffix in (".tsv", ".tab"):
+        kwargs.setdefault("sep", "\t")
+        return CSVDataset(file_path, **kwargs)
+    if suffix in (".xlsx", ".xls"):
+        return ExcelDataset(file_path, **kwargs)
+    raise ValueError(
+        f"create_dataset: no factory mapping for extension {suffix!r}. "
+        "Instantiate SQLiteDataset / DuckDBDataset directly."
+    )
+
+
 class ExcelDataset(ChartDataset):
     """Dataset loaded from Excel file."""
-    
+
     def __init__(
         self,
         file_path: str | Path,
