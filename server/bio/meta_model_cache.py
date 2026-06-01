@@ -3,7 +3,7 @@
 Mirrors ``model_cache.py`` (base models): caches loaded meta-splice models so
 the load cost is paid once, and serializes loads on a single-worker executor to
 avoid a double-load race. Keyed by the meta-model name from the ``meta_models``
-block of settings.yaml (e.g. ``m1s_v3_neuronal``).
+block of settings.yaml (e.g. ``m1s_v4_cleanannot``).
 """
 
 import asyncio

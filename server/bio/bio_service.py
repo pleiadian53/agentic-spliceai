@@ -619,7 +619,7 @@ async def genome_predict(
     gene_name: str,
     model: str = Query(..., description="Base model type (e.g., openspliceai)"),
     threshold: float = Query(0.5, ge=0.0, le=1.0, description="Classification threshold"),
-    meta: str | None = Query(None, description="Optional meta model (e.g. m1s_v3_neuronal) for a base-vs-meta overlay"),
+    meta: str | None = Query(None, description="Optional meta model (e.g. m1s_v4_cleanannot) for a base-vs-meta overlay"),
 ):
     """Run on-demand splice site prediction for a single gene.
 

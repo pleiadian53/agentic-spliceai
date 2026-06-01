@@ -22,7 +22,7 @@ Usage:
 
     # Quick test
     python 04_mutsplicedb_benchmark.py \
-        --checkpoint output/meta_layer/m2c/best.pt \
+        --checkpoint output/meta_layer/m1s_v4_cleanannot/best.pt \
         --fasta data/mane/GRCh38/Homo_sapiens.GRCh38.dna.primary_assembly.fa \
         --max-variants 20 --device cpu
 """

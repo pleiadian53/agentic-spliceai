@@ -286,7 +286,7 @@ def list_available_meta_models() -> list[str]:
     """List configured meta-layer models (M*-S).
 
     Returns the names from the ``meta_models`` block of settings.yaml
-    (e.g. ``['m1s_v3_neuronal', 'm2s_v3_neuronal']``). Empty if none configured.
+    (e.g. ``['m1s_v4_cleanannot', 'm2s_v4_cleanannot']``). Empty if none configured.
     """
     cfg = load_config()
     return list(cfg.meta_models.keys()) if cfg.meta_models else []
