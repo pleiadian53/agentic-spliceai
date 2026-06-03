@@ -20,8 +20,8 @@ def generate_research_report(
     1. Decide output format (PDF/LaTeX/Markdown)
     2. Planner creates a plan.
     3. Executor runs the plan (delegating to sub-agents).
-    4. (Opt-in, Feynman Tier 1) Verifier anchors claims to sources;
-       reviewer produces an adversarial review.
+    4. (Opt-in) Verifier anchors claims to sources; reviewer produces
+       an adversarial review.
 
     Args:
         topic: Research topic.
@@ -32,11 +32,12 @@ def generate_research_report(
         user_format: Optional user override for format ("pdf_direct", "latex", "markdown")
         verbose: Show detailed progress (default True)
         enable_verification: If True, after the executor produces a draft,
-            run the verifier (anchor claims to sources, fetch URLs, remove
-            unsourced material) and the reviewer (FATAL/MAJOR/MINOR
-            adversarial peer review). Default False — behavior unchanged
-            from the pre-2026-06-02 baseline. The Feynman Tier 1 example
-            scripts pass True to exercise this path.
+            run the verifier (anchor claims to sources, re-search to
+            verify, remove unsourced material) and the reviewer
+            (FATAL/MAJOR/MINOR adversarial peer review). Default False
+            — existing CLI behavior is unchanged unless callers opt in.
+            The verification-suite example scripts pass True to exercise
+            this path.
 
     Returns:
         Dictionary containing the plan, execution history, format decision,
@@ -157,20 +158,21 @@ def generate_research_report(
         "format_decision": format_info,  # Track format decision in output
     }
 
-    # 4. (Opt-in) Feynman Tier 1 verification + adversarial review
+    # 4. (Opt-in) Verification + adversarial review
     if enable_verification:
         if verbose:
             print(f"\n{'─'*70}")
-            print(f"🔍 STEP 4: VERIFICATION (Feynman Tier 1)")
+            print(f"🔍 STEP 4: VERIFICATION + REVIEW")
             print(f"{'─'*70}")
         if progress_tracker:
             progress_tracker.update(
                 ProgressStage.EXECUTING, "Running verifier + reviewer..."
             )
 
-        # Collect research context from executor history (Tier 2 will
-        # switch this to file-based handoffs through slug-prefixed paths;
-        # for Tier 1 we pass the executor history as context)
+        # Collect research context from executor history. A future
+        # refactor will switch this to file-based handoffs through
+        # slug-prefixed paths; for now we pass the executor history
+        # as inline context.
         research_context = "\n\n---\n\n".join(
             f"### Step: {step}\n{output}"
             for step, _agent, output in history

@@ -1,9 +1,10 @@
 """LLM tool-use loop, supporting both Chat Completions and Responses APIs.
 
-Extracted from `nexus.agents.research.llm_client` in the 2026-06-02 refactor.
-The function takes a tool-mapping dict; per-role tool restriction (Feynman
-Tier 1 discipline) is applied at the caller by filtering this mapping
-through `nexus.agents.research.tools.role_filter` before invoking.
+The function takes a tool-mapping dict. Callers that want per-role tool
+restriction are expected to filter the mapping through
+`nexus.agents.research.tools.role_filter` BEFORE invoking — this loop
+itself executes whatever is passed in and does not enforce any
+allowlist on its own.
 """
 
 import json

@@ -1,4 +1,4 @@
-"""Verify the .provenance.md sidecar matches Feynman's accounting contract.
+"""Verify the .provenance.md sidecar's accounting contract.
 
 The sidecar is NOT a Sources section — it is an accounting ledger
 that records sources consulted + accepted + REJECTED (negative space
@@ -9,9 +9,9 @@ This script asserts:
 
 1. ProvenanceSidecar.validate() catches accounting inconsistencies
    (accepted ⊄ consulted; rejected ⊄ consulted; BLOCKED without notes).
-2. ProvenanceSidecar.write() emits Markdown matching the Feynman template:
-   topic, date, rounds, sources consulted/accepted/rejected with counts,
-   verification status, plan ref, research files.
+2. ProvenanceSidecar.write() emits Markdown with every required ledger
+   field: topic, date, rounds, sources consulted/accepted/rejected
+   with counts, verification status, plan ref, research files.
 3. The rendered Markdown round-trips: every accepted/rejected source
    appears in the output verbatim.
 4. VerificationStatus.from_findings() derives correctly from finding counts.

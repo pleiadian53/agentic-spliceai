@@ -34,7 +34,7 @@ from nexus.agents.research.orchestration import agents, pipeline
 def test_pipeline_signature() -> None:
     sig = inspect.signature(pipeline.generate_research_report)
     assert "enable_verification" in sig.parameters, (
-        "pipeline.generate_research_report missing the Feynman Tier 1 opt-in flag"
+        "pipeline.generate_research_report missing the verification opt-in flag"
     )
     assert sig.parameters["enable_verification"].default is False, (
         "enable_verification must default to False (preserve baseline behavior)"

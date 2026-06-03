@@ -1,12 +1,13 @@
-"""Per-role tool allowlist enforcement (Feynman Tier 1 discipline).
+"""Per-role tool allowlist enforcement.
 
-The Einstein-quote principle ported to Python: a role cannot solve a
-problem with the same level of thinking that created it. Mechanical
-enforcement of "different level of thinking" is per-role tool
-restriction — the LLM serving the writer role gets a tool schema that
-literally excludes `tavily_search_tool`, so the model physically
-cannot emit a tool call for web search regardless of how the prompt is
-phrased.
+This is the load-bearing layer behind nexus's structural role separation.
+A role cannot solve a problem with the same level of thinking that
+created it; in nexus that's enforced mechanically by per-role tool
+restriction. The LLM serving the writer role receives a tool schema
+that literally excludes `tavily_search_tool`, so the model physically
+cannot emit a tool call for web search — regardless of how the prompt
+is phrased, no provocation can route through a tool the schema doesn't
+contain.
 
 This module is the schema-filtering layer. Call sites build the LLM
 request with `build_tool_schemas_for_role(role, ...)` instead of

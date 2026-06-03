@@ -1,9 +1,9 @@
 """Linchpin verification: per-role tool restrictions are mechanically enforced.
 
-This is the load-bearing test for Feynman Tier 1's discipline in nexus.
-If this script runs green, the Einstein-quote principle ("you cannot
-solve the problem with the same level of thinking that created it") is
-not aspirational — it is enforced at the LLM tool-schema layer.
+This is the load-bearing test for nexus's role-separation discipline.
+If this script runs green, the principle that a role cannot solve a
+problem with the same level of thinking that created it is not
+aspirational — it is enforced at the LLM tool-schema layer.
 
 The mechanism:
 - Each role contract (`roles/<name>.md`) declares a `tools:` allowlist in
@@ -163,7 +163,7 @@ def main() -> int:
         return 1
     print(
         "All role restrictions verified.\n"
-        "The Einstein-quote principle is mechanically enforced in nexus."
+        "Role separation is mechanically enforced, not aspirationally prompted."
     )
     return 0
 

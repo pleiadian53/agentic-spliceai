@@ -1,8 +1,5 @@
 """`.provenance.md` sidecar — the accounting ledger that ships next to each output.
 
-Modeled after Feynman's `<slug>.provenance.md` sidecar
-(`~/work/feynman/prompts/deepresearch.md` lines 173-184, as of 2026-06-02).
-
 The sidecar is NOT a Sources section. It is an accounting ledger that
 commits to four things:
 

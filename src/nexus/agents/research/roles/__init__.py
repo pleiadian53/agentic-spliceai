@@ -1,9 +1,11 @@
 """Markdown-based role contracts with YAML frontmatter.
 
-Modeled after Feynman's `.feynman/agents/*.md` pattern. The contract IS
-the prompt artifact — Python wraps it in a dataclass for plumbing but
-the source of truth is the markdown file, which is human-readable and
-auditable in plain text.
+Each role is one Markdown file with a YAML frontmatter block declaring
+its tool allowlist + thinking budget + output target, followed by the
+system-prompt body. The contract IS the prompt artifact — the source of
+truth is the file on disk; the Python `Role` dataclass below is just
+plumbing. This shape is chosen so contracts can be reviewed (and edited)
+as plain text by a human auditor without round-tripping through code.
 
 Usage
 -----

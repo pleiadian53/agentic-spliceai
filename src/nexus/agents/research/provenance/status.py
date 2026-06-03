@@ -1,13 +1,14 @@
 """VerificationStatus enum — the three outcomes of a verification pass.
 
-Modeled after Feynman's `Verification: PASS / PASS WITH NOTES / BLOCKED`
-status tags used in `.provenance.md` sidecars.
+The status appears as `Verification: PASS / PASS WITH NOTES / BLOCKED`
+in `.provenance.md` sidecars.
 
-`BLOCKED` is the most distinctive of the three — it is the "honest
-partial failure" stance. The workflow does not abort to a chat message
-if something fails after plan approval; it produces an artifact with
-`BLOCKED` status and records the specific failure. The user gets a
-partial result they can act on, not a runtime error.
+`BLOCKED` is the most distinctive of the three: it is nexus's "honest
+partial failure" contract. When verification cannot complete (dead
+links, paywalled sources, network errors), the pipeline does NOT abort
+to a chat message — it writes a partial artifact with `BLOCKED` status
+and records the specific failure in the sidecar's notes. The user gets
+something actionable, not a runtime error and an empty outputs dir.
 """
 
 from __future__ import annotations

@@ -496,15 +496,16 @@ Your next task is:
 
 
 # ---------------------------------------------------------------------------
-# Feynman Tier 1 — verifier + reviewer role-aware agents
+# Verifier + reviewer — role-aware agents with mechanical tool restriction
 # ---------------------------------------------------------------------------
 #
 # These two functions load their role contract from `roles/<name>.md`, build
 # role-filtered tool schemas via `tools.role_filter`, and invoke the LLM with
 # ONLY the tools the role's allowlist permits. The writer/reviewer have empty
 # allowlists, so they receive zero tool schemas — the LLM physically cannot
-# emit a tool call for any tool. This is the Einstein-quote principle made
-# mechanical.
+# emit a tool call for any tool. A role cannot solve a problem with the same
+# level of thinking that created it; here that's enforced by the schema
+# filter, not by prompt discipline.
 #
 # Smoke-tested in `examples/nexus/04_role_tool_restrictions.py` (no live LLM
 # call needed for the structural assertion).
