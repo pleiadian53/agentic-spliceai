@@ -12,7 +12,7 @@ import json
 from typing import Dict, Literal
 from aisuite import Client
 
-from . import llm_client
+from nexus.llm import client as llm_client
 
 # Shared client
 client = Client()

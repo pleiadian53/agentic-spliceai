@@ -33,11 +33,11 @@ from nexus.agents.research.server.schemas import (
     ReportViewResponse
 )
 from nexus.agents.research.server import config
-from nexus.agents.research import pipeline
-from nexus.agents.research import manifest as manifest_module
-from nexus.agents.research import slug_utils
-from nexus.agents.research import pdf_utils
-from nexus.agents.research.progress import ProgressTracker, ProgressUpdate, ProgressStage
+from nexus.agents.research.orchestration import pipeline
+from nexus.agents.research.provenance import manifest as manifest_module
+from nexus.agents.research.utils import slug_utils
+from nexus.agents.research.formatters import pdf_utils
+from nexus.agents.research.utils.progress import ProgressTracker, ProgressUpdate, ProgressStage
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -245,7 +245,7 @@ def run_generation_task(session_id: str, request: ResearchRequest):
                 # Also generate Markdown preview for GitHub
                 if success:
                     logger.info("Generating Markdown preview for GitHub...")
-                    from .. import pandoc_converter
+                    from ..formatters import pandoc_converter
                     md_preview_path = report_path.with_suffix('.md')
                     
                     # Try Pandoc first, fallback to custom converter

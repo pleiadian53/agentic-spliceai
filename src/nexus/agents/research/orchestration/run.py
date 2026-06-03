@@ -4,7 +4,10 @@ import time
 from pathlib import Path
 from datetime import datetime
 
-from nexus.agents.research import pipeline, manifest, slug_utils, pdf_utils
+from nexus.agents.research.orchestration import pipeline
+from nexus.agents.research.provenance import manifest
+from nexus.agents.research.utils import slug_utils
+from nexus.agents.research.formatters import pdf_utils
 from nexus.core.config import NexusConfig
 
 def main():
@@ -106,7 +109,7 @@ def main():
                     # Also generate Markdown preview for GitHub
                     if success:
                         print(f"   Generating Markdown preview for GitHub...")
-                        from . import pandoc_converter
+                        from ..formatters import pandoc_converter
                         md_preview_path = output_path.with_suffix('.md')
                         
                         # Try Pandoc first, fallback to custom converter

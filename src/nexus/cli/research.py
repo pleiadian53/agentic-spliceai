@@ -12,7 +12,7 @@ After installation with `pip install -e .`, this module is registered
 as the `nexus-research` command and can be invoked from anywhere.
 """
 
-from nexus.agents.research.run import main
+from nexus.agents.research.orchestration.run import main
 
 
 if __name__ == "__main__":

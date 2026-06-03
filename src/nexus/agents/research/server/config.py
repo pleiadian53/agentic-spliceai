@@ -100,7 +100,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 # Server Configuration
 HOST = "0.0.0.0"
-PORT = 8004  # Different from chart_agent (8003)
+PORT = 8004  # Nexus research-agent FastAPI service (splice services use 8003/8005)
 RELOAD = True  # Enable auto-reload in development
 
 

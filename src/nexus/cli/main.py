@@ -5,6 +5,6 @@ Routes to the research agent CLI. This module exists so that the
 resolves correctly.
 """
 
-from nexus.agents.research.run import main
+from nexus.agents.research.orchestration.run import main
 
 __all__ = ["main"]

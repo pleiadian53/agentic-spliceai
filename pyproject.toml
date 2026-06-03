@@ -144,7 +144,7 @@ agentic-spliceai-base = "agentic_spliceai.applications.base_layer.cli:main"
 agentic-spliceai-ingest = "agentic_spliceai.applications.data_preparation.cli:main"
 agentic-spliceai-features = "agentic_spliceai.applications.multimodal_features.cli:main"
 nexus = "nexus.cli.main:main"
-nexus-server = "nexus.server.app:main"
+nexus-server = "nexus.agents.research.server.app:main"
 
 [tool.setuptools]
 zip-safe = false

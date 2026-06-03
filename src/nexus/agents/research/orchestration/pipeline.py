@@ -1,7 +1,7 @@
 from . import agents
-from . import context_utils
-from . import format_decision
-from .progress import ProgressTracker, ProgressStage, AgentType
+from ..utils import context_utils
+from ..formatters import format_decision
+from ..utils.progress import ProgressTracker, ProgressStage, AgentType
 from typing import Optional
 
 def generate_research_report(
@@ -120,7 +120,7 @@ def generate_research_report(
     final_output = history[-1][-1] if history else ""
     
     # Validate and fix output if needed
-    from . import output_validator
+    from ..provenance import output_validator
     validated_output, warnings = output_validator.validate_and_fix_report(
         final_output, 
         topic, 

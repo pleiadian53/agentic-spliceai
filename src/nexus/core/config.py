@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-def _find_project_root(marker_name: str = "agentic-ai-lab") -> Path:
+def _find_project_root(marker_name: str = "agentic-spliceai") -> Path:
     """
     Find project root by searching for a directory with the given name.
     
@@ -48,7 +48,7 @@ class NexusConfig:
     """Global configuration for Nexus platform."""
     
     # Base paths
-    ROOT_DIR = _find_project_root("agentic-ai-lab")
+    ROOT_DIR = _find_project_root("agentic-spliceai")
     SRC_DIR = ROOT_DIR / "src"
     NEXUS_DIR = SRC_DIR / "nexus"
     OUTPUT_DIR = ROOT_DIR / "output"  # Standardized output directory

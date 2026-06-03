@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import Optional
 from aisuite import Client
 
-from . import tools
-from . import utils
-from . import llm_client
+from .. import tools
+from nexus.llm import parsing
+from nexus.llm import client as llm_client
 
 # Shared client for aisuite calls
 client = Client()
@@ -206,7 +206,7 @@ Ensure the plan produces a report that matches this style and structure.
     
     try:
         # Clean markdown blocks if present
-        content = utils.clean_json_block(content)
+        content = parsing.clean_json_block(content)
         
         # Parse list safely
         steps = ast.literal_eval(content)
@@ -394,7 +394,7 @@ def executor_agent(
         verbose: Show detailed progress (default True)
         progress_tracker: Optional progress tracker for real-time updates
     """
-    from .progress import AgentType
+    from ..utils.progress import AgentType
     from typing import Optional
     
     history = []
@@ -421,7 +421,7 @@ Instruction: "{step}"
         content = llm_client.call_llm_text(client, model, messages, temperature=0.0)
 
         try:
-            cleaned_json = utils.clean_json_block(content)
+            cleaned_json = parsing.clean_json_block(content)
             agent_info = json.loads(cleaned_json)
 
             agent_name = agent_info["agent"]
