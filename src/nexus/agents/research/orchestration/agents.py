@@ -493,3 +493,136 @@ Your next task is:
             history.append((step, "error", str(e)))
 
     return history
+
+
+# ---------------------------------------------------------------------------
+# Feynman Tier 1 — verifier + reviewer role-aware agents
+# ---------------------------------------------------------------------------
+#
+# These two functions load their role contract from `roles/<name>.md`, build
+# role-filtered tool schemas via `tools.role_filter`, and invoke the LLM with
+# ONLY the tools the role's allowlist permits. The writer/reviewer have empty
+# allowlists, so they receive zero tool schemas — the LLM physically cannot
+# emit a tool call for any tool. This is the Einstein-quote principle made
+# mechanical.
+#
+# Smoke-tested in `examples/nexus/04_role_tool_restrictions.py` (no live LLM
+# call needed for the structural assertion).
+
+
+def verifier_agent(
+    draft_text: str,
+    research_context: str,
+    topic: str,
+    model: str = "openai:gpt-4o",
+    return_status: bool = False,
+):
+    """Anchor every factual claim in the draft to a source from the research files.
+
+    Loads the verifier role contract, applies role-restricted tools
+    (search-only; no authoring), invokes the LLM, returns the cited
+    draft. Optionally returns a `(text, VerificationStatus)` tuple.
+
+    Args:
+        draft_text: the unsourced writer draft.
+        research_context: research findings (concatenated research files
+            or executor history) the verifier can anchor claims to.
+        topic: the original research topic.
+        model: LLM to use.
+        return_status: if True, returns (cited_text, VerificationStatus).
+    """
+    from ..roles import load_role
+    from ..tools import role_filter
+    from ..tools.tools import (
+        responses_tool_defs,
+        tool_mapping as global_tool_mapping,
+        aisuite_tools as global_aisuite_tools,
+    )
+    from ..provenance import VerificationStatus
+    from nexus.llm.tool_loop import call_llm_with_tools
+
+    role = load_role("verifier")
+    role_schemas = role_filter.build_tool_schemas_for_role(role, responses_tool_defs)
+    role_map = role_filter.filter_tool_mapping_for_role(role, global_tool_mapping)
+    role_aisuite = role_filter.filter_aisuite_tools_for_role(role, global_aisuite_tools)
+
+    user_msg = (
+        f"Topic: {topic}\n\n"
+        f"## Draft to verify\n\n{draft_text}\n\n"
+        f"## Research context\n\n{research_context}\n\n"
+        f"Apply your verification contract:\n"
+        f"- Anchor every factual claim to a research source with [N] citations.\n"
+        f"- Verify URLs by re-searching when possible (you have search tools).\n"
+        f"- Remove unsourced claims or convert to TODOs.\n"
+        f"- Build the final Sources section.\n"
+        f"- If a claim cannot be verified, mark it `BLOCKED:` in-line and "
+        f"explain why."
+    )
+
+    messages = [
+        {"role": "system", "content": role.system_prompt},
+        {"role": "user", "content": user_msg},
+    ]
+
+    result = call_llm_with_tools(
+        client=client,
+        model=model,
+        messages=messages,
+        aisuite_tools=role_aisuite,
+        responses_tool_defs=role_schemas,
+        tool_mapping=role_map,
+    )
+
+    if return_status:
+        text = result if isinstance(result, str) else str(result)
+        status = (
+            VerificationStatus.BLOCKED
+            if "BLOCKED" in text
+            else VerificationStatus.PASS
+        )
+        return text, status
+    return result
+
+
+def reviewer_agent(
+    cited_draft_text: str,
+    topic: str,
+    model: str = "openai:gpt-4o",
+) -> str:
+    """Adversarial peer review of the cited draft. Read-only role.
+
+    Loads the reviewer role contract (empty tool allowlist), invokes
+    the LLM with NO tool schemas in the request payload (so the model
+    cannot emit tool calls), returns a FATAL/MAJOR/MINOR review.
+    """
+    from ..roles import load_role
+    from nexus.llm.client import call_llm_text
+
+    role = load_role("reviewer")
+    user_msg = (
+        f"Topic: {topic}\n\n"
+        f"## Cited draft to review\n\n{cited_draft_text}\n\n"
+        f"Apply your reviewer contract:\n"
+        f"- Tag findings as FATAL / MAJOR / MINOR.\n"
+        f"- Keep looking after the first issue — read the whole draft.\n"
+        f"- Focus on logical-level integrity, not citation-level "
+        f"(the verifier already did that).\n"
+        f"- Produce the structured review document (Summary / Strengths / "
+        f"Weaknesses / Questions / Verdict / Revision Plan)."
+    )
+    messages = [
+        {"role": "system", "content": role.system_prompt},
+        {"role": "user", "content": user_msg},
+    ]
+    return call_llm_text(client, model, messages, temperature=0.3)
+
+
+__all__ = [
+    "planner_agent",
+    "research_agent",
+    "writer_agent",
+    "editor_agent",
+    "executor_agent",
+    "verifier_agent",
+    "reviewer_agent",
+]

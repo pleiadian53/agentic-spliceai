@@ -5,21 +5,24 @@ from ..utils.progress import ProgressTracker, ProgressStage, AgentType
 from typing import Optional
 
 def generate_research_report(
-    topic: str, 
-    model: str = "openai:gpt-4o", 
-    report_length: str = "standard", 
-    context: str = None, 
-    client=None, 
-    user_format: str = None, 
+    topic: str,
+    model: str = "openai:gpt-4o",
+    report_length: str = "standard",
+    context: str = None,
+    client=None,
+    user_format: str = None,
     verbose: bool = True,
-    progress_tracker: Optional[ProgressTracker] = None
+    progress_tracker: Optional[ProgressTracker] = None,
+    enable_verification: bool = False,
 ) -> dict:
     """
     Orchestrates the full research workflow:
     1. Decide output format (PDF/LaTeX/Markdown)
     2. Planner creates a plan.
     3. Executor runs the plan (delegating to sub-agents).
-    
+    4. (Opt-in, Feynman Tier 1) Verifier anchors claims to sources;
+       reviewer produces an adversarial review.
+
     Args:
         topic: Research topic.
         model: Model to use for agents (default gpt-4o).
@@ -28,9 +31,17 @@ def generate_research_report(
         client: Optional aisuite client (for web service compatibility)
         user_format: Optional user override for format ("pdf_direct", "latex", "markdown")
         verbose: Show detailed progress (default True)
-        
+        enable_verification: If True, after the executor produces a draft,
+            run the verifier (anchor claims to sources, fetch URLs, remove
+            unsourced material) and the reviewer (FATAL/MAJOR/MINOR
+            adversarial peer review). Default False — behavior unchanged
+            from the pre-2026-06-02 baseline. The Feynman Tier 1 example
+            scripts pass True to exercise this path.
+
     Returns:
-        Dictionary containing the plan, execution history, and format decision.
+        Dictionary containing the plan, execution history, format decision,
+        and (when enable_verification=True) the cited output + review +
+        verification status.
     """
     if verbose:
         print(f"\n{'='*70}")
@@ -137,11 +148,58 @@ def generate_research_report(
                 print(f"   {warning}")
             print()
     
-    return {
+    result: dict = {
         "topic": topic,
         "plan": steps,
         "history": history,
         "final_report": validated_output,
         "validation_warnings": warnings,  # Track validation issues
-        "format_decision": format_info  # Track format decision in output
+        "format_decision": format_info,  # Track format decision in output
     }
+
+    # 4. (Opt-in) Feynman Tier 1 verification + adversarial review
+    if enable_verification:
+        if verbose:
+            print(f"\n{'─'*70}")
+            print(f"🔍 STEP 4: VERIFICATION (Feynman Tier 1)")
+            print(f"{'─'*70}")
+        if progress_tracker:
+            progress_tracker.update(
+                ProgressStage.EXECUTING, "Running verifier + reviewer..."
+            )
+
+        # Collect research context from executor history (Tier 2 will
+        # switch this to file-based handoffs through slug-prefixed paths;
+        # for Tier 1 we pass the executor history as context)
+        research_context = "\n\n---\n\n".join(
+            f"### Step: {step}\n{output}"
+            for step, _agent, output in history
+            if _agent in {"research_agent", "writer_agent"}
+        )
+
+        # Verifier — anchors claims, re-searches with role-filtered tools
+        cited_output, verification_status = agents.verifier_agent(
+            draft_text=validated_output,
+            research_context=research_context,
+            topic=topic,
+            model=model,
+            return_status=True,
+        )
+        result["cited_output"] = cited_output
+        result["verification_status"] = verification_status
+
+        if verbose:
+            print(f"   Verification: {verification_status.value}")
+
+        # Reviewer — adversarial pass with empty tool allowlist
+        review = agents.reviewer_agent(
+            cited_draft_text=cited_output,
+            topic=topic,
+            model=model,
+        )
+        result["review"] = review
+
+        if verbose:
+            print(f"   Review length: {len(review)} chars")
+
+    return result
