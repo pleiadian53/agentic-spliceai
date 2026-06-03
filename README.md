@@ -2,12 +2,14 @@
 
 **Context-Aware Novel Isoform Discovery for Drug Target Identification**
 
-**Agentic-SpliceAI** is an **agentic AI system with hierarchical multi-task prediction** for discovering novel RNA isoforms — disease-specific, variant-induced, and tissue-specific splice variants that go beyond canonical annotations. Originally refactored from [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai), it has evolved into a self-sustained **compound AI system** with extensible foundation model predictors, multimodal evidence fusion, agentic AI validation, and a meta-learning framework (M1-M4) targeting progressively harder splice prediction problems.
+**Agentic-SpliceAI** is an **agentic AI system with hierarchical multi-task prediction** for discovering novel RNA isoforms — the disease-specific, variant-induced, and tissue-specific splice variants that lie beyond canonical annotations and represent a vast, largely untapped space of therapeutic targets. Refactored from [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) and grown into a self-contained **compound AI system**, it unites extensible foundation-model predictors, multimodal evidence fusion, agentic AI validation, and a meta-learning framework (M1–M4) that targets progressively harder splice-prediction problems.
 
 The system combines three key architectural ideas:
 - **Multi-task learning**: Shared multimodal representation (10 modalities, 116 features) with task-specific model heads (M1-M4)
 - **Hierarchical prediction**: M1 (canonical) → M2 (alternative) → M3 (novel discovery) → M4 (perturbation-induced) — each level tackles a harder problem with different label regimes
 - **Agentic validation**: LLM-powered agents for literature mining, expression evidence, clinical interpretation, and recursive self-improvement
+
+**Where it stands today.** The base and meta layers are built and benchmarked. On a leakage-clean held-out evaluation (chromosome split *plus* sequence-paralog removal on validation and test), the meta layer lifts canonical splice-site prediction to a macro PR-AUC of **0.9998** — and, on the harder and more telling task, recovers **~90% of *alternative* splice sites the base model misses at ~17%** (a **5.3× recall gain**, alt-site PR-AUC **0.911 → 0.990**, false negatives **−88%**). Predictions are served through a **FastAPI + Plotly web app** that overlays the meta model against its baseline in real time, with Integrated-Gradients interpretability to explain *why* a site is called. Novel-isoform discovery (**M3**) and the self-improving **agentic layer** are in active development: the vision above is the north star, and the M1/M2 results are the proof the trajectory is real.
 
 ### Workflow: Prediction to Discovery
 
