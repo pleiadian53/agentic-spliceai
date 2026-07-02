@@ -12,7 +12,10 @@ Usage (examples are real; adjust paths to your environment):
         --bigwig-cache /path/to/bigwig_cache \
         --output-dir output/meta_layer/m1s_v4_cleanannot
 
-    # M2-S: alternative-site model (Ensembl labels + Ensembl base scores)
+    # M2-S: alternative-site model. Labels = Ensembl splice sites; base scores =
+    # the MANE-trained OpenSpliceAI run in inference over the Ensembl gene windows
+    # (the base model is NOT retrained on Ensembl — it is a per-position sequence
+    # scorer, so it emits scores over any region you point it at).
     python 07_train_sequence_model.py --mode m2 --use-shards \
         --bigwig-cache /path/to/bigwig_cache \
         --base-scores-dir data/ensembl/GRCh38/openspliceai_eval/precomputed \
@@ -491,7 +494,7 @@ def main() -> int:
     )
 
     # ── Resolve paths ────────────────────────────────────────────────
-    # Base model resources (OpenSpliceAI) — always used for base scores
+    # Base model resources (OpenSpliceAI) — used for base scores by default
     resources = get_model_resources("openspliceai")
 
     # Annotation source: m2 defaults to ensembl, others to mane
@@ -507,9 +510,13 @@ def main() -> int:
     fasta_path = str(resources.get_fasta_path())
     # Splice sites and GTF come from the annotation source
     splice_sites_path = Path(ann_registry.stash) / "splice_sites_enhanced.tsv"
-    # Base scores: explicit override > Ensembl precomputed > MANE precomputed.
-    # For Ensembl-only regions without precomputed scores, the model falls
-    # back to a uniform 1/3 prior (Option B for M2a evaluation).
+    
+    # Base scores are OpenSpliceAI (MANE-trained) predictions, precomputed per
+    # position and stored as predictions_{chrom}.parquet. The dir only selects
+    # which gene windows were scored (M2 passes an Ensembl-region dir via
+    # --base-scores-dir; default falls back to the registry's MANE dir) — the
+    # base model itself is identical either way. Positions with no precomputed
+    # score (e.g. unplaced scaffolds, MT) fall back to a uniform 1/3 prior.
     if args.base_scores_dir:
         base_scores_dir = args.base_scores_dir
     else:
