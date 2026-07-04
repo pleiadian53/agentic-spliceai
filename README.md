@@ -1,8 +1,10 @@
 # Agentic-SpliceAI
 
-**Context-Aware Novel Isoform Discovery for Drug Target Identification**
+**Agentic-SpliceAI is an open-source framework for adaptive splice-site prediction and novel isoform discovery — combining foundation models, multimodal biological evidence, and agentic AI reasoning.**
 
-**Agentic-SpliceAI** is an **agentic AI system with hierarchical multi-task prediction** for discovering novel RNA isoforms — the disease-specific, variant-induced, and tissue-specific splice variants that lie beyond canonical annotations and represent a vast, largely untapped space of therapeutic targets. Refactored from [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) and grown into a self-contained **compound AI system**, it unites extensible foundation-model predictors, multimodal evidence fusion, agentic AI validation, and a meta-learning framework (M1–M4) that targets progressively harder splice-prediction problems.
+*Context-aware novel isoform discovery for drug target identification.*
+
+More precisely, it is an **agentic AI system with hierarchical multi-task prediction** for discovering novel RNA isoforms — the disease-specific, variant-induced, and tissue-specific splice variants that lie beyond canonical annotations and represent a vast, largely untapped space of therapeutic targets. Refactored from [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) and grown into a self-contained **compound AI system**, it unites extensible foundation-model predictors, multimodal evidence fusion, agentic AI validation, and a meta-learning framework (M1–M4) that targets progressively harder splice-prediction problems.
 
 The system combines three key architectural ideas:
 - **Multi-task learning**: Shared multimodal representation (10 modalities, 116 features) with task-specific model heads (M1-M4)

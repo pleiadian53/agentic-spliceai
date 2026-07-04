@@ -1,6 +1,6 @@
 # Agentic-SpliceAI Documentation
 
-Central documentation hub for **Agentic-SpliceAI** — Context-Aware Novel Isoform Discovery for Drug Target Identification.
+Central documentation hub for **Agentic-SpliceAI**, an open-source framework for adaptive splice-site prediction and novel isoform discovery — combining foundation models, multimodal biological evidence, and agentic AI reasoning.
 
 ---
 
