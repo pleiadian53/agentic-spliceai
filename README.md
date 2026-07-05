@@ -1,17 +1,17 @@
 # Agentic-SpliceAI
 
-**Agentic-SpliceAI is an open-source framework for adaptive splice-site prediction and novel isoform discovery — combining foundation models, multimodal biological evidence, and agentic AI reasoning.**
+**Agentic-SpliceAI is an open-source framework for adaptive splice-site prediction and novel isoform discovery. It combines foundation models, multimodal biological evidence, and agentic AI reasoning.**
 
 *Context-aware novel isoform discovery for drug target identification.*
 
-More precisely, it is an **agentic AI system with hierarchical multi-task prediction** for discovering novel RNA isoforms — the disease-specific, variant-induced, and tissue-specific splice variants that lie beyond canonical annotations and represent a vast, largely untapped space of therapeutic targets. Refactored from [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) and grown into a self-contained **compound AI system**, it unites extensible foundation-model predictors, multimodal evidence fusion, agentic AI validation, and a meta-learning framework (M1–M4) that targets progressively harder splice-prediction problems.
+More precisely, it is an **agentic AI system with hierarchical multi-task prediction** for discovering novel RNA isoforms: the disease-specific, variant-induced, and tissue-specific splice variants that lie beyond canonical annotations and represent a vast, largely untapped space of therapeutic targets. Built as a self-contained **compound AI system**, it unites extensible foundation-model predictors, multimodal evidence fusion, agentic AI validation, and a meta-learning framework (M1–M4) that targets progressively harder splice-prediction problems.
 
 The system combines three key architectural ideas:
 - **Multi-task learning**: Shared multimodal representation (10 modalities, 116 features) with task-specific model heads (M1-M4)
-- **Hierarchical prediction**: M1 (canonical) → M2 (alternative) → M3 (novel discovery) → M4 (perturbation-induced) — each level tackles a harder problem with different label regimes
+- **Hierarchical prediction**: M1 (canonical) → M2 (alternative) → M3 (novel discovery) → M4 (perturbation-induced), where each level tackles a harder problem with different label regimes
 - **Agentic validation**: LLM-powered agents for literature mining, expression evidence, clinical interpretation, and recursive self-improvement
 
-**Where it stands today.** The base and meta layers are built and benchmarked. On a leakage-clean held-out evaluation (chromosome split *plus* sequence-paralog removal on validation and test), the meta layer lifts canonical splice-site prediction to a macro PR-AUC of **0.9998** — and, on the harder and more telling task, recovers **~90% of *alternative* splice sites the base model misses at ~17%** (a **5.3× recall gain**, alt-site PR-AUC **0.911 → 0.990**, false negatives **−88%**). Predictions are served through a **FastAPI + Plotly web app** that overlays the meta model against its baseline in real time, with Integrated-Gradients interpretability to explain *why* a site is called. Novel-isoform discovery (**M3**) and the self-improving **agentic layer** are in active development: the vision above is the north star, and the M1/M2 results are the proof the trajectory is real.
+**Where it stands today.** The base and meta layers are built and benchmarked. On a leakage-clean held-out evaluation (chromosome split *plus* sequence-paralog removal on validation and test), the meta layer lifts canonical splice-site prediction to a macro PR-AUC of **0.9998**. On the harder and more telling task, it recovers **~90% of *alternative* splice sites the base model misses at ~17%** (a **5.3× recall gain**, alt-site PR-AUC **0.911 → 0.990**, false negatives **−88%**). Predictions are served through a **FastAPI + Plotly web app** that overlays the meta model against its baseline in real time, with Integrated-Gradients interpretability to explain *why* a site is called. Novel-isoform discovery (**M3**) and prediction of perturbation-induced splice sites (**M4**), such as cryptic sites activated by mutations or disease, are in active development alongside the self-improving **agentic layer**. The vision above is the north star, and the M1/M2 results are the proof the trajectory is real.
 
 ### Workflow: Prediction to Discovery
 
@@ -534,7 +534,7 @@ cp .env.example .env
 **Data Preparation** (`examples/data_preparation/`) — Ground truth generation, data validation
 
 ### Related Projects
-- [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) - Original research implementation with base and meta layers
+- [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai) - Predecessor project (by the same author); the base and meta-layer research that Agentic-SpliceAI grew out of
 - [Agentic AI Lab](https://github.com/pleiadian53/agentic-ai-lab) - Nexus Research Agent and agentic workflows
 
 ## 🤝 Contributing
@@ -559,9 +559,8 @@ MIT License - see LICENSE file for details
 
 ## 🙏 Acknowledgments
 
-- Originally refactored from [Meta-SpliceAI](https://github.com/pleiadian53/meta-spliceai)
 - Nexus Research Agent from [Agentic AI Lab](https://github.com/pleiadian53/agentic-ai-lab)
-- Foundation models: [Evo2](https://github.com/ArcInstitute/evo2) (Arc Institute), [SpliceAI](https://github.com/Illumina/SpliceAI) (Illumina), [OpenSpliceAI](https://github.com/Kuocheng-Liao/OpenSpliceAI)
+- Base and foundation models: [SpliceAI](https://github.com/Illumina/SpliceAI) (Illumina), [OpenSpliceAI](https://github.com/Kuanhao-Chao/OpenSpliceAI) (open-source PyTorch reimplementation and extension of SpliceAI; Chao et al., Johns Hopkins), [Evo2](https://github.com/ArcInstitute/evo2) (Arc Institute)
 - LLM-powered workflows via OpenAI and Anthropic APIs
 - Inspired by genomics research community
 
