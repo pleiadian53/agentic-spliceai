@@ -1,0 +1,72 @@
+# GPU Runner Infrastructure Defaults
+#
+# This file configures the infrastructure for remote GPU jobs.
+# Edit once, reuse across all tasks. CLI flags override these values.
+#
+# Usage:
+#   python ops/provision_cluster.py
+#
+# Override specific values on the CLI:
+#   python ops/provision_cluster.py --gpu a100 --data-path ensembl/GRCh37
+
+# GPU type: a40, a100, h100, rtx4090, rtxa5000, rtx5090, rtx4000ada, l4
+gpu: a40
+
+# Cloud provider
+cloud: runpod
+
+# Docker image (must have Python >= 3.11)
+docker_image: "docker:nvcr.io/nvidia/pytorch:25.02-py3"
+
+# RunPod Network Volume for persistent data (avoids re-uploading datasets each run)
+# Stage data once: python ops/provision_cluster.py --stage-data
+use_volume: true
+volume_name: "AI lab extension"
+
+# Data paths — compose as {data_prefix}/{data_path}
+# Convention: organize reference data as data/<source>/<build>/ (e.g.,
+#   data/mane/GRCh38/, data/ensembl/GRCh37/). Scripts on the pod expect data at
+#   this path relative to CWD. Override data_path on the CLI to target a
+#   different annotation source / genome build for a given run.
+data_prefix: "data"
+data_path: "mane/GRCh38"
+
+# Model dependency profiles — pip packages per model/framework.
+# Select via CLI: --model evo2  (or any key below)
+# The runner generates: pip show <pkg> >/dev/null 2>&1 || pip install <pkg>
+# Most splice-engine eval work runs on the stock PyTorch image + the
+# agentic-spliceai package — leave default_model as 'none' unless a task needs
+# extra deps. The genomic foundation-model profiles below are optional catalog
+# entries; enable one with --model <name>.
+models:
+  evo2:
+    pip: "evo2"
+    description: "Evo2 7b/40b (Arc Institute) — causal DNA language model"
+  splicebert:
+    pip: "sentencepiece"
+    description: "SpliceBERT — BERT pre-trained on pre-mRNAs from 72 vertebrates"
+  alphagenome:
+    pip: "alphagenome"
+    description: "AlphaGenome — 1Mb context, splice junctions + usage (non-commercial)"
+  hyenadna:
+    pip: "hyena-dna"
+    description: "HyenaDNA — long-range genomic model, up to 1M context"
+  pangolin:
+    pip: "pangolin-splice"
+    description: "Pangolin — tissue-specific splice site strength prediction"
+  dnabert:
+    pip: "einops"
+    description: "DNABERT-2 — multi-species genome foundation model (loads from HF)"
+
+# Default model (must match a key in 'models' above; set to 'none' to skip model deps)
+default_model: none
+
+# Extra setup commands beyond model deps (leave empty unless you need custom installs).
+# Foundation-model work that needs the local sub-project can set this to:
+#   extra_setup: "pip install -e ./foundation_models"
+extra_setup: ""
+
+# Additional file mounts (remote_path: local_path)
+# Uncomment and edit as needed for your task:
+# extra_file_mounts:
+#   /workspace/embeddings: ./output/embeddings
