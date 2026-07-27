@@ -406,6 +406,14 @@ def main() -> int:
             "unweighted v1.1 comparison."
         ),
     )
+    parser.add_argument(
+        "--confirmed-only", action="store_true",
+        help=(
+            "M3 only (Tier 1): train on long-read-confirmed positives ONLY, "
+            "dropping the unvalidated SpliceVault half. Tests whether that label "
+            "noise was the ceiling. Mutually informative with --confirmed-weight."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -553,11 +561,21 @@ def main() -> int:
             return 1
         m3_positives_df = pd.read_parquet(pos_path)
         m3_annotation_mask_df = pd.read_parquet(ann_path)
-        print(
-            f"  M3 positives: {len(m3_positives_df):,} "
-            f"({int(m3_positives_df['longread_confirmed'].sum()):,} long-read-confirmed); "
-            f"annotation mask: {len(m3_annotation_mask_df):,}"
-        )
+        n_all = len(m3_positives_df)
+        n_conf = int(m3_positives_df["longread_confirmed"].sum())
+        if args.confirmed_only:
+            # Tier 1: drop the unvalidated SpliceVault half (label-noise test).
+            m3_positives_df = m3_positives_df[m3_positives_df["longread_confirmed"]].reset_index(drop=True)
+            print(
+                f"  M3 positives (--confirmed-only): {len(m3_positives_df):,} "
+                f"(dropped {n_all - n_conf:,} unconfirmed); "
+                f"annotation mask: {len(m3_annotation_mask_df):,}"
+            )
+        else:
+            print(
+                f"  M3 positives: {n_all:,} ({n_conf:,} long-read-confirmed); "
+                f"annotation mask: {len(m3_annotation_mask_df):,}"
+            )
 
     # Load gene annotations for coordinates
     from agentic_spliceai.splice_engine.base_layer.data.genomic_extraction import (
