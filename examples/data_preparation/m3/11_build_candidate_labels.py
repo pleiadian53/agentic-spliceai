@@ -138,6 +138,10 @@ def main() -> int:
     pos_pool = _norm_keys(pl.read_parquet(M3_LABELS / "positives_pooled.parquet"))
     ann = _norm_keys(pl.read_parquet(M3_LABELS / "annotation_mask.parquet")).select(KEY).unique()
     d1 = _norm_keys(pl.read_parquet(D1_TRUTH)).select(KEY).unique()
+    # D2 disease anchors are a HELD-OUT eval set — they must never be sampled as
+    # "artifact" negatives, or Phase 2's D2 recall is poisoned (an eval-truth site
+    # trained as fake). Exclude ALL anchors (novel + annotated) from the neg pool.
+    d2 = _norm_keys(pl.read_parquet(M3_LABELS / "disease_anchors.parquet")).select(KEY).unique()
 
     # ── Positives: feature rows that ARE real novel sites ────────────────
     p = pos_pool
@@ -155,8 +159,10 @@ def main() -> int:
     )
     print(f"  positives (real, {'confirmed' if args.confirmed_only else 'all'}): {positives.height:,}")
 
-    # ── Negative candidate pool: base-proposed, not real ─────────────────
-    real_keys = pl.concat([pos_pool.select(KEY), ann, d1]).unique()
+    # ── Negative candidate pool: base-proposed, not real, not eval-truth ──
+    # Exclude positives, annotation, AND both eval sets (D1 long-read + D2 anchors)
+    # so no held-out truth site can ever be labeled an artifact.
+    real_keys = pl.concat([pos_pool.select(KEY), ann, d1, d2]).unique()
     negpool = (
         feat.filter(pl.col("cand_base_score") > args.min_base)
         .join(real_keys, on=KEY, how="anti")
