@@ -7,6 +7,10 @@ Companion to [`m3_design.md`](m3_design.md) (the modeling decisions) and
 `data/mane/GRCh38/m3_labels/`; producing scripts in
 [`examples/data_preparation/m3/`](../../../data_preparation/m3/).
 
+> **§1–4** cover the M3 **recognizer** (v1: per-position 3-class). **§5** covers
+> the M3-R **candidate refiner** — the current Tier 2 direction (base proposes
+> candidates → classify real cryptic vs artifact from multimodal evidence).
+
 ## 1. Anatomy of an M3 training example
 
 M3 forks the M2-S sequence model (`MetaSpliceModel`, 3-class per position). A
@@ -130,14 +134,97 @@ scored against these, not against "absent from annotation."
 see the RBP tutorial's "What M3 actually uses" note; it's a coverage gap, not a
 coordinate-accuracy issue, and the label side is not cancer-derived.)
 
-## 5. Next steps
-1. ~~**B3** — ENCODE4 long-read truth set~~ **DONE** (2026-05-28; see §4).
-2. **Phase C (pod)** — extract multimodal features at the labeled positions
-   (bigWig streaming) → gene/position cache → train `MetaSpliceModel` (M3,
-   junction dropped). Same bigWig cost as M1/M2 → a pod job. Consider training
-   on / up-weighting the `longread_confirmed` high-confidence subset.
-3. **D1** — score M3 against `longread_truth_novel.parquet` (anti-circular).
-4. **D2** — evaluate generalization on the held-out disease anchors.
+## 5. M3-R — candidate-refiner training data (Tier 2, current direction)
+
+The §1–4 pools train the **recognizer** (M3 v1): scan every position, is this a
+novel splice site. The Tier 0 evaluation showed v1 is the best novel-site ranker
+we have, **but its multimodal channels barely help in the genome-scan frame**
+(+0.016 P@5 vs zeroing them). **M3-R reframes the task** so the multimodal
+evidence can be decisive: the base model *proposes* candidates; a classifier
+reranks each **real cryptic vs artifact**. Everything here is **local** (the
+peak-preserving feature parquets already hold every candidate's vector) — no pod,
+no bigWig streaming. Builder:
+[`../../../data_preparation/m3/11_build_candidate_labels.py`](../../../data_preparation/m3/11_build_candidate_labels.py)
+→ `data/mane/GRCh38/m3_labels/candidate_labels.parquet`.
+
+### Anatomy of an M3-R example
+A **base-proposed candidate** = a `(position, splice_type)` with its full 116-col
+multimodal feature vector, pulled from
+`data/mane/GRCh38/openspliceai_eval/analysis_sequences/analysis_sequences_chr*.parquet`
+(peak-preserving: every position with base prob > 0.01 is kept). Label is
+**binary**: `1` = real cryptic, `0` = artifact.
+
+### Labeling
+| Class | Definition | Count (confirmed run) |
+|---|---|---:|
+| real (1) | candidate ∈ `positives_pooled`, **`longread_confirmed`** subset (Tier 1 cleanup) | 13,105 |
+| artifact (0) | base-proposed (`max(donor_prob, acceptor_prob) > 0.01`) but **not** a real/eval site, base-matched | 39,215 (~3×) |
+
+- The candidate's `splice_type` comes from the positive's known type (positives)
+  or `argmax(donor_prob, acceptor_prob)` (negatives) — **not** the parquet's
+  annotation-derived `splice_type`, which is empty for non-annotated positions.
+
+### The crux — base-score-matched hard negatives
+Real novel sites are intrinsically **low base score** (median ~0.044 — that is
+*why* they are cryptic). If negatives were drawn arbitrarily (as the recognizer's
+`negatives.parquet` was — dinucleotide decoys with ~0 base score), a classifier
+would just relearn the base score. Instead, negatives are **stratified to match
+the positives' base-score histogram per splice type**, so the two classes are
+base-score-indistinguishable (verified: donor pos/neg medians 0.044/0.043,
+acceptor 0.045/0.044). The base score cannot separate them → the classifier is
+**forced** to use conservation / epigenetic / chromatin / RBP.
+
+### Eval-leak guard (what is excluded from negatives)
+The negative pool is anti-joined against **`annotation_mask ∪ positives_pooled ∪
+D1 (long-read truth) ∪ D2 (disease anchors)`** on `(chrom, position, strand)`, so
+**no held-out eval-truth site can ever be labeled an artifact** (that would poison
+Phase 2's D1/D2 recall — an eval site trained as fake). D2 anchors (novel *and*
+annotated) are all excluded for this reason.
+
+> Note on anti-circularity: positives are **not** anti-joined against D1/D2. The
+> `longread_confirmed` positives are a *subset of D1* by construction, so removing
+> them would delete the training set. Anti-circularity comes from the
+> **chromosome split** (below), not from site-set disjointness — a test-chrom D1
+> site is held out because its *gene* is in the test split, exactly as in Tier 0.
+
+### Features
+The 116-col multimodal block via `get_feature_columns(df,
+exclude_modalities=["junction"])`, additionally dropping the raw base
+probabilities (`donor_prob`/`acceptor_prob`/`neither_prob` — used to *propose* and
+*base-match* candidates, not as features) and the `cand_*` bookkeeping columns.
+Leaky/metadata columns (`splice_type`, `position`, gene ids, …) are excluded by
+`EXCLUDE_COLS`. `junction` is dropped as the label-side modality (§3), leaving ~88
+features: base-derived shape (43) + conservation + epigenetic + chromatin + RBP +
+genomic.
+
+### Hold-out / validation split
+Leakage-safe **gene-level SpliceAI split** (`get_gene_split(preset="spliceai")`) —
+identical to M1-P and the Tier 0 eval universe:
+- **train**: genes on chr2,4,6,8,10–22,X,Y.
+- **val**: 10% of train genes (XGBoost early stopping only).
+- **test (held out)**: genes on **chr1,3,5,7,9** — never seen in training.
+
+Splitting by **gene** (not by row) prevents within-gene leakage (a gene's
+positions are correlated). Because the test chroms match Tier 0, both the Phase 1
+held-out AUC and the Phase 2 precision@k eval are anti-circular and comparable to
+the recognizer's numbers.
+
+### Phase 0 diagnostic (go/no-go, done)
+Logistic AUC(base, 43 feats) **0.811** → base+all-multimodal **0.879 (+0.068)**;
+XGBoost **AUC 0.90**, **~57% of SHAP importance is non-base** (epigenetic biggest;
+RBP weak — cell-type mismatch). The reframe works. ⚠️ This is on the *training
+label distribution* (PU noise: some "artifacts" may be unlabeled reals) — **Phase 2
+(base-vs-M3-R precision@k on D1/D2) is the real, anti-circular test.**
+
+## 6. Next steps
+1. ~~Recognizer: B3 truth set / Phase C train / D1+D2 eval~~ **DONE** (Tier 0;
+   see [`m3_eval_D_results.md`](m3_eval_D_results.md)).
+2. **M3-R Phase 1** — formalize `examples/meta_layer/14_train_candidate_refiner.py`
+   (gene-split, XGBoost `binary:logistic`, SHAP + leave-one-modality ablation,
+   save model → `output/meta_layer/m3r_candidate_refiner/`).
+3. **M3-R Phase 2** — `examples/meta_layer/15_evaluate_candidate_classifier.py`:
+   rerank the per-gene candidate pool by M3-R vs base, precision@k/recall@k on
+   D1/D1_hiconf/D2 (reuses `_m3_novel_eval.py`). The honest test.
 
 ## Related
 - Data workflow + run order: [`../../../data_preparation/m3/README.md`](../../../data_preparation/m3/README.md)
