@@ -140,6 +140,50 @@ def build_alternative_site_mask(
     return mask
 
 
+def collect_alt_site_outcomes(
+    gene_id: str,
+    labels: np.ndarray,
+    meta_probs: np.ndarray,
+    base_probs: np.ndarray,
+    gene_annotations: "polars.DataFrame",
+    mane_sites: Set[Tuple[str, int, str]],
+) -> list[dict]:
+    """Per alternative site (eval_annotation \\ MANE), record whether each model
+    detected it (argmax over the 3 classes matches the site's class).
+
+    Returns dicts with (chrom, position, splice_type, meta_detected, base_detected).
+    Coordinates match ``build_alternative_site_mask`` (bare chrom, absolute position),
+    which is what the tissue-stratified eval (16) joins on.
+    """
+    import polars as pl
+
+    row = gene_annotations.filter(pl.col("gene_id") == gene_id)
+    if row.height == 0:
+        row = gene_annotations.filter(pl.col("gene_name") == gene_id)
+    if row.height == 0:
+        return []
+
+    gene_start = int(row[0, "start"])
+    chrom = str(row[0, "chrom"]).replace("chr", "")
+    label_to_type = {0: "donor", 1: "acceptor"}
+
+    out = []
+    for pos in np.where(labels < 2)[0]:
+        cls = int(labels[pos])
+        splice_type = label_to_type[cls]
+        abs_pos = gene_start + int(pos)
+        if (chrom, abs_pos, splice_type) in mane_sites:
+            continue  # shared with MANE — not an alternative site
+        out.append({
+            "chrom": chrom,
+            "position": abs_pos,
+            "splice_type": splice_type,
+            "meta_detected": bool(int(np.argmax(meta_probs[pos])) == cls),
+            "base_detected": bool(int(np.argmax(base_probs[pos])) == cls),
+        })
+    return out
+
+
 from agentic_spliceai.splice_engine.eval.sequence_inference import infer_full_gene
 
 
@@ -212,6 +256,12 @@ def main():
         "--device", default="auto",
         help="Device: 'auto' (default) = cuda if available else cpu (never MPS). "
              "Override with cuda/cpu/mps. See splice_engine/utils/device.py.",
+    )
+    parser.add_argument(
+        "--dump-site-outcomes", type=Path, default=None,
+        help="Also write a parquet of per-alternative-site outcomes "
+             "(chrom, position, splice_type, meta_detected, base_detected) for "
+             "downstream stratification, e.g. tissue-stratified recall (16_...).",
     )
     args = parser.parse_args()
 
@@ -409,6 +459,7 @@ def main():
     min_length = 1  # infer_full_gene() handles padding for short genes
     overall_eval = StreamingEvaluator()  # all sites
     alt_eval = StreamingEvaluator()      # alternative sites only
+    site_outcomes = [] if args.dump_site_outcomes else None
 
     n_skipped = 0
     n_alt_sites_total = 0
@@ -455,6 +506,11 @@ def main():
                 gene_id,
             )
 
+        if site_outcomes is not None:
+            site_outcomes.extend(collect_alt_site_outcomes(
+                gene_id, labels, meta_probs, base_probs, gene_annotations, mane_sites,
+            ))
+
         del data, meta_probs, base_probs, labels, alt_mask
 
         if (i + 1) % 100 == 0:
@@ -468,6 +524,12 @@ def main():
     print(f"  Shared sites (MANE ∩ {ann_src}): {n_shared_sites_total:,}")
     print(f"  Alternative sites ({ann_src} \\ MANE): {n_alt_sites_total:,}")
     print(f"  Accumulator memory: {overall_eval.memory_usage_mb() + alt_eval.memory_usage_mb():.1f} MB")
+
+    if site_outcomes is not None:
+        import polars as pl
+        args.dump_site_outcomes.parent.mkdir(parents=True, exist_ok=True)
+        pl.DataFrame(site_outcomes).write_parquet(args.dump_site_outcomes)
+        print(f"  Wrote {len(site_outcomes):,} per-site outcomes -> {args.dump_site_outcomes}")
 
     if overall_eval.n_genes == 0:
         print("ERROR: No genes evaluated. Check --cache-dir path.")

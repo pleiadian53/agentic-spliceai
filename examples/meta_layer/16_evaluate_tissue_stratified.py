@@ -120,47 +120,50 @@ def base_outcomes(pred_path: Path, sites: pl.DataFrame, chroms: list[str]) -> pl
     )
 
 
-def stratify(sites: pl.DataFrame, tissue_index: pl.DataFrame, tissues: dict[str, str],
-             meta_outcomes: pl.DataFrame | None) -> dict:
-    """Compute per-tissue recall (base, and meta if supplied) over alternative sites."""
-    # Join site outcomes onto tissue support (one row per site×tissue).
+def _recall(frame: pl.DataFrame, col: str) -> tuple[float | None, int]:
+    """(mean of a boolean detection column ignoring nulls, count of non-null)."""
+    if col not in frame.columns:
+        return None, 0
+    n = int(frame[col].is_not_null().sum())
+    return (float(frame[col].mean()) if n else None), n
+
+
+def stratify(sites: pl.DataFrame, tissue_index: pl.DataFrame, tissues: dict[str, str]) -> dict:
+    """Per-tissue base (and meta, if present) recall over alternative sites.
+
+    ``sites`` must already carry a boolean ``base_detected`` column and optionally
+    ``meta_detected`` (nulls = not scored)."""
     per = sites.join(tissue_index, on=["chrom", "position"], how="inner")
-    if meta_outcomes is not None:
-        per = per.join(meta_outcomes, on=["chrom", "position", "splice_type"], how="left")
+    has_meta = "meta_detected" in sites.columns and int(sites["meta_detected"].is_not_null().sum()) > 0
 
     n_alt_total = sites.height
-    supported = sites.join(tissue_index.select(["chrom", "position"]).unique(),
-                           on=["chrom", "position"], how="inner")
-    n_alt_supported = supported.height
+    n_alt_supported = sites.join(
+        tissue_index.select(["chrom", "position"]).unique(), on=["chrom", "position"], how="inner"
+    ).height
 
     rows = []
     for smtsd, display in tissues.items():
         sub = per.filter(pl.col("tissue") == smtsd)
-        n = sub.height
-        n_scored = int(sub["base_detected"].is_not_null().sum())
-        base_recall = float(sub["base_detected"].mean()) if n_scored else None
-        meta_recall = None
-        if meta_outcomes is not None and int(sub["meta_detected"].is_not_null().sum()):
-            meta_recall = float(sub["meta_detected"].mean())
+        base_recall, n_scored = _recall(sub, "base_detected")
+        meta_recall, _ = _recall(sub, "meta_detected") if has_meta else (None, 0)
         rows.append({
             "tissue": smtsd,
             "display": display,
-            "n_alt_sites": n,
+            "n_alt_sites": sub.height,
             "n_scored": n_scored,
             "base_recall": base_recall,
             "meta_recall": meta_recall,
         })
     rows.sort(key=lambda r: r["n_alt_sites"], reverse=True)
 
-    n_scored_total = int(sites["base_detected"].is_not_null().sum())
-    overall_base = float(sites["base_detected"].mean()) if n_scored_total else None
+    overall_base, n_scored_total = _recall(sites, "base_detected")
     return {
         "operating_point": "argmax",
         "n_alt_sites_total": n_alt_total,
         "n_alt_sites_supported": n_alt_supported,
         "n_alt_sites_scored": n_scored_total,
         "overall_base_recall": overall_base,
-        "has_meta": meta_outcomes is not None,
+        "has_meta": has_meta,
         "tissues": rows,
     }
 
@@ -192,9 +195,11 @@ def main() -> None:
     tissue_parquet = args.tissue_parquet or root / "data" / "GRCh38" / "junction_data" / "junctions_gtex_v8_by_tissue.parquet"
     out_dir = args.output_dir or root / "output" / "meta_layer" / "m2s_v4_cleanannot_alt_eval"
 
-    for p in (mane_path, eval_path, base_path, tissue_parquet):
+    for p in (mane_path, eval_path, tissue_parquet):
         if not p.exists():
             raise FileNotFoundError(f"Required input not found: {p}")
+    if args.meta_outcomes is None and not base_path.exists():
+        raise FileNotFoundError(f"Base scores not found: {base_path} (needed without --meta-outcomes)")
 
     logger.info("Deriving alternative sites (%s ∖ MANE) on %s ...", args.eval_annotation, ",".join(chroms))
     mane = load_site_set(mane_path, chroms)
@@ -212,19 +217,34 @@ def main() -> None:
     tissue_index = build_tissue_index(tissue_parquet, tissues, chroms, args.min_reads)
 
     models = {m.strip() for m in args.models.split(",")}
-    meta_outcomes = None
-    if "meta" in models:
-        if not args.meta_outcomes or not args.meta_outcomes.exists():
-            raise SystemExit(
-                "Meta recall requested but --meta-outcomes parquet not found. Meta per-site "
-                "outcomes come from the neural eval (dense features → pod); run ops_eval_tissue_pod.sh."
-            )
-        meta_outcomes = pl.read_parquet(args.meta_outcomes).with_columns(_norm_chrom(pl.col("chrom")).alias("chrom"))
+    outcomes = None
+    if args.meta_outcomes:
+        if not args.meta_outcomes.exists():
+            raise SystemExit(f"--meta-outcomes not found: {args.meta_outcomes}")
+        outcomes = pl.read_parquet(args.meta_outcomes).with_columns(
+            _norm_chrom(pl.col("chrom")).alias("chrom")
+        )
+    elif "meta" in models:
+        raise SystemExit(
+            "Meta recall requested but no --meta-outcomes parquet. Meta per-site outcomes come from "
+            "the neural eval (09 --dump-site-outcomes on a pod); see ops_eval_tissue_pod.sh."
+        )
 
-    logger.info("Scoring base-model detection at alternative sites ...")
-    alt = base_outcomes(base_path, alt, chroms)
+    if outcomes is not None:
+        # Both base_detected and meta_detected come from the neural eval dump (09),
+        # which used the real held-out base scores + M2-S inference.
+        logger.info("Attaching per-site outcomes from %s ...", args.meta_outcomes.name)
+        keep = ["chrom", "position", "splice_type"] + [
+            c for c in ("base_detected", "meta_detected") if c in outcomes.columns
+        ]
+        alt = alt.join(outcomes.select(keep), on=["chrom", "position", "splice_type"], how="left")
+        if "base_detected" not in alt.columns:
+            alt = alt.with_columns(pl.lit(None, dtype=pl.Boolean).alias("base_detected"))
+    else:
+        logger.info("Scoring base-model detection at alternative sites (local base scores) ...")
+        alt = base_outcomes(base_path, alt, chroms)
 
-    result = stratify(alt, tissue_index, tissues, meta_outcomes)
+    result = stratify(alt, tissue_index, tissues)
     result["eval_annotation"] = args.eval_annotation
     result["test_chromosomes"] = chroms
     result["min_reads"] = args.min_reads
