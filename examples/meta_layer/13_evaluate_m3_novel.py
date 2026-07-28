@@ -71,6 +71,8 @@ DEFAULT_MODELS = [
     ("M2-S",       "output/meta_layer/m2s_v4_cleanannot", "full9"),
     ("M3-v1",      "output/meta_layer/m3_v1",             "m3"),
     ("M3-v1-mm0",  "output/meta_layer/m3_v1",             "m3_zero"),
+    # Tier 1: confirmed-only retrain (skipped automatically until the dir exists locally)
+    ("M3-v1.1",    "output/meta_layer/m3s_v1_1_confirmed", "m3"),
 ]
 
 KS = (5, 10, 20)

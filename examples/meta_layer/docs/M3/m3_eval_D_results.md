@@ -103,3 +103,24 @@ naturally. Pure de-novo genome scanning is unlikely to clear the bar for a
 drug-discovery pipeline regardless of labels/architecture.
 
 Raw metrics: `output/meta_layer/m3_eval_d1/m3_eval_metrics.json`.
+
+## Tier 1 result (2026-07-28) — confirmed-only labels do NOT help
+
+The original diagnosis called the ~50% unconfirmed SpliceVault positives "the
+ceiling — label noise you can't learn through." Tier 1 tested it: retrain the
+recognizer (`07 --confirmed-only`) on the **77,879 long-read-confirmed positives
+only** (drop 76,234 unconfirmed), same architecture/schedule, then the same
+anti-circular eval. **M3-v1.1 is marginally *worse* than M3-v1** everywhere:
+
+| model | D1 P@5 | D1 R@20 | D1_hiconf P@5 | D2 R@20 |
+|---|---|---|---|---|
+| **M3-v1** (all pos, confirmed 2×) | **0.335** | **0.367** | **0.254** | **0.791** |
+| M3-v1.1 (confirmed-only) | 0.327 | 0.343 | 0.249 | 0.779 |
+
+**The hypothesis is refuted — label noise was not the ceiling.** Dropping the
+unconfirmed positives lost signal (more data won) rather than removing noise.
+Combined with Tier 2, the ladder is consistent: **neither cleaner labels (Tier 1)
+nor the candidate-refinement reframe (Tier 2) improve within-gene novel-site
+ranking.** M3-v1 stays the deliverable; the real lever is position-level features
+(or M4-conditional / the between-gene locus-triage side capability).
+Raw: `output/meta_layer/m3_eval_tier1/m3_eval_metrics.json`.
