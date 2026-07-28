@@ -36,6 +36,7 @@ from agentic_spliceai.splice_engine.base_layer.prediction.evaluation import (
     filter_annotations_by_transcript,
 )
 from . import config
+from . import meta_metrics
 from .gene_cache import get_genes, get_gene_stats, get_chromosomes
 from .model_cache import get_models as get_cached_models, is_cached as is_model_cached
 from .meta_inference import build_overlay_predictions
@@ -303,6 +304,25 @@ async def get_metrics_run(run_id: str):
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
     return json.loads(metrics_path.read_text())
+
+
+# =========================
+# API Routes — Meta-Layer Metrics (base vs meta)
+# =========================
+
+@app.get("/api/meta-metrics/runs")
+async def list_meta_metrics_runs():
+    """List available meta-layer comparison runs (base vs meta)."""
+    return meta_metrics.list_meta_runs()
+
+
+@app.get("/api/meta-metrics/{run_id}")
+async def get_meta_metrics_run(run_id: str):
+    """Full base-vs-meta comparison payload for one meta-layer run."""
+    run = meta_metrics.get_meta_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Meta run '{run_id}' not found")
+    return run
 
 
 # =========================

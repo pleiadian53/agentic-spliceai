@@ -111,6 +111,36 @@
         border-color: #1e3a5f;
     }
 
+    /* Meta-layer vs base comparison */
+    .headline-strip {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 1.25rem 0;
+    }
+    .stat-card {
+        background: linear-gradient(135deg, #f8fbf8, #eef5ee);
+        border: 1px solid #d7e8d7;
+        border-radius: 10px;
+        padding: 0.9rem 1.15rem;
+    }
+    .stat-card .stat-label {
+        font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px;
+        color: #6b7d6b; font-weight: 700;
+    }
+    .stat-values { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.3rem; }
+    .stat-base { font-size: 1.1rem; font-weight: 600; color: #90a4ae; }
+    .stat-arrow { color: #b0bec5; font-weight: 700; }
+    .stat-meta { font-size: 1.6rem; font-weight: 800; color: #1b5e20; }
+    .stat-delta { margin-top: 0.2rem; font-size: 0.85rem; font-weight: 700; }
+    .stat-delta.up { color: #2e7d32; }
+    .stat-delta.down { color: #c62828; }
+    .meta-context { font-size: 0.85rem; color: #666; margin: 0.5rem 0 0.25rem; }
+    .caveat {
+        margin-top: 1rem; padding: 0.75rem 1rem; border-left: 3px solid #f39c12;
+        background: #fff8ec; border-radius: 6px; font-size: 0.85rem; color: #7a5b1e;
+    }
+
     @media (max-width: 900px) {
         .chart-grid { grid-template-columns: 1fr; }
     }
@@ -125,9 +155,36 @@
 {% endblock %}
 
 {% block content %}
-<!-- Run Selector -->
+<!-- Meta-Layer vs Base (hero) -->
+<div class="card" id="meta-compare-card">
+    <h2>Meta-Layer vs Base — Success Metrics</h2>
+    <p class="text-muted" style="font-size:0.9rem; margin-top:-0.35rem;">
+        How the adaptive meta models improve on the OpenSpliceAI base model, on leakage-clean
+        held-out chromosomes.
+    </p>
+    <div class="run-selector" id="meta-run-selector">
+        <span class="text-muted" style="font-size:0.9rem;">Loading meta models…</span>
+    </div>
+    <div class="transcript-tabs" id="meta-scope-tabs" style="display:none;"></div>
+    <div class="meta-context" id="meta-context" style="display:none;"></div>
+    <div class="headline-strip" id="meta-headline" style="display:none;"></div>
+    <div class="chart-grid" id="meta-charts" style="display:none;">
+        <div class="chart-card"><h3>Recall by site type</h3><div id="mchart-recall" style="height:300px;"></div></div>
+        <div class="chart-card"><h3>PR-AUC by site type</h3><div id="mchart-prauc" style="height:300px;"></div></div>
+        <div class="chart-card"><h3>Confusion counts (TP / FP / FN)</h3><div id="mchart-counts" style="height:300px;"></div></div>
+        <div class="chart-card"><h3>Top-k accuracy</h3><div id="mchart-topk" style="height:300px;"></div></div>
+    </div>
+    <div class="chart-card full-width" id="meta-tissue-card" style="display:none; margin-top:1.25rem;">
+        <h3 id="meta-tissue-title">Alternative sites by supporting tissue (GTEx)</h3>
+        <div id="mchart-tissue" style="height:320px;"></div>
+        <div class="meta-context" id="meta-tissue-caption" style="margin-top:0.5rem;"></div>
+    </div>
+    <div class="caveat" id="meta-caveat" style="display:none;"></div>
+</div>
+
+<!-- Base-model per-run explorer -->
 <div class="card">
-    <h2>Evaluation Runs</h2>
+    <h2>Base-Model Evaluation Runs</h2>
     <div class="run-selector" id="run-selector">
         <span class="text-muted" style="font-size:0.9rem;">Loading runs...</span>
     </div>
@@ -494,6 +551,241 @@
             xaxis: { title: 'Window size' },
             legend: { orientation: 'h', y: -0.25 },
         }, plotlyConfig);
+    }
+
+    // =====================================================================
+    // Meta-Layer vs Base comparison (hero section)
+    // =====================================================================
+    const META_BASE_COLOR = '#9aa7b4';   // muted grey = base model
+    const META_META_COLOR = '#2e7d32';   // green = improved meta model
+    let metaRuns = [];
+    let selectedMetaRunId = null;
+    let metaRunCache = {};    // run_id -> full comparison payload
+    let metaScopeKey = null;
+
+    document.addEventListener('DOMContentLoaded', loadMetaRuns);
+
+    async function loadMetaRuns() {
+        try {
+            const resp = await fetch('/api/meta-metrics/runs');
+            metaRuns = await resp.json();
+            renderMetaRunSelector();
+            if (metaRuns.length) selectMetaRun(metaRuns[0].run_id);  // auto-select for demo
+        } catch (e) {
+            console.error('Failed to load meta runs:', e);
+            document.getElementById('meta-run-selector').innerHTML =
+                '<span style="color:#c62828;">Failed to load meta-layer results</span>';
+        }
+    }
+
+    function renderMetaRunSelector() {
+        const el = document.getElementById('meta-run-selector');
+        if (!metaRuns.length) {
+            el.innerHTML = '<span class="text-muted" style="font-size:0.9rem;">No meta-layer results found</span>';
+            return;
+        }
+        el.innerHTML = metaRuns.map(r => `
+            <div class="run-chip ${r.run_id === selectedMetaRunId ? 'selected' : ''}"
+                 onclick="selectMetaRun('${r.run_id}')">
+                <strong>${r.label}</strong>
+                <span class="run-meta">${r.headline || ''}</span>
+            </div>
+        `).join('');
+    }
+
+    async function selectMetaRun(runId) {
+        selectedMetaRunId = runId;
+        if (!metaRunCache[runId]) {
+            try {
+                const resp = await fetch(`/api/meta-metrics/${runId}`);
+                metaRunCache[runId] = await resp.json();
+            } catch (e) { console.error(`Failed to load meta run ${runId}:`, e); return; }
+        }
+        const run = metaRunCache[runId];
+        metaScopeKey = run.scopes[0]?.key || null;
+        renderMetaRunSelector();
+        renderMetaScopeTabs(run);
+        renderMetaComparison();
+    }
+
+    function renderMetaScopeTabs(run) {
+        const el = document.getElementById('meta-scope-tabs');
+        if (!run.scopes || run.scopes.length < 2) { el.style.display = 'none'; return; }
+        el.style.display = 'flex';
+        el.innerHTML = run.scopes.map(s => `
+            <div class="transcript-tab ${s.key === metaScopeKey ? 'active' : ''}"
+                 onclick="switchMetaScope('${s.key}')">${s.label}</div>
+        `).join('');
+    }
+
+    function switchMetaScope(key) {
+        metaScopeKey = key;
+        renderMetaScopeTabs(metaRunCache[selectedMetaRunId]);
+        renderMetaComparison();
+    }
+
+    function currentMetaScope() {
+        const run = metaRunCache[selectedMetaRunId];
+        if (!run) return null;
+        return run.scopes.find(s => s.key === metaScopeKey) || run.scopes[0];
+    }
+
+    function fmtHeadline(h) {
+        if (h.base == null || h.meta == null) return { base: '--', meta: '--', delta: '', up: true };
+        if (h.fmt === 'pct') {
+            const up = h.meta >= h.base;
+            return { base: (h.base*100).toFixed(0)+'%', meta: (h.meta*100).toFixed(0)+'%',
+                     delta: (up?'+':'')+((h.meta-h.base)*100).toFixed(0)+' pts', up };
+        }
+        if (h.fmt === 'prob') {
+            const up = h.meta >= h.base;
+            return { base: h.base.toFixed(3), meta: h.meta.toFixed(3),
+                     delta: (up?'+':'')+(h.meta-h.base).toFixed(3), up };
+        }
+        if (h.fmt === 'count_reduction') {
+            const up = (h.delta_pct ?? 0) >= 0;  // FN reduction positive = good
+            const d = h.delta_pct != null ? (up?'−':'+')+Math.abs(h.delta_pct).toFixed(0)+'%' : '';
+            return { base: h.base.toLocaleString(), meta: h.meta.toLocaleString(), delta: d, up };
+        }
+        return { base: String(h.base), meta: String(h.meta), delta: '', up: true };
+    }
+
+    function renderMetaComparison() {
+        const run = metaRunCache[selectedMetaRunId];
+        const scope = currentMetaScope();
+        if (!run || !scope) return;
+
+        const ctx = document.getElementById('meta-context');
+        ctx.style.display = 'block';
+        const md = run.metadata || {};
+        const bits = [];
+        if (md.n_genes) bits.push(`${md.n_genes.toLocaleString()} genes`);
+        if (md.test_chromosomes) bits.push(`held-out ${md.test_chromosomes.map(c => String(c).startsWith('chr') ? c : 'chr'+c).join(', ')}`);
+        if (md.n_alternative_sites && scope.key === 'alternative_sites') bits.push(`${md.n_alternative_sites.toLocaleString()} alternative sites`);
+        ctx.textContent = bits.join('  ·  ');
+
+        const strip = document.getElementById('meta-headline');
+        strip.style.display = 'grid';
+        strip.innerHTML = scope.headline.map(h => {
+            const f = fmtHeadline(h);
+            return `<div class="stat-card">
+                <div class="stat-label">${h.label}</div>
+                <div class="stat-values">
+                    <span class="stat-base">${f.base}</span>
+                    <span class="stat-arrow">→</span>
+                    <span class="stat-meta">${f.meta}</span>
+                </div>
+                <div class="stat-delta ${f.up ? 'up' : 'down'}">${f.delta}</div>
+            </div>`;
+        }).join('');
+
+        document.getElementById('meta-charts').style.display = 'grid';
+        renderMetaSiteChart('mchart-recall', scope, 'recall', v => v.toFixed(0)+'%');
+        renderMetaSiteChart('mchart-prauc', scope, 'pr_auc', v => v.toFixed(1)+'%');
+        renderMetaCounts(scope);
+        renderMetaTopk(scope);
+        renderMetaTissue(run);
+
+        const cav = document.getElementById('meta-caveat');
+        if (scope.caveat) { cav.style.display = 'block'; cav.textContent = 'Note: ' + scope.caveat; }
+        else { cav.style.display = 'none'; }
+    }
+
+    function metaBarPair(base_y, meta_y) {
+        return [
+            { name: 'Base (OpenSpliceAI)', y: base_y, type: 'bar', marker: { color: META_BASE_COLOR } },
+            { name: 'Meta', y: meta_y, type: 'bar', marker: { color: META_META_COLOR } },
+        ];
+    }
+
+    function renderMetaSiteChart(elId, scope, field, textFmt) {
+        const x = ['Donor', 'Acceptor'];
+        const b = scope.per_class.base, m = scope.per_class.meta;
+        const traces = metaBarPair(
+            [ (b.donor[field]||0)*100, (b.acceptor[field]||0)*100 ],
+            [ (m.donor[field]||0)*100, (m.acceptor[field]||0)*100 ]);
+        traces.forEach(t => { t.x = x; t.text = t.y.map(textFmt); t.textposition = 'outside'; });
+        Plotly.newPlot(elId, traces, {
+            ...plotlyLayout,
+            yaxis: { title: '%', range: [0, 109], gridcolor: '#eee' },
+            barmode: 'group', legend: { orientation: 'h', y: -0.2 },
+        }, plotlyConfig);
+    }
+
+    function renderMetaCounts(scope) {
+        const b = scope.counts.base, m = scope.counts.meta;
+        const traces = metaBarPair([b.tp||0, b.fp||0, b.fn||0], [m.tp||0, m.fp||0, m.fn||0]);
+        traces.forEach(t => { t.x = ['TP', 'FP', 'FN']; });
+        Plotly.newPlot('mchart-counts', traces, {
+            ...plotlyLayout,
+            yaxis: { title: 'Count', gridcolor: '#eee' },
+            barmode: 'group', legend: { orientation: 'h', y: -0.2 },
+        }, plotlyConfig);
+    }
+
+    function renderMetaTopk(scope) {
+        const tk = scope.topk || {};
+        if (!tk.levels) { Plotly.purge('mchart-topk'); return; }
+        const x = tk.levels.map(k => 'k=' + k);
+        const traces = [
+            { x, y: tk.base.map(v => (v||0)*100), name: 'Base (OpenSpliceAI)', type: 'scatter',
+              mode: 'lines+markers', line: { color: META_BASE_COLOR, width: 2 }, marker: { size: 8 } },
+            { x, y: tk.meta.map(v => (v||0)*100), name: 'Meta', type: 'scatter',
+              mode: 'lines+markers', line: { color: META_META_COLOR, width: 2 }, marker: { size: 8 } },
+        ];
+        Plotly.newPlot('mchart-topk', traces, {
+            ...plotlyLayout,
+            yaxis: { title: 'Accuracy (%)', range: [0, 105], gridcolor: '#eee' },
+            xaxis: { title: 'k multiplier' },
+            legend: { orientation: 'h', y: -0.25 },
+        }, plotlyConfig);
+    }
+
+    function renderMetaTissue(run) {
+        const card = document.getElementById('meta-tissue-card');
+        const t = run.tissue;
+        if (!t || !t.tissues || !t.tissues.length) { card.style.display = 'none'; return; }
+        card.style.display = 'block';
+        const rows = t.tissues;
+        const x = rows.map(r => r.display);
+        const hasRecall = rows.some(r => r.base_recall != null || r.meta_recall != null);
+        const title = document.getElementById('meta-tissue-title');
+
+        if (hasRecall) {
+            title.textContent = 'Alternative-site recall by supporting tissue';
+            const traces = [
+                { x, y: rows.map(r => (r.base_recall || 0) * 100), name: 'Base (OpenSpliceAI)',
+                  type: 'bar', marker: { color: META_BASE_COLOR } },
+            ];
+            if (rows.some(r => r.meta_recall != null)) {
+                traces.push({ x, y: rows.map(r => (r.meta_recall || 0) * 100), name: 'Meta (M2-S)',
+                              type: 'bar', marker: { color: META_META_COLOR } });
+            }
+            Plotly.newPlot('mchart-tissue', traces, {
+                ...plotlyLayout,
+                yaxis: { title: 'Recall (%)', range: [0, 105], gridcolor: '#eee' },
+                barmode: 'group', legend: { orientation: 'h', y: -0.2 },
+            }, plotlyConfig);
+        } else {
+            title.textContent = 'Alternative sites by supporting tissue (GTEx)';
+            const traces = [{
+                x, y: rows.map(r => r.n_alt_sites), type: 'bar',
+                marker: { color: '#3572a5' },
+                text: rows.map(r => r.n_alt_sites.toLocaleString()), textposition: 'outside',
+            }];
+            Plotly.newPlot('mchart-tissue', traces, {
+                ...plotlyLayout,
+                yaxis: { title: '# alternative sites', gridcolor: '#eee' },
+            }, plotlyConfig);
+        }
+
+        const parts = [];
+        parts.push(`${(t.n_alt_sites_supported || 0).toLocaleString()} of ${(t.n_alt_sites_total || 0).toLocaleString()} alternative sites have GTEx junction support in these ${rows.length} tissues (${(t.test_chromosomes || []).join(', ')}).`);
+        if (!hasRecall) {
+            parts.push('Recall (base vs M2-S) fills in from the pod eval. M2-S is tissue-agnostic, so this is recall stratified by the tissue of junction support — not tissue-conditioned prediction.');
+        }
+        if (t.caveat) parts.push(t.caveat);
+        document.getElementById('meta-tissue-caption').textContent = parts.join(' ');
     }
 </script>
 {% endblock %}
