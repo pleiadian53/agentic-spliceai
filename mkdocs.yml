@@ -155,6 +155,7 @@ nav:
           - Virtual Transcripts & Junction Pairing: meta_layer/methods/03_virtual_transcripts_and_junction_pairing.md
           - Data Sources & Landscape: meta_layer/methods/04_data_sources_and_landscape.md
           - M2 Variant Formulations: meta_layer/methods/05_m2_variant_formulations.md
+          - M3 Novel-Site Formulation: meta_layer/methods/06_m3_novel_site_formulation.md
           - Naming Convention: meta_layer/methods/naming_convention.md
       - Archive (Meta-SpliceAI predecessor):
           - Methods Overview: meta_layer/meta-spliceai-archive/methods/README.md
@@ -190,7 +191,7 @@ nav:
       - Overview: bioinformatics/README.md
   - Workflows:
       - Overview: workflows/README.md
-      - Meta-Layer MLOps (M1-S/M2-S):
+      - Meta-Layer MLOps (M1-S/M2-S/M3):
           - Series Overview: workflows/meta_layer/README.md
           - 1. Data Preparation: workflows/meta_layer/01_data_preparation.md
           - 2. Base Scoring: workflows/meta_layer/02_base_scoring.md
@@ -200,6 +201,9 @@ nav:
           - 6. Evaluation: workflows/meta_layer/06_evaluation.md
           - 7. Reporting & Promotion: workflows/meta_layer/07_reporting.md
           - 8. GPU Pods: workflows/meta_layer/08_gpu_pods.md
+          - "M3 — 9. Label Curation": workflows/meta_layer/09_m3_label_curation.md
+          - "M3 — 10. Training": workflows/meta_layer/10_training_m3.md
+          - "M3 — 11. Evaluation": workflows/meta_layer/11_m3_evaluation.md
   - Roadmap: ROADMAP.md
   - About:
       - Contributing: CONTRIBUTING.md

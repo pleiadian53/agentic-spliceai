@@ -7,9 +7,11 @@ checkpoint with reported metrics. It is written around the two production models
 - **M1-S** — the *canonical* refiner (trained on MANE splice sites), and
 - **M2-S** — the *alternative-site* refiner (trained on Ensembl splice sites),
 
-— because they are the two that are fully trained, promoted, and in use. M3 (novel sites) and
-M4 (perturbation-induced sites) reuse most of the same stages and are noted where relevant, but
-are out of scope here.
+— because they are the two that are fully trained, promoted, and in use. **M3 (novel sites)** reuses
+Stages 1–3 and then branches into its own **sub-series ([Stages 9–11](09_m3_label_curation.md))** —
+novel-site labels are curated from *evidence* (junction reads, long-read isoforms) rather than
+annotation, so M3 needs its own label curation, training, and anti-circular evaluation. M4
+(perturbation-induced sites) reuses most of the same stages and is out of scope here.
 
 !!! info "What this series is (and isn't)"
     It is the **connective tissue** between stages: which script runs, in what order, what it
@@ -41,6 +43,10 @@ flowchart LR
 | [6](06_evaluation.md) | Evaluation | `08_evaluate_sequence_model.py`, `09_evaluate_alternative_sites.py` | checkpoint + `.npz` cache | `eval_results.json`, `m2a_eval_results.json` |
 | [7](07_reporting.md) | Reporting | `10_verify_evaluation_stats.py`, `results/*.md` | result JSONs | roll-ups + promotion registry |
 | [8](08_gpu_pods.md) | *(optional)* GPU pods | `meta_layer/ops_*.sh` | — | same artifacts, on a RunPod GPU |
+| **M3 sub-series** — reuses Stages 1–3, then: | | | | |
+| [9](09_m3_label_curation.md) | *(M3)* Label curation | `data_preparation/m3/*.py` | junctions + long-read + disease catalogs | `data/mane/GRCh38/m3_labels/*.parquet` |
+| [10](10_training_m3.md) | *(M3)* Training | `07 --mode m3` (pod) · `14` (local) | M3 labels + candidate table | `output/meta_layer/{m3_v1, m3r_candidate_refiner}/` |
+| [11](11_m3_evaluation.md) | *(M3)* Anti-circular eval | `13_evaluate_m3_novel.py`, `15_…` | checkpoint / booster + D1/D2 truth | `m3_eval_metrics.json` |
 
 ---
 
