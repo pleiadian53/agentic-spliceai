@@ -44,6 +44,25 @@ comparison at a matched-recall / F1-optimal threshold plus PR-AUC and top-k — 
 [reporting norms from Stage 6](06_evaluation.md) — and link the exact JSON it
 was computed from.
 
+## Presenting results — the Bio Lab UI dashboard
+
+For a live, audience-facing view of the base-vs-meta story, the **Bio Lab UI** serves a metrics
+dashboard that reads the promoted eval JSONs directly (no extra scripts needed):
+
+```bash
+conda run -n agentic-spliceai python -m server.bio.app   # http://localhost:8005/metrics
+```
+
+The **Meta-Layer vs Base** section auto-loads the promoted models (from `settings.yaml meta_models`).
+Selecting a run shows headline deltas (e.g. M2-S alternative-site recall 17% → 90%, FN −88%) and
+grouped base-vs-meta charts (per-class recall / PR-AUC, confusion counts, top-k). When a model's eval
+dir has a `tissue_stratified.json` ([Stage 6](06_evaluation.md#tissue-stratified-recall-m2-s)), a
+**per-tissue recall panel** appears too.
+
+This dashboard (`server/bio/`) is distinct from the demo scripts in `examples/UI_integration/`, which
+drive the per-gene **genome view** (cryptic-site overlays, Integrated-Gradients) and the static
+`06_demo_synthesis.py` story-board.
+
 ## 4. Provenance
 
 Every model directory carries a `MANIFEST.yaml` recording how it was produced:

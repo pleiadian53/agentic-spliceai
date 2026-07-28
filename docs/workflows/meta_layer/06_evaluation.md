@@ -73,6 +73,34 @@ It builds the MANE reference set, subtracts it from the Ensembl sites to isolate
 and reports metrics **both overall and on the alternative subset**. `--annotation-source gencode`
 (with a `--gtf`) gives the `m2b` GENCODE `\` MANE variant instead.
 
+### Tissue-stratified recall (M2-S)
+
+Because alternative splicing is context-dependent, alternative-site recall can be stratified by the
+**GTEx tissue whose junctions support each site**. `16_evaluate_tissue_stratified.py` does this over
+the 5 DNase-matched tissues (brain cortex, heart, lung, muscle, liver): it derives the alternative
+sites, builds a per-tissue junction-support index from the GTEx v8 by-tissue table, and reports
+per-tissue recall for base and M2-S.
+
+Base recall runs locally from the precomputed base scores; **M2-S recall needs the neural eval**, so
+`09 --dump-site-outcomes` writes a per-site `(chrom, position, splice_type, base_detected,
+meta_detected)` parquet during the alt-site eval, which `16 --meta-outcomes` consumes:
+
+```bash
+# on a pod (dense features): 09 dumps per-site outcomes, then 16 stratifies
+09_evaluate_alternative_sites.py … --dump-site-outcomes site_outcomes.parquet
+16_evaluate_tissue_stratified.py --models base,meta --tissues dnase5 \
+    --meta-outcomes site_outcomes.parquet
+# → tissue_stratified.json  (per tissue: n_alt_sites, base_recall, meta_recall)
+```
+
+!!! warning "Evidence-stratified, not tissue-conditioned"
+    M2-S is tissue-agnostic — it emits one prediction per site. So per-tissue differences reflect
+    *which alternative sites carry junction support in each tissue and how detectable they are*, not
+    tissue-specific prediction. Read it as **recall by tissue of junction support**. On the held-out
+    set M2-S recovers ~98% of alternative sites in every tissue vs base ~21% — nearly uniform across
+    tissues, the expected signature of a tissue-agnostic model. The Bio Lab UI renders this
+    ([Stage 7](07_reporting.md#presenting-results-the-bio-lab-ui-dashboard)).
+
 ---
 
 ## Slicing the results: genome-wide, per-chromosome, per-gene
