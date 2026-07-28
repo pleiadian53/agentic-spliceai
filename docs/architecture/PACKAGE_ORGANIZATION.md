@@ -415,7 +415,7 @@ foundation_models/
 - Ops scripts for cluster provisioning, data staging, and pipeline execution
 - Direct shard splice predictor for foundation model fine-tuning
 
-**See**: [`foundation_models/README.md`](../../foundation_models/README.md) for current setup and hardware requirements
+**See**: [`foundation_models/README.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/foundation_models/README.md) for current setup and hardware requirements
 
 ---
 

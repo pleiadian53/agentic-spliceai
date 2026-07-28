@@ -78,7 +78,7 @@ System design documentation differs from implementation details:
 
 ---
 
-### 5. [Meta Layer Architecture](meta_layer_architecture.md)
+### 5. `Meta Layer Architecture`
 
 **Why it matters**: Multimodal meta-learning for adaptive splice prediction
 
@@ -227,7 +227,7 @@ We're applying these principles to:
 | [Output Management](output_management.md) | ✅ Complete | Feb 15, 2026 |
 | [Configuration System](configuration_system.md) | ✅ Complete | Feb 15, 2026 |
 | [Base Layer Architecture](base_layer_architecture.md) | 📝 Draft | TBD |
-| [Meta Layer Architecture](meta_layer_architecture.md) | 📝 Draft | TBD |
+| `Meta Layer Architecture` | 📝 Draft | TBD |
 
 ---
 

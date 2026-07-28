@@ -32,13 +32,13 @@ clinical ground truth.
 
 ## Driving examples
 
-- [`examples/variant_analysis/01_single_variant_delta.py`](../../../examples/variant_analysis/01_single_variant_delta.py) — single-variant delta scoring
-- [`examples/variant_analysis/01b_splice_consequences.py`](../../../examples/variant_analysis/01b_splice_consequences.py) — consequence classification with JSON output
-- [`examples/variant_analysis/02_clinvar_download.py`](../../../examples/variant_analysis/02_clinvar_download.py) — ClinVar VCF download + splice-SNV filter
-- [`examples/variant_analysis/03_clinvar_benchmark.py`](../../../examples/variant_analysis/03_clinvar_benchmark.py) — ClinVar benchmark (pathogenic vs benign)
-- [`examples/variant_analysis/04_mutsplicedb_benchmark.py`](../../../examples/variant_analysis/04_mutsplicedb_benchmark.py) — MutSpliceDB benchmark (consequence concordance)
-- [`examples/variant_analysis/test_variants.yaml`](../../../examples/variant_analysis/test_variants.yaml) — 13 validated disease-gene variants across 10 genes
-- Pod ops: [`ops_m4_benchmarks_pod.sh`](../../../examples/variant_analysis/ops_m4_benchmarks_pod.sh), [`_post_orchestrator_regen_plots.sh`](../../../examples/variant_analysis/_post_orchestrator_regen_plots.sh)
+- [`examples/variant_analysis/01_single_variant_delta.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/01_single_variant_delta.py) — single-variant delta scoring
+- [`examples/variant_analysis/01b_splice_consequences.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/01b_splice_consequences.py) — consequence classification with JSON output
+- [`examples/variant_analysis/02_clinvar_download.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/02_clinvar_download.py) — ClinVar VCF download + splice-SNV filter
+- [`examples/variant_analysis/03_clinvar_benchmark.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/03_clinvar_benchmark.py) — ClinVar benchmark (pathogenic vs benign)
+- [`examples/variant_analysis/04_mutsplicedb_benchmark.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/04_mutsplicedb_benchmark.py) — MutSpliceDB benchmark (consequence concordance)
+- [`examples/variant_analysis/test_variants.yaml`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/test_variants.yaml) — 13 validated disease-gene variants across 10 genes
+- Pod ops: [`ops_m4_benchmarks_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/ops_m4_benchmarks_pod.sh), [`_post_orchestrator_regen_plots.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/_post_orchestrator_regen_plots.sh)
 
 Additional plan docs:
 
@@ -62,8 +62,8 @@ Additional plan docs:
 - **Baselines**: OpenSpliceAI base model, M1-S v2 logit blend, M2-S v2
 - **Key metrics**: PR-AUC, ROC-AUC, consequence concordance (MutSpliceDB)
 - **Results**:
-  - [Variant effect validation](../../../examples/variant_analysis/results/variant_effect_validation.md) — 13 variants + 4 RNA-seq cases
-  - [M4 benchmark sweep](../../../examples/variant_analysis/results/m4_benchmark_sweep.md) — full Phase 2 benchmark report
+  - [Variant effect validation](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/results/variant_effect_validation.md) — 13 variants + 4 RNA-seq cases
+  - [M4 benchmark sweep](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/results/m4_benchmark_sweep.md) — full Phase 2 benchmark report
   - [MutSpliceDB analysis](../../../examples/variant_analysis/results/mutsplicedb_analysis/) — detailed breakdown
 
 **Key findings (Phase 2)**:

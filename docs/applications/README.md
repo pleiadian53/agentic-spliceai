@@ -33,7 +33,7 @@ Each application below declares which goal(s) it serves.
 
 Applications live in one of four tiers. For the full definitions,
 graduation signals, and demotion triggers, see the methodology doc at
-[`dev/system_design/maturity_lifecycle.md`](../../dev/system_design/maturity_lifecycle.md).
+[`dev/system_design/maturity_lifecycle.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/dev/system_design/maturity_lifecycle.md).
 
 | Tier | Meaning |
 |------|---------|
@@ -91,7 +91,7 @@ same structure, adapted from the template at
 
 An application is created when an `examples/<topic>/` reaches late-Active
 maturity (see
-[`dev/system_design/maturity_lifecycle.md`](../../dev/system_design/maturity_lifecycle.md)):
+[`dev/system_design/maturity_lifecycle.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/dev/system_design/maturity_lifecycle.md)):
 the topic has multiple scripts, reproducible benchmarks, a canonical
 driver, and a clear user-facing functionality.
 
@@ -112,7 +112,7 @@ Process:
 
 No application is currently being promoted. Product promotion requires
 all six criteria under
-[`dev/system_design/maturity_lifecycle.md#tier-4--product`](../../dev/system_design/maturity_lifecycle.md)
+[`dev/system_design/maturity_lifecycle.md#tier-4--product`](https://github.com/pleiadian53/agentic-spliceai/blob/main/dev/system_design/maturity_lifecycle.md)
 to be demonstrably met, and a deliberate decision to take on maintenance.
 
 The products catalog lives at [../products/](../products/) and is

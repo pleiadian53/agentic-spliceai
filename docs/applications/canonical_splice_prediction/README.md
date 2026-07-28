@@ -14,10 +14,10 @@ Establish a **pluggable baseline splice-site prediction layer**. Given
 a gene symbol, chromosome, or the whole genome, produce per-nucleotide
 acceptor and donor probabilities — **not tied to any one model**. The
 architectural novelty is the
-[`BasePredictor` protocol](../../../src/agentic_spliceai/applications/base_layer/protocol.py):
+[`BasePredictor` protocol](https://github.com/pleiadian53/agentic-spliceai/blob/main/src/agentic_spliceai/applications/base_layer/protocol.py):
 any model — classical (SpliceAI, OpenSpliceAI), foundation-model-derived
 (e.g., the SpliceBERT-based classifier trained via
-[`examples/foundation_models/07a_direct_shard_splice_predictor.py`](../../../examples/foundation_models/07a_direct_shard_splice_predictor.py)),
+[`examples/foundation_models/07a_direct_shard_splice_predictor.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/07a_direct_shard_splice_predictor.py)),
 or any future models — can be registered and served through the same CLI
 and API surface as long as its output satisfies the **per-nucleotide
 3-class scoring contract** (neither / acceptor / donor probabilities
@@ -51,12 +51,12 @@ registration concern, not an integration one.
 
 ## Driving examples
 
-- [`examples/base_layer/01_phase1_prediction.py`](../../../examples/base_layer/01_phase1_prediction.py) — single-gene prediction, smoke test
-- [`examples/base_layer/02_chromosome_prediction.py`](../../../examples/base_layer/02_chromosome_prediction.py) — chromosome-wide prediction
-- [`examples/base_layer/03_prediction_with_evaluation.py`](../../../examples/base_layer/03_prediction_with_evaluation.py) — prediction + evaluation against MANE
-- [`examples/base_layer/04_chunked_prediction.py`](../../../examples/base_layer/04_chunked_prediction.py) — chunked workflow with checkpointing
-- [`examples/base_layer/05_genome_precomputation.py`](../../../examples/base_layer/05_genome_precomputation.py) — whole-genome precomputation
-- [`examples/base_layer/EVALUATION_GUIDE.md`](../../../examples/base_layer/EVALUATION_GUIDE.md) — evaluation methodology
+- [`examples/base_layer/01_phase1_prediction.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/base_layer/01_phase1_prediction.py) — single-gene prediction, smoke test
+- [`examples/base_layer/02_chromosome_prediction.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/base_layer/02_chromosome_prediction.py) — chromosome-wide prediction
+- [`examples/base_layer/03_prediction_with_evaluation.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/base_layer/03_prediction_with_evaluation.py) — prediction + evaluation against MANE
+- [`examples/base_layer/04_chunked_prediction.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/base_layer/04_chunked_prediction.py) — chunked workflow with checkpointing
+- [`examples/base_layer/05_genome_precomputation.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/base_layer/05_genome_precomputation.py) — whole-genome precomputation
+- [`examples/base_layer/EVALUATION_GUIDE.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/base_layer/EVALUATION_GUIDE.md) — evaluation methodology
 
 Supporting notebooks:
 
@@ -97,7 +97,7 @@ Supporting notebooks:
 **Data-preparation pre-flight** (built-in on `predict` and `evaluate`):
 
 Before running, the CLI calls
-[`applications.data_preparation.get_status()`](../../../src/agentic_spliceai/applications/data_preparation/status.py)
+[`applications.data_preparation.get_status()`](https://github.com/pleiadian53/agentic-spliceai/blob/main/src/agentic_spliceai/applications/data_preparation/status.py)
 on the predictor's canonical build directory (e.g., `data/mane/GRCh38/`
 for OpenSpliceAI). Missing artifacts produce a warning with the exact
 gap-fill command; `--strict-preflight` turns the warning into a hard

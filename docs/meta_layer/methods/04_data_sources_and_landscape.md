@@ -1,7 +1,7 @@
 # Data Sources, Derivation Strategies, and Landscape Analysis
 
 **Created**: March 2026
-**Prerequisite**: [01_alternative_splice_prediction_analysis.md](01_alternative_splice_prediction_analysis.md), [02_virtual_transcripts.md](02_virtual_transcripts.md)
+**Prerequisite**: `01_alternative_splice_prediction_analysis.md`, `02_virtual_transcripts.md`
 
 ---
 

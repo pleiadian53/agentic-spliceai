@@ -32,22 +32,22 @@ lifecycle from the main pipeline.
 
 ## Driving examples
 
-- [`examples/foundation_models/01_synthetic_pipeline.py`](../../../examples/foundation_models/01_synthetic_pipeline.py) — synthetic data pipeline (no GPU, <30s)
-- [`examples/foundation_models/02_embedding_extraction.py`](../../../examples/foundation_models/02_embedding_extraction.py) — extract embeddings from foundation models
-- [`examples/foundation_models/03_train_and_evaluate.py`](../../../examples/foundation_models/03_train_and_evaluate.py) — train classifier on extracted embeddings
-- [`examples/foundation_models/04_extract_and_train.py`](../../../examples/foundation_models/04_extract_and_train.py) — combined extraction + training
-- [`examples/foundation_models/05_sparse_exon_classifier.py`](../../../examples/foundation_models/05_sparse_exon_classifier.py) — Evo2 paper reproduction
-- [`examples/foundation_models/06_dense_splice_predictor.py`](../../../examples/foundation_models/06_dense_splice_predictor.py) — dense per-nucleotide predictor
-- [`examples/foundation_models/07_genome_scale_splice_predictor.py`](../../../examples/foundation_models/07_genome_scale_splice_predictor.py) — genome-scale inference
-- [`examples/foundation_models/07a_direct_shard_splice_predictor.py`](../../../examples/foundation_models/07a_direct_shard_splice_predictor.py) — direct shard prediction
-- [`examples/foundation_models/08_foundation_model_finetuning.py`](../../../examples/foundation_models/08_foundation_model_finetuning.py) — end-to-end fine-tuning
+- [`examples/foundation_models/01_synthetic_pipeline.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/01_synthetic_pipeline.py) — synthetic data pipeline (no GPU, <30s)
+- [`examples/foundation_models/02_embedding_extraction.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/02_embedding_extraction.py) — extract embeddings from foundation models
+- [`examples/foundation_models/03_train_and_evaluate.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/03_train_and_evaluate.py) — train classifier on extracted embeddings
+- [`examples/foundation_models/04_extract_and_train.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/04_extract_and_train.py) — combined extraction + training
+- [`examples/foundation_models/05_sparse_exon_classifier.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/05_sparse_exon_classifier.py) — Evo2 paper reproduction
+- [`examples/foundation_models/06_dense_splice_predictor.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/06_dense_splice_predictor.py) — dense per-nucleotide predictor
+- [`examples/foundation_models/07_genome_scale_splice_predictor.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/07_genome_scale_splice_predictor.py) — genome-scale inference
+- [`examples/foundation_models/07a_direct_shard_splice_predictor.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/07a_direct_shard_splice_predictor.py) — direct shard prediction
+- [`examples/foundation_models/08_foundation_model_finetuning.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/08_foundation_model_finetuning.py) — end-to-end fine-tuning
 
 Ops scripts:
 
-- [`ops_provision_cluster.py`](../../../examples/foundation_models/ops_provision_cluster.py) — SkyPilot cluster provisioning
-- [`ops_stage_data.py`](../../../examples/foundation_models/ops_stage_data.py) — direct rsync data staging
-- [`ops_run_pipeline.py`](../../../examples/foundation_models/ops_run_pipeline.py) — pipeline execution
-- [`ops_compute_check.py`](../../../examples/foundation_models/ops_compute_check.py) — GPU environment verification
+- [`ops_provision_cluster.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/ops_provision_cluster.py) — SkyPilot cluster provisioning
+- [`ops_stage_data.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/ops_stage_data.py) — direct rsync data staging
+- [`ops_run_pipeline.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/ops_run_pipeline.py) — pipeline execution
+- [`ops_compute_check.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/foundation_models/ops_compute_check.py) — GPU environment verification
 
 ## `src/` surface
 
@@ -114,5 +114,5 @@ application — that decision waits for benchmark evidence.
 
 - [Multimodal Feature Engineering](../multimodal_features/README.md) — primary integration point if graduated
 - [Canonical Splice Prediction](../canonical_splice_prediction/README.md) — incumbent base-layer for comparison
-- [Foundation Models README](../../../foundation_models/README.md) — sub-project documentation
+- [Foundation Models README](https://github.com/pleiadian53/agentic-spliceai/blob/main/foundation_models/README.md) — sub-project documentation
 - [Roadmap: Phase 5](../../ROADMAP.md)

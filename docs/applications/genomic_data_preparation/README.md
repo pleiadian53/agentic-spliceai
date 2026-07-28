@@ -32,11 +32,11 @@ Ensembl annotation sources.
 
 ## Driving examples
 
-- [`examples/data_preparation/01_prepare_gene_data.py`](../../../examples/data_preparation/01_prepare_gene_data.py) — gene data extraction
-- [`examples/data_preparation/02_prepare_splice_sites.py`](../../../examples/data_preparation/02_prepare_splice_sites.py) — splice-site annotation generation
-- [`examples/data_preparation/03_full_data_pipeline.py`](../../../examples/data_preparation/03_full_data_pipeline.py) — end-to-end preparation pipeline
-- [`examples/data_preparation/04_generate_ground_truth.py`](../../../examples/data_preparation/04_generate_ground_truth.py) — ground truth TSV generation
-- [`examples/data_preparation/validate_mane_metadata.py`](../../../examples/data_preparation/validate_mane_metadata.py) — MANE validation utility
+- [`examples/data_preparation/01_prepare_gene_data.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/data_preparation/01_prepare_gene_data.py) — gene data extraction
+- [`examples/data_preparation/02_prepare_splice_sites.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/data_preparation/02_prepare_splice_sites.py) — splice-site annotation generation
+- [`examples/data_preparation/03_full_data_pipeline.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/data_preparation/03_full_data_pipeline.py) — end-to-end preparation pipeline
+- [`examples/data_preparation/04_generate_ground_truth.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/data_preparation/04_generate_ground_truth.py) — ground truth TSV generation
+- [`examples/data_preparation/validate_mane_metadata.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/data_preparation/validate_mane_metadata.py) — MANE validation utility
 
 ## `src/` surface
 
@@ -98,7 +98,7 @@ agentic-spliceai-ingest prepare --inplace \
 Logs per-step durations, rows, success flags, and the resulting
 `ingest_manifest.json` as a W&B artifact. Shared with base_layer and
 multimodal_features via
-[`applications._common.tracking`](../../../src/agentic_spliceai/applications/_common/tracking.py).
+[`applications._common.tracking`](https://github.com/pleiadian53/agentic-spliceai/blob/main/src/agentic_spliceai/applications/_common/tracking.py).
 
 ## Evaluation
 

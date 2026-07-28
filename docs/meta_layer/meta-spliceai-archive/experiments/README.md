@@ -93,7 +93,7 @@ NNN_experiment_name/
 
 ## Related Documentation
 
-- [ARCHITECTURE.md](../ARCHITECTURE.md) - Meta-layer architecture
+- `ARCHITECTURE.md` - Meta-layer architecture
 - `LABELING_STRATEGY.md` - Labeling approaches (planned)
 - [methods/](../methods/) - Methodology documentation
 

@@ -45,10 +45,10 @@ Central documentation hub for **Agentic-SpliceAI**, an open-source framework for
 
 | Document | Description |
 | --- | --- |
-| [multimodal_feature_engineering/feature_catalog.md](multimodal_feature_engineering/feature_catalog.md) | Complete 9-modality, 100-column feature reference |
-| [Epigenetic marks tutorial](../examples/features/docs/epigenetic-marks-tutorial.md) | H3K36me3/H3K4me3 ChIP-seq modality |
-| [RBP eCLIP tutorial](../examples/features/docs/rbp-eclip-tutorial.md) | ENCODE RBP binding modality |
-| [Chromatin accessibility tutorial](../examples/features/docs/chromatin-accessibility-tutorial.md) | ENCODE ATAC-seq modality |
+| [multimodal_feature_engineering/feature_catalog.md](multimodal_feature_engineering/feature_catalog.md) | Complete multimodal feature reference (9 active modalities, ~116 columns) |
+| [Epigenetic marks tutorial](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/docs/epigenetic_marks/epigenetic-marks-tutorial.md) | H3K36me3/H3K4me3 ChIP-seq modality |
+| [RBP eCLIP tutorial](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/docs/rbp_eclip/rbp-eclip-tutorial.md) | ENCODE RBP binding modality |
+| [Chromatin accessibility tutorial](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/docs/chromatin_accessibility/chromatin-accessibility-tutorial.md) | ENCODE ATAC-seq modality |
 
 ### Meta Layer
 
@@ -56,12 +56,11 @@ Central documentation hub for **Agentic-SpliceAI**, an open-source framework for
 | --- | --- |
 | [meta_layer/README.md](meta_layer/README.md) | Meta layer overview |
 | [meta_layer/ARCHITECTURE.md](meta_layer/ARCHITECTURE.md) | Foundation-Adaptor architecture |
-| [M1-M4 model variants](../examples/meta_layer/docs/meta_model_variants_m1_m4.md) | Four meta-layer model variants for splice prediction |
-| [meta_layer/methods/README.md](meta_layer/methods/README.md) | Methods overview |
-| [meta_layer/methods/ROADMAP.md](meta_layer/methods/ROADMAP.md) | Development roadmap |
-| [meta_layer/methods/PAIRED_DELTA_PREDICTION.md](meta_layer/methods/PAIRED_DELTA_PREDICTION.md) | Paired delta prediction method |
-| [meta_layer/methods/VALIDATED_DELTA_PREDICTION.md](meta_layer/methods/VALIDATED_DELTA_PREDICTION.md) | Validated delta prediction method |
-| [meta_layer/experiments/README.md](meta_layer/experiments/README.md) | Experiments index |
+| [Results & Findings](meta_layer/results/README.md) | Evaluated results & performance (M1–M3) |
+| [MLOps Workflow (M1-S/M2-S)](workflows/meta_layer/README.md) | End-to-end train → eval → report golden path |
+| [Model Variants (M1–M4)](meta_layer/methods/00_model_variants_m1_m4.md) | The four meta-layer model variants |
+| [Methods index](meta_layer/methods/naming_convention.md) | Naming convention + methods notes 00–05 |
+| [Archive (Meta-SpliceAI predecessor)](meta_layer/meta-spliceai-archive/methods/README.md) | Legacy delta-prediction methods & experiments |
 
 ### Compute Resources
 
@@ -85,7 +84,7 @@ Central documentation hub for **Agentic-SpliceAI**, an open-source framework for
 | --- | --- |
 | [variant_analysis/README.md](variant_analysis/README.md) | Variant analysis overview |
 | [variant_analysis/negative_strand_and_variant_effects.md](variant_analysis/negative_strand_and_variant_effects.md) | Negative strand handling, delta scores, compensatory signals |
-| [Validation results](../examples/variant_analysis/results/variant_effect_validation.md) | 13 disease-gene variants + RNA-seq validated cases |
+| [Validation results](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/results/variant_effect_validation.md) | 13 disease-gene variants + RNA-seq validated cases |
 | [Saturation mutagenesis plan](applications/variant_analysis/saturation_mutagenesis_and_validation.md) | Gene-wide vulnerability mapping + SpliceVarDB validation |
 
 ### Applications & Use Cases
@@ -110,6 +109,7 @@ Central documentation hub for **Agentic-SpliceAI**, an open-source framework for
 | [tutorials/README.md](tutorials/README.md) | Tutorials overview |
 | [tutorials/SPLICE_PREDICTION_GUIDE.md](tutorials/SPLICE_PREDICTION_GUIDE.md) | Splice site prediction guide |
 | [workflows/README.md](workflows/README.md) | Analysis workflows |
+| [Meta-Layer MLOps Workflow](workflows/meta_layer/README.md) | End-to-end M1-S/M2-S golden path (data → train → eval → report) |
 
 ### ML Engineering
 
@@ -173,4 +173,4 @@ Central documentation hub for **Agentic-SpliceAI**, an open-source framework for
 
 ---
 
-**Last Updated:** April 2026
+**Last Updated:** July 2026

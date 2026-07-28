@@ -28,7 +28,7 @@ inference-path tests, documented limitations.
 Applications are a bet on methodology. Products are a commitment to users.
 
 For the underlying methodology and tier definitions, see
-[`dev/system_design/maturity_lifecycle.md`](../../dev/system_design/maturity_lifecycle.md).
+[`dev/system_design/maturity_lifecycle.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/dev/system_design/maturity_lifecycle.md).
 
 ---
 
@@ -81,7 +81,7 @@ The closest candidates, by current application maturity, are:
 
 None of these are being actively prepared for promotion. Promotion
 requires a deliberate decision and a commitment to ongoing maintenance —
-see [`dev/system_design/maturity_lifecycle.md`](../../dev/system_design/maturity_lifecycle.md).
+see [`dev/system_design/maturity_lifecycle.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/dev/system_design/maturity_lifecycle.md).
 
 ---
 
@@ -91,7 +91,7 @@ Products can be demoted back to applications when they regress — e.g., an
 upstream dataset changes, a baseline comparison becomes invalid, or a
 dependency breaks the inference path. Demotion is healthier than
 silently letting a stale product live in the product tier. See
-[`dev/system_design/maturity_lifecycle.md#demotion`](../../dev/system_design/maturity_lifecycle.md) for
+[`dev/system_design/maturity_lifecycle.md#demotion`](https://github.com/pleiadian53/agentic-spliceai/blob/main/dev/system_design/maturity_lifecycle.md) for
 the full demotion protocol.
 
 ---
@@ -122,6 +122,6 @@ When an application meets all six criteria:
 ## See also
 
 - [../applications/README.md](../applications/README.md) — public application ledger
-- [`dev/products/README.md`](../../dev/products/README.md) — internal product tracking
-- [`dev/system_design/maturity_lifecycle.md`](../../dev/system_design/maturity_lifecycle.md) — methodology
+- [`dev/products/README.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/dev/products/README.md) — internal product tracking
+- [`dev/system_design/maturity_lifecycle.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/dev/system_design/maturity_lifecycle.md) — methodology
 - [../ROADMAP.md](../ROADMAP.md) — phase-level project status

@@ -56,7 +56,7 @@ By moving beyond canonical annotations, we unlock 10-100x more therapeutic targe
 Predict how genetic variants disrupt splicing, identify cryptic splice site locations, and validate against experimental evidence.
 
 - [Saturation Mutagenesis & SpliceVarDB Validation](variant_analysis/saturation_mutagenesis_and_validation.md) — Phase 3 plan for gene-wide splice vulnerability mapping with SpliceVarDB cross-validation and GTEx junction verification
-- [Current validation results](../../examples/variant_analysis/results/variant_effect_validation.md) — 13 disease-gene variants, 4 RNA-seq validated cases from SpliceAI paper
+- [Current validation results](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/results/variant_effect_validation.md) — 13 disease-gene variants, 4 RNA-seq validated cases from SpliceAI paper
 
 ### 1. Oncology: Cancer-Specific Isoform Targets
 

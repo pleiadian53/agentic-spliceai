@@ -289,7 +289,7 @@ GRCh38 only; GRCh37 returns zero-filled columns.
 Source files: `modalities/rbp_eclip.py` (position-level),
 `features/dense_feature_extractor.py` (M\*-S dense channel).
 
-**See**: [`examples/features/docs/rbp-eclip-tutorial.md`](../../examples/features/docs/rbp-eclip-tutorial.md) for biology background and interpretation guide.
+**See**: [rbp-eclip-tutorial.md](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/docs/rbp_eclip/rbp-eclip-tutorial.md) for biology background and interpretation guide.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -317,7 +317,7 @@ Requires `pyBigWig`.
 
 Source file: `modalities/chrom_access.py`
 
-**See**: [`examples/features/docs/chromatin-accessibility-tutorial.md`](../../examples/features/docs/chromatin-accessibility-tutorial.md) for biology background, ENCODE data sources, and why ATAC/DNase use separate registries.
+**See**: [chromatin-accessibility-tutorial.md](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/docs/chromatin_accessibility/chromatin-accessibility-tutorial.md) for biology background, ENCODE data sources, and why ATAC/DNase use separate registries.
 
 **ATAC-seq (fold-change, cancer cell lines) — 6 columns**
 
@@ -357,7 +357,7 @@ are filled with NaN (graceful degradation).
 
 Source file: `modalities/fm_embeddings.py`
 
-**See**: [`examples/features/docs/fm-embeddings-tutorial.md`](../../examples/features/docs/fm-embeddings-tutorial.md) for the extraction workflow, PCA fitting, and feature interpretation.
+**See**: [fm-embeddings-tutorial.md](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/docs/fm_embeddings/fm-embeddings-tutorial.md) for the extraction workflow, PCA fitting, and feature interpretation.
 
 **PCA components (6 columns, default)**
 
@@ -426,10 +426,10 @@ to programmatically enforce these exclusions.
 
 For detailed biology background, data source descriptions, and interpretation guidance:
 
-- [Epigenetic Marks Tutorial](../../examples/features/docs/epigenetic-marks-tutorial.md) — H3K36me3/H3K4me3 ChIP-seq
-- [RBP eCLIP Tutorial](../../examples/features/docs/rbp-eclip-tutorial.md) — ENCODE RBP binding
-- [Chromatin Accessibility Tutorial](../../examples/features/docs/chromatin-accessibility-tutorial.md) — ENCODE ATAC-seq
-- [Foundation Model Embeddings Tutorial](../../examples/features/docs/fm-embeddings-tutorial.md) — Evo2/SpliceBERT scalar features
+- `Epigenetic Marks Tutorial` — H3K36me3/H3K4me3 ChIP-seq
+- `RBP eCLIP Tutorial` — ENCODE RBP binding
+- `Chromatin Accessibility Tutorial` — ENCODE ATAC-seq
+- `Foundation Model Embeddings Tutorial` — Evo2/SpliceBERT scalar features
 
 ---
 

@@ -31,15 +31,15 @@ annotation sources richer than MANE).
 
 ## Driving examples
 
-- [`examples/meta_layer/01_xgboost_baseline.py`](../../../examples/meta_layer/01_xgboost_baseline.py) — M1-P position-level XGBoost baseline
-- [`examples/meta_layer/02_calibration_analysis.py`](../../../examples/meta_layer/02_calibration_analysis.py) — post-hoc calibration analysis
-- [`examples/meta_layer/03_modality_ablation.py`](../../../examples/meta_layer/03_modality_ablation.py) — modality-by-modality ablation
-- [`examples/meta_layer/07_train_sequence_model.py`](../../../examples/meta_layer/07_train_sequence_model.py) — train M1-S / M2-S sequence CNN
-- [`examples/meta_layer/08_evaluate_sequence_model.py`](../../../examples/meta_layer/08_evaluate_sequence_model.py) — evaluate M1-S on held-out chromosomes
-- [`examples/meta_layer/09_evaluate_alternative_sites.py`](../../../examples/meta_layer/09_evaluate_alternative_sites.py) — evaluate on Ensembl/GENCODE alternative sites
-- [`examples/meta_layer/10_verify_evaluation_stats.py`](../../../examples/meta_layer/10_verify_evaluation_stats.py) — confidence intervals and statistical verification
-- [`examples/meta_layer/11_junction_coverage_audit.py`](../../../examples/meta_layer/11_junction_coverage_audit.py) — junction coverage diagnostic
-- Pod ops: [`ops_train_m1s_pod.sh`](../../../examples/meta_layer/ops_train_m1s_pod.sh), [`ops_train_m2s_pod.sh`](../../../examples/meta_layer/ops_train_m2s_pod.sh), [`ops_ablation_m1s_pod.sh`](../../../examples/meta_layer/ops_ablation_m1s_pod.sh), [`ops_ablation_m2s_pod.sh`](../../../examples/meta_layer/ops_ablation_m2s_pod.sh)
+- [`examples/meta_layer/01_xgboost_baseline.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/01_xgboost_baseline.py) — M1-P position-level XGBoost baseline
+- [`examples/meta_layer/02_calibration_analysis.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/02_calibration_analysis.py) — post-hoc calibration analysis
+- [`examples/meta_layer/03_modality_ablation.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/03_modality_ablation.py) — modality-by-modality ablation
+- [`examples/meta_layer/07_train_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/07_train_sequence_model.py) — train M1-S / M2-S sequence CNN
+- [`examples/meta_layer/08_evaluate_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/08_evaluate_sequence_model.py) — evaluate M1-S on held-out chromosomes
+- [`examples/meta_layer/09_evaluate_alternative_sites.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/09_evaluate_alternative_sites.py) — evaluate on Ensembl/GENCODE alternative sites
+- [`examples/meta_layer/10_verify_evaluation_stats.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/10_verify_evaluation_stats.py) — confidence intervals and statistical verification
+- [`examples/meta_layer/11_junction_coverage_audit.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/11_junction_coverage_audit.py) — junction coverage diagnostic
+- Pod ops: [`ops_train_m1s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/ops_train_m1s_pod.sh), [`ops_train_m2s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/ops_train_m2s_pod.sh), [`ops_ablation_m1s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/ops_ablation_m1s_pod.sh), [`ops_ablation_m2s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/ops_ablation_m2s_pod.sh)
 
 ## `src/` surface
 
@@ -55,11 +55,11 @@ annotation sources richer than MANE).
 - **Baselines**: OpenSpliceAI base model, XGBoost M1-P (Tree SHAP), v1 probability-space residual blend
 - **Key metrics**: PR-AUC, ROC-AUC, accuracy, FP/FN per splice type; alternative-site recall
 - **Results**:
-  - [M1-P full-genome results](../../../examples/meta_layer/results/m1p_fullgenome_results.md) — XGBoost baseline
-  - [M1-S ablation study](../../../examples/meta_layer/results/m1s_ablation_study.md)
-  - [M1-S v2 logit-blend results](../../../examples/meta_layer/results/m1s_v2_logit_blend_results.md) — PR-AUC 0.9954, FPs -15.5% vs base
-  - [M2-S Ensembl-trained results](../../../examples/meta_layer/results/m2s_ensembl_trained_results.md) — 59% recall on alternative sites
-  - [Alternative site evaluation](../../../examples/meta_layer/results/alternative_site_evaluation_results.md) — M2-S PR-AUC 0.965 vs base 0.749
+  - [M1-P full-genome results](../../meta_layer/results/m1_canonical.md) — XGBoost baseline
+  - [M1-S ablation study](../../meta_layer/results/m1_canonical.md)
+  - [M1-S v2 logit-blend results](../../meta_layer/results/m1_canonical.md) — PR-AUC 0.9954, FPs -15.5% vs base
+  - [M2-S Ensembl-trained results](../../meta_layer/results/m2_alternative.md) — 59% recall on alternative sites
+  - [Alternative site evaluation](../../meta_layer/results/m2_alternative.md) — M2-S PR-AUC 0.965 vs base 0.749
 
 **Key finding**: logit-space residual blend (v2) exceeds base model on
 both canonical (PR-AUC 0.9954 > 0.99) and alternative sites (0.775 > 0.749)
@@ -90,8 +90,8 @@ overcommitment to the meta-CNN when uncertain.
 
 ## Known limitations
 
-- M2-S OOD generalization degrades on unseen genes (see [ood_generalization.md](../../../examples/meta_layer/docs/ood_generalization.md))
-- Junction modality coverage uneven across tissues (see [junction_coverage_findings.md](../../../examples/meta_layer/docs/junction_coverage_findings.md))
+- M2-S OOD generalization degrades on unseen genes (see [ood_generalization.md](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/ood_generalization.md))
+- Junction modality coverage uneven across tissues (see [junction_coverage_findings.md](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/junction_coverage_findings.md))
 - `shap` package broken with numpy 2.4 — use XGBoost `pred_contribs=True` instead
 - Inference requires pod for large-scale work; local inference only feasible per-chromosome
 

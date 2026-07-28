@@ -399,8 +399,8 @@ pip install -r requirements.txt
 ## 📚 More Resources
 
 - [Full README](README.md) - Complete documentation
-- [API Reference](docs/API.md) - Detailed API documentation
-- [Biology Background](docs/BIOLOGY.md) - Splice site biology primer
+- [API Reference](api/ENDPOINTS.md) - Detailed API documentation
+- [Biology Background](biology/README.md) - Splice site biology primer
 - [Examples](examples/) - More example scripts
 
 ---

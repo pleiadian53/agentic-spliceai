@@ -37,8 +37,8 @@ back into the meta layer.
 
 ## Driving examples
 
-- [`examples/agentic_layer/quick_start.py`](../../../examples/agentic_layer/quick_start.py) — minimal agent demo
-- [`examples/agentic_layer/analyze_splice_sites.py`](../../../examples/agentic_layer/analyze_splice_sites.py) — splice-site analysis with LLM
+- [`examples/agentic_layer/quick_start.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/agentic_layer/quick_start.py) — minimal agent demo
+- [`examples/agentic_layer/analyze_splice_sites.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/agentic_layer/analyze_splice_sites.py) — splice-site analysis with LLM
 - [`examples/agentic_layer/docs/`](../../../examples/agentic_layer/docs/) — design notes
 
 Supporting infrastructure:

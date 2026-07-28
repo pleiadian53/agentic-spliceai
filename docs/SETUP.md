@@ -193,7 +193,7 @@ This checks:
 - **Documentation**: 
   - [`README.md`](README.md) - Project overview and vision
   - [`QUICKSTART.md`](QUICKSTART.md) - Quick start guide
-  - [`docs/STRUCTURE.md`](docs/STRUCTURE.md) - Complete project structure
+  - [`architecture/STRUCTURE.md`](architecture/STRUCTURE.md) - Complete project structure
   - [`docs/`](docs/) - Comprehensive documentation
 - **Meta-SpliceAI**: https://github.com/pleiadian53/meta-spliceai
 - **Agentic AI Lab**: https://github.com/pleiadian53/agentic-ai-lab

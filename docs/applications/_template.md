@@ -35,13 +35,13 @@ of capabilities. Be specific — "run X on input Y and get Z" rather than
 The curated list of `examples/` scripts that constitute this application.
 Each entry links to the script and names its role in the workflow.
 
-- [`examples/<topic>/NN_script.py`](../../../examples/<topic>/NN_script.py) —
+- `examples/<topic>/NN_script.py` —
   <one-line purpose>
 - ...
 
 Supporting notebooks (if any):
 
-- [`notebooks/<topic>/XX_*.ipynb`](../../../notebooks/<topic>/XX_*.ipynb) —
+- `notebooks/<topic>/XX_*.ipynb` —
   <intuition / tutorial>
 
 ## `src/` surface
@@ -54,7 +54,7 @@ accurate — it should reflect real imports in the driving examples.
 
 Configuration profiles (if YAML-driven):
 
-- [`path/to/config.yaml`](../../../path/to/config.yaml) — <profile purpose>
+- `path/to/config.yaml` — <profile purpose>
 
 ## Evaluation
 
@@ -90,7 +90,7 @@ rather than copying numbers.
 
 ## Related
 
-- [Roadmap entry](../../ROADMAP.md#<anchor>)
-- Related applications: [other app](../other_app/README.md)
+- `Roadmap entry`
+- Related applications: `other app`
 - Tutorials: [`docs/tutorials/<guide>.md`](../../tutorials/)
-- Methodology: [`dev/system_design/maturity_lifecycle.md`](../../../dev/system_design/maturity_lifecycle.md)
+- Methodology: [`dev/system_design/maturity_lifecycle.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/dev/system_design/maturity_lifecycle.md)

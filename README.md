@@ -242,8 +242,9 @@ its output satisfies the **per-nucleotide 3-class scoring protocol**
 |-----------|-------------|
 | **M1-M4 Model Variants** | Four progressively harder tasks: canonical (M1-S), alternative (M2-S), novel discovery (M3-S), perturbation-induced (M4-S). See [Model Variants](docs/meta_layer/methods/00_model_variants_m1_m4.md) and [Naming Convention](docs/meta_layer/methods/naming_convention.md) |
 | **Position-Level (M*-P)** | XGBoost baseline with Tree SHAP (M1-P: 99.74% accuracy, PR-AUC 0.999, FN -62% / FP -68% vs base-only) |
-| **Sequence-Level (M*-S)** | 2-stream dilated CNN (367K params) with logit-space residual blend and per-class learned temperature (M1-S: 99.99% accuracy, PR-AUC 0.9954, FPs -15.5% vs base). Same I/O protocol as base models |
-| **M2 Series** | Alternative splice site detection. Eval-Ensembl-Alt shows M2-S achieves PR-AUC 0.965 on alternative sites (base: 0.749). See [M2 Formulations](docs/meta_layer/methods/05_m2_variant_formulations.md) and [Naming Convention](docs/meta_layer/methods/naming_convention.md) |
+| **Sequence-Level (M*-S)** | Dilated-CNN meta model (~367K params) with logit-space residual blend. Current M1-S (`m1s_v4_cleanannot`): macro PR-AUC 0.9986 → **0.9998** vs base, F1-optimal recall 0.997. Same I/O protocol as base models |
+| **M2 Series** | Alternative splice site detection. Current M2-S (`m2s_v4_cleanannot`) recovers **~90%** of alternative sites the base model finds at ~17% — alt-site PR-AUC 0.911 → **0.990**, FN −88% (Eval-Ensembl-Alt). See [Results: M2](docs/meta_layer/results/m2_alternative.md) |
+| **M3 Series** | Novel-site discovery (junction-supported). M3-S (`m3_v1`) is the best novel-site ranker — the only meta model to beat base on anti-circular D1/D2 truth; the M3-R candidate refiner is an instructive negative. See [Results: M3](docs/meta_layer/results/m3_novel.md) |
 | **Variant Effect (M4)** | Per-variant delta scoring with splice consequence prediction, validated on 13 disease-gene variants; cryptic site positions match RNA-seq within 2bp. See [`examples/variant_analysis/`](examples/variant_analysis/) |
 | **Smart Checkpointing** | Per-chromosome parquet saves, disk-backed gene cache, HDF5 shard packing, `--resume` support |
 
@@ -516,6 +517,8 @@ cp .env.example .env
 
 ### Documentation
 - [Splice Prediction Guide](docs/tutorials/SPLICE_PREDICTION_GUIDE.md) - Complete prediction walkthrough
+- [Meta-Layer MLOps Workflow](docs/workflows/meta_layer/README.md) - End-to-end M1-S/M2-S: data → train → eval → report
+- [Meta-Layer Results & Findings](docs/meta_layer/results/README.md) - Evaluated performance across M1–M3
 - [Meta Layer Methods](docs/meta_layer/methods/) - Model variants (M1-M4), label hierarchy, annotation-driven prediction
 - [Base Layer Architecture](docs/base_layer/) - Architecture, coordinates, data preparation
 - [System Design](docs/system_design/) - Architectural design documents
@@ -525,8 +528,8 @@ cp .env.example .env
 **Base Layer** (`examples/base_layer/`, 5 scripts):
 1. Single gene prediction → 2. Chromosome prediction → 3. Evaluation → 4. Chunked workflows → 5. Genome precomputation
 
-**Feature Engineering** (`examples/features/`, 4 scripts):
-1. Base score features (43 columns) → 2. Multi-modal (annotation + genomic) → 3. Configurable modalities → 4. Genome-scale workflow
+**Feature Engineering** (`examples/features/`, 7 scripts):
+1. Base score features (43 columns) → 2. Annotation + genomic → 3. Configurable modalities → 6. YAML-driven genome-scale (all 9 modalities) → 7. Streaming foundation-model scalars
 
 **Foundation Models** (`examples/foundation_models/`, 5 scripts):
 1. Hardware feasibility check → 2. Synthetic pipeline (no GPU) → 3. Evo2 embedding extraction → 4. Classifier training → 5. End-to-end orchestrator
@@ -578,7 +581,7 @@ MIT License - see LICENSE file for details
 | 2.5 | Bioinformatics Lab UI | ✅ Complete |
 | 4 | Feature Engineering (10 modalities, 116 columns) | ✅ Complete |
 | 5 | Foundation Models (Evo2, SpliceBERT) | 🔬 Experimental |
-| 6 | Meta Layer: M1-S (PR-AUC 0.9954), M2-S trained (PR-AUC 0.965 alt sites) | 🔄 Active |
+| 6 | Meta Layer: M1-S promoted (macro PR-AUC 0.9998), M2-S promoted (alt-site PR-AUC 0.990, recall ~90%), M3-S best novel-site ranker | 🔄 Active |
 | 7 | Agentic Validation Layer | 📋 Planned |
 | 8 | Variant Analysis: Phase 1A+1B done, ClinVar + saturation scan next | 🔄 Active |
 | 9 | Isoform Discovery | 🎯 Ultimate Goal |

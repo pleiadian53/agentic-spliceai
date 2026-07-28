@@ -1,7 +1,7 @@
 # Virtual Transcripts — From Delta Scores to Junction-Level Predictions
 
 **Created**: March 2026
-**Prerequisite**: [01_alternative_splice_prediction_analysis.md](01_alternative_splice_prediction_analysis.md) (Formulations A–D, label hierarchy)
+**Prerequisite**: `01_alternative_splice_prediction_analysis.md` (Formulations A–D, label hierarchy)
 
 ---
 

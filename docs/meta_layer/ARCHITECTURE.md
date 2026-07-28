@@ -231,9 +231,9 @@ encoder = ScoreEncoder(num_features=50, hidden_dim=256)
 
 ## Related Documentation
 
-- [LABELING_STRATEGY.md](LABELING_STRATEGY.md) - Label creation
-- [methods/ROADMAP.md](methods/ROADMAP.md) - Methodology development
-- [TRAINING_GUIDE.md](TRAINING_GUIDE.md) - Training instructions
+- `LABELING_STRATEGY.md` - Label creation
+- `methods/ROADMAP.md` - Methodology development
+- `TRAINING_GUIDE.md` - Training instructions
 
 ---
 

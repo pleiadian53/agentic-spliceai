@@ -35,17 +35,17 @@ consumable by any downstream predictor.
 
 ## Driving examples
 
-- [`examples/features/01_base_score_features.py`](../../../examples/features/01_base_score_features.py) — base scores (43 cols)
-- [`examples/features/02_annotation_and_genomic.py`](../../../examples/features/02_annotation_and_genomic.py) — annotation + genomic features
-- [`examples/features/03_configurable_modalities.py`](../../../examples/features/03_configurable_modalities.py) — YAML-driven modality selection
-- [`examples/features/04_genome_scale_workflow.py`](../../../examples/features/04_genome_scale_workflow.py) — genome-scale feature generation
-- [`examples/features/05_multimodal_exploration.py`](../../../examples/features/05_multimodal_exploration.py) — exploratory multimodal analysis
-- [`examples/features/06_multimodal_genome_workflow.py`](../../../examples/features/06_multimodal_genome_workflow.py) — full-stack genome workflow (canonical driver)
-- [`examples/features/06a_ephemeral_genome_workflow.py`](../../../examples/features/06a_ephemeral_genome_workflow.py) — ephemeral (predict → feature → delete) variant for bounded disk
-- [`examples/features/07_streaming_fm_scalars.py`](../../../examples/features/07_streaming_fm_scalars.py) — foundation model scalar streaming
-- [`examples/features/config_loader.py`](../../../examples/features/config_loader.py) — YAML config loader
-- [`examples/features/verify_feature_alignment.py`](../../../examples/features/verify_feature_alignment.py) — alignment verification
-- [`examples/features/check_modality_completeness.py`](../../../examples/features/check_modality_completeness.py) — completeness audit
+- [`examples/features/01_base_score_features.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/01_base_score_features.py) — base scores (43 cols)
+- [`examples/features/02_annotation_and_genomic.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/02_annotation_and_genomic.py) — annotation + genomic features
+- [`examples/features/03_configurable_modalities.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/03_configurable_modalities.py) — YAML-driven modality selection
+- [`examples/features/04_genome_scale_workflow.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/04_genome_scale_workflow.py) — genome-scale feature generation
+- [`examples/features/05_multimodal_exploration.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/05_multimodal_exploration.py) — exploratory multimodal analysis
+- [`examples/features/06_multimodal_genome_workflow.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/06_multimodal_genome_workflow.py) — full-stack genome workflow (canonical driver)
+- [`examples/features/06a_ephemeral_genome_workflow.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/06a_ephemeral_genome_workflow.py) — ephemeral (predict → feature → delete) variant for bounded disk
+- [`examples/features/07_streaming_fm_scalars.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/07_streaming_fm_scalars.py) — foundation model scalar streaming
+- [`examples/features/config_loader.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/config_loader.py) — YAML config loader
+- [`examples/features/verify_feature_alignment.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/verify_feature_alignment.py) — alignment verification
+- [`examples/features/check_modality_completeness.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/check_modality_completeness.py) — completeness audit
 
 Configuration profiles:
 
@@ -116,7 +116,7 @@ agentic-spliceai-features prepare --profile full_stack --build GRCh38 \
 Logs per-step durations, rows, success flags, and the resulting
 `feature_manifest.json` as a W&B artifact. Shared with base_layer and
 data_preparation via
-[`applications._common.tracking`](../../../src/agentic_spliceai/applications/_common/tracking.py).
+[`applications._common.tracking`](https://github.com/pleiadian53/agentic-spliceai/blob/main/src/agentic_spliceai/applications/_common/tracking.py).
 
 ## Evaluation
 

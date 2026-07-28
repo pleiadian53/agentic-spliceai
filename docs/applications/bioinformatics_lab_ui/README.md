@@ -58,7 +58,7 @@ API endpoints:
 **Ingestion-layer readiness** (Phase D3 — read-only wrappers over the
 [data_preparation](../genomic_data_preparation/README.md) and
 [multimodal_features](../multimodal_features/README.md) applications'
-`get_status()` APIs; see [`server/bio/ingest_api.py`](../../../server/bio/ingest_api.py)):
+`get_status()` APIs; see [`server/bio/ingest_api.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/server/bio/ingest_api.py)):
 
 - `/api/ingest/health` — liveness check
 - `/api/ingest/data-prep/builds` — list configured base-model / build entries
@@ -80,7 +80,7 @@ remain CLI-only; a future async-job endpoint would be a separate router.
 - `agentic_spliceai.splice_engine.data.preparation` — annotation extraction
 - `agentic_spliceai.splice_engine.eval.*` — metrics aggregation
 
-Design patterns (see [`CLAUDE.md`](../../../CLAUDE.md) for details):
+Design patterns (see [`CLAUDE.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/CLAUDE.md) for details):
 
 - LRU prediction cache (OrderedDict in `bio_service.py`), keyed by
   `(gene, model)`, threshold only affects classification (raw predictions

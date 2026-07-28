@@ -618,6 +618,6 @@ This architecture enables processing of the entire human genome (~20,000 genes) 
 
 ## See Also
 
-- [Base Layer Integration Summary](./BASE_LAYER_INTEGRATION_SUMMARY.md)
-- [Feature Set Documentation](./BASE_LAYER_FEATURE_SET.md)
+- `Base Layer Integration Summary`
+- `Feature Set Documentation`
 - [API Reference](../api/README.md)

@@ -143,21 +143,29 @@ nav:
   - Meta Layer:
       - Overview: meta_layer/README.md
       - Architecture: meta_layer/ARCHITECTURE.md
+      - Results & Findings:
+          - Overview: meta_layer/results/README.md
+          - M1 — Canonical: meta_layer/results/m1_canonical.md
+          - M2 — Alternative: meta_layer/results/m2_alternative.md
+          - M3 — Novel: meta_layer/results/m3_novel.md
       - Methods:
-          - Overview: meta_layer/methods/README.md
-          - Roadmap: meta_layer/methods/ROADMAP.md
-          - Paired Delta Prediction: meta_layer/methods/PAIRED_DELTA_PREDICTION.md
-          - Validated Delta Prediction: meta_layer/methods/VALIDATED_DELTA_PREDICTION.md
-      - Induced Splice Sites:
-          - Alternative Splice Prediction: meta_layer/predicting_induced_splice_sites/01_alternative_splice_prediction_analysis.md
-          - Virtual Transcripts: meta_layer/predicting_induced_splice_sites/02_virtual_transcripts.md
-          - Data Sources & Landscape: meta_layer/predicting_induced_splice_sites/03_data_sources_and_landscape.md
-      - Experiments:
-          - Overview: meta_layer/experiments/README.md
-          - 001 Canonical Classification: meta_layer/experiments/001_canonical_classification/README.md
-          - 002 Delta Prediction: meta_layer/experiments/002_delta_prediction/README.md
-          - 003 Binary Classification: meta_layer/experiments/003_binary_classification/README.md
-          - 004 Validated Delta: meta_layer/experiments/004_validated_delta/README.md
+          - Model Variants (M1–M4): meta_layer/methods/00_model_variants_m1_m4.md
+          - Label Hierarchy & Weak Supervision: meta_layer/methods/01_label_hierarchy_and_weak_supervision.md
+          - Annotation-Driven Prediction: meta_layer/methods/02_annotation_driven_splice_prediction.md
+          - Virtual Transcripts & Junction Pairing: meta_layer/methods/03_virtual_transcripts_and_junction_pairing.md
+          - Data Sources & Landscape: meta_layer/methods/04_data_sources_and_landscape.md
+          - M2 Variant Formulations: meta_layer/methods/05_m2_variant_formulations.md
+          - Naming Convention: meta_layer/methods/naming_convention.md
+      - Archive (Meta-SpliceAI predecessor):
+          - Methods Overview: meta_layer/meta-spliceai-archive/methods/README.md
+          - Roadmap: meta_layer/meta-spliceai-archive/methods/ROADMAP.md
+          - Paired Delta Prediction: meta_layer/meta-spliceai-archive/methods/PAIRED_DELTA_PREDICTION.md
+          - Validated Delta Prediction: meta_layer/meta-spliceai-archive/methods/VALIDATED_DELTA_PREDICTION.md
+          - Experiments Overview: meta_layer/meta-spliceai-archive/experiments/README.md
+          - Exp 001 — Canonical Classification: meta_layer/meta-spliceai-archive/experiments/001_canonical_classification/README.md
+          - Exp 002 — Delta Prediction: meta_layer/meta-spliceai-archive/experiments/002_delta_prediction/README.md
+          - Exp 003 — Binary Classification: meta_layer/meta-spliceai-archive/experiments/003_binary_classification/README.md
+          - Exp 004 — Validated Delta: meta_layer/meta-spliceai-archive/experiments/004_validated_delta/README.md
   - Foundation Models:
       - Overview: foundation_models/README.md
       - Evo2 Junction Labels: foundation_models/evo2/junction_support_labels.md
@@ -182,6 +190,16 @@ nav:
       - Overview: bioinformatics/README.md
   - Workflows:
       - Overview: workflows/README.md
+      - Meta-Layer MLOps (M1-S/M2-S):
+          - Series Overview: workflows/meta_layer/README.md
+          - 1. Data Preparation: workflows/meta_layer/01_data_preparation.md
+          - 2. Base Scoring: workflows/meta_layer/02_base_scoring.md
+          - 3. Feature Engineering: workflows/meta_layer/03_feature_engineering.md
+          - 4. Training M1-S: workflows/meta_layer/04_training_m1s.md
+          - 5. Training M2-S: workflows/meta_layer/05_training_m2s.md
+          - 6. Evaluation: workflows/meta_layer/06_evaluation.md
+          - 7. Reporting & Promotion: workflows/meta_layer/07_reporting.md
+          - 8. GPU Pods: workflows/meta_layer/08_gpu_pods.md
   - Roadmap: ROADMAP.md
   - About:
       - Contributing: CONTRIBUTING.md

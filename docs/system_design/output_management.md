@@ -6,7 +6,7 @@ right model, eval, or audit never depends on memory.
 
 This page is the **rulebook**. The live state lives in two files:
 
-- [`src/agentic_spliceai/splice_engine/config/settings.yaml`](../../src/agentic_spliceai/splice_engine/config/settings.yaml)
+- [`src/agentic_spliceai/splice_engine/config/settings.yaml`](https://github.com/pleiadian53/agentic-spliceai/blob/main/src/agentic_spliceai/splice_engine/config/settings.yaml)
   — authoritative for the *runtime* (which base models / meta models the
   system loads). Read by `splice_engine/resources/`.
 - `output/REGISTRY.md` — authoritative for *discovery* (everything physically
@@ -89,7 +89,7 @@ presence of a MANIFEST is what defines a directory as an "artifact"**
 — the registry tooling walks `output/` looking for them and stops
 descending past each one.
 
-Schema (handled by [`agentic_spliceai.registry.Manifest`](../../src/agentic_spliceai/registry/manifest.py)):
+Schema (handled by [`agentic_spliceai.registry.Manifest`](https://github.com/pleiadian53/agentic-spliceai/blob/main/src/agentic_spliceai/registry/manifest.py)):
 
 ```yaml
 # output/<topic>/<artifact>/MANIFEST.yaml
@@ -129,7 +129,7 @@ new `demo:` or workstream tag** rather than overloading an existing one
 ### Tool: `agentic_spliceai.registry`
 
 The registry library + CLI lives at
-[`src/agentic_spliceai/registry/`](../../src/agentic_spliceai/registry/):
+[`src/agentic_spliceai/registry/`](https://github.com/pleiadian53/agentic-spliceai/tree/main/src/agentic_spliceai/registry/):
 
 ```bash
 # Regenerate output/REGISTRY.md from all MANIFESTs
@@ -303,7 +303,7 @@ result-worth-citing. Each file has:
 - A pointer to the underlying output dir
 - Honest caveats and what was *not* tested
 
-Example: [`examples/variant_analysis/results/m4_benchmark_sweep.md`](../../examples/variant_analysis/results/m4_benchmark_sweep.md)
+Example: [`examples/variant_analysis/results/m4_benchmark_sweep.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/results/m4_benchmark_sweep.md)
 documents the April 2026 MutSpliceDB + ClinVar sweep, with a 2026-05-31
 validation banner at the top pointing at the v4 re-run results.
 
