@@ -339,68 +339,74 @@ is where multimodality earns its keep.
 
 ### What it does
 
-M3 predicts completely novel splice sites — positions with no annotation
-in any reference transcriptome. The goal is to discover functional splice
-sites from sequence, conservation, and epigenomic context alone, without
-requiring RNA-seq data at inference time.
+M3 discovers **novel** splice sites — positions absent from *every* reference
+annotation (MANE, Ensembl, GENCODE, RefSeq) yet supported by real evidence
+(junction reads, long-read isoforms, disease data). It is the discovery
+frontier and the hardest of the four tasks.
 
-### The setup
+### The key framing: recognizer + post-filter
+
+A novel cryptic donor and an annotated canonical donor are **sequence-identical** —
+"novel" is not a learnable property, it is *absence from a database*. So M3 does
+**not** learn novelty. It splits the problem:
+
+1. **Recognize** splice sites (donor / acceptor / neither), exactly like M1-S/M2-S.
+2. **Post-filter** at inference — exact set-subtraction against the annotation
+   union turns the recognizer's output into *novel* calls.
+
+Novelty is a property of the output, not the model.
+
+### Junction reads as labels, not features
+
+M1/M2 use junction support as an **input** channel. M3 cannot: junction evidence
+*is* how we know a position is a real site the annotation missed, so it becomes
+the **positive label** and is **removed from the inputs** (`mm_channels = 7`).
+This is the critical test of multimodality's value — can conservation, histone
+marks, chromatin accessibility, and RBP binding recognize a splice site *without*
+seeing the junction evidence that defines it?
 
 ```
-Features:  base_scores + annotation + genomic + conservation +
-           epigenetic + rbp_eclip + chrom_access
-           (ALL modalities EXCEPT junction)
-Junction:  TARGET — held-out as the prediction label
-Target:    junction_has_support (binary) or junction_psi (continuous)
-Config:    meta_m3_novel.yaml
+Inputs:    sequence + base_scores + conservation + epigenetic +
+           chrom_access + rbp_eclip        (junction EXCLUDED)
+Labels:    3-class per-gene-window (0=donor, 1=acceptor, 2=neither,
+           255=annotated → masked out of the loss)
+Positives: junction-derived novel sites (SpliceVault + GTEx-novel)
 ```
 
-### The key idea: junction reads as labels
+### Two formulations, and what they established
 
-M3 inverts the relationship between junction data and the model. Instead of
-using junction reads as input (M2), it uses them as the ground truth label:
-"does this position have RNA-seq junction support?" The model must predict
-this from everything *except* junction evidence.
+- **M3-S (recognizer)** — the M2-S backbone with junction dropped and annotated
+  sites masked. `m3_v1` is the **best novel-site ranker in the system** (the only
+  meta model that beats raw base on independent novel truth). Its multimodal
+  channels, however, add little.
+- **M3-R (candidate refiner)** — reframes discovery as "the base model proposes
+  candidates, a classifier reranks real-vs-artifact from multimodal evidence,"
+  using **base-score-matched hard negatives** so the base score can't be the
+  discriminator. It trains to AUC 0.90 but **ties base** on the anti-circular
+  test — an *honest negative*.
 
-This is the critical test of multimodality's value. If conservation,
-histone marks, chromatin accessibility, and RBP binding can predict
-junction support, then these signals carry genuine information about
-splice site function — they're not just correlates of what the base model
-already knows.
-
-### Why exclude junction from features?
-
-If junction reads were both feature and target, the model would trivially
-learn `junction_has_support → junction_has_support`. Excluding junction
-from the feature set forces the model to learn the underlying biology:
-
-- High conservation (PhyloP > 2) at an unannotated position → purifying
-  selection preserves this site → likely functional
-- H3K36me3 enrichment → position is in a transcribed exon body →
-  consistent with exon inclusion
-- ATAC-seq open chromatin → DNA is accessible to the spliceosome
-- RBP binding (SRSF1/RBFOX2) → splice-regulatory proteins are present
-
-If the model can predict junction support from these signals, it can
-generalize to genomes without RNA-seq — enabling novel splice site
-discovery in any sequenced organism with conservation and epigenomic data.
+The reusable lesson: **genome-averaged multimodal tracks are locus-level, not
+position-level, evidence.** M3-R's edge is *between-gene* (which loci harbor
+cryptic sites) while discovery needs *within-gene* ranking (which base is real).
+Neither cleaner labels (a confirmed-only retrain) nor the reframe moved the
+within-gene number; the remaining leverage is **position-level features**.
 
 ### Connection to novel isoform discovery
 
-M3 is the workhorse for the project's ultimate goal: building a catalog of
-novel isoforms. The pipeline would be:
+M3 is the workhorse for the project's ultimate goal — a catalog of novel isoforms:
+base scores → M3 recognizer + novelty post-filter → junction assembly (pairing
+donors with acceptors, the "virtual transcript" problem in
+[03_virtual_transcripts_and_junction_pairing.md](03_virtual_transcripts_and_junction_pairing.md)) →
+validation against independent RNA-seq / proteomics. M3 handles the recognition
+step; the pairing problem remains open.
 
-1. Run OpenSpliceAI to get base scores (positions with any splice signal)
-2. Run M3 to predict which unannotated positions are likely functional
-3. Apply junction assembly (pairing donors with acceptors) to construct
-   candidate transcript structures
-4. Validate candidates against independent RNA-seq or proteomics data
+### Further reading
 
-Step 3 — junction assembly — is the "virtual transcript" problem discussed
-in `02_virtual_transcripts.md`. It requires knowing not just *where* splice
-sites are, but *which donor pairs with which acceptor*. M3 handles step 2;
-the pairing problem remains an open challenge (see Strategy 3 in the
-virtual transcripts document).
+- [06_m3_novel_site_formulation.md](06_m3_novel_site_formulation.md) — the full
+  M3 methodology: label pools, recognizer/refiner formulations, and the
+  anti-circular within-vs-between-gene evaluation.
+- [results/m3_novel.md](../results/m3_novel.md) — the evaluated numbers.
+- [M3 workflow sub-series](../../workflows/meta_layer/09_m3_label_curation.md) — reproduce it end to end.
 
 ---
 

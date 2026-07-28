@@ -67,6 +67,7 @@ sequence model, `-P` = position-level. Full convention in
 | M1-S | `m1s_v4_cleanannot` | **Promoted (canonical)** |
 | M2-S | `m2s_v4_cleanannot` | **Promoted (alternative)** |
 | M3-S | `m3_v1` | Best novel-site ranker (research) |
+| M3-S v1.1 | `m3s_v1_1_confirmed` | Tier 1 confirmed-only retrain — marginally worse than v1 (label noise was *not* the ceiling) |
 | M3-R | `m3r_candidate_refiner` | Honest negative — not promoted; global-AUC triage repurposable |
 | M4 | — | In progress (perturbation-paired labels needed) |
 

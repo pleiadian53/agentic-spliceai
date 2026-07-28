@@ -61,6 +61,24 @@ that thought.
 **Conclusion.** M3-v1 is the best novel-site ranker and the current within-gene deliverable for the
 discovery task.
 
+### Tier 1 — does cleaner labels help? (no)
+
+M3-v1 trains on all 154,113 pooled positives with long-read-confirmed ones up-weighted 2×. Only ~50%
+are long-read-confirmed, so the original diagnosis blamed that unconfirmed half as "the ceiling — label
+noise you can't learn a clean boundary through." **Tier 1 tested it directly:** retrain the recognizer on
+the **77,879 confirmed positives only** (`07 --confirmed-only`, dropping 76,234), same architecture and
+schedule, then re-run the identical anti-circular eval.
+
+| Model | D1 P@5 | D1 R@20 | D1_hiconf P@5 | D2 R@20 |
+|-------|--------|---------|---------------|---------|
+| **M3-v1** (all pos, confirmed 2×) | **0.335** | **0.367** | **0.254** | **0.791** |
+| M3-v1.1 (confirmed-only) | 0.327 | 0.343 | 0.249 | 0.779 |
+
+**M3-v1.1 is marginally *worse* everywhere — the hypothesis is refuted.** Dropping the unconfirmed
+positives lost signal (more data won) rather than removing noise; the unconfirmed SpliceVault sites are
+not pure artifacts. Label noise was not the ceiling — which, together with M3-R below, points the
+remaining leverage away from labels and framing and toward **position-level features**.
+
 ---
 
 ## M3-R — the candidate-refiner milestone
