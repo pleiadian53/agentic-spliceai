@@ -2,6 +2,16 @@
 
 **Status:** design note + first-instance validation (TDP-43/ALS). 2026-05-23.
 
+> **Update 2026-07-28 — the labels now exist.** Roadmap step 1 (§6) is **built**:
+> the perturbation-paired ΔPSI corpus is `data/mane/GRCh38/m4_labels/kd_dpsi.parquet`
+> (3.17M signed per-site rows, 185 ENCODE-KD RBPs; 104 also have eCLIP binding, incl.
+> TARDBP). Builder + characterization: `examples/data_preparation/m4/`. Dataset
+> provenance + column reference: `examples/data_preparation/docs/encode_kd_splicetools.md`.
+> **Scope of the current corpus is A3SS/A5SS** (alternative splice-site choice) — the
+> SE cassette-exon events (UNC13A/STMN2-type §5) are a documented follow-up, not yet
+> ingested. Everything below (the conditional principle, the honest TDP-43 negative,
+> "data not architecture") stands; only the label-availability status has advanced.
+
 M4 is the **conditional / counterfactual** arm of the meta layer: model a disease
 as a *regulator perturbation* and predict the resulting **splicing change**.
 It is distinct from its siblings, which are all *unconditional*:
@@ -183,7 +193,10 @@ The honest negative is itself the result — and the spec for the next step.
 ## 6. Roadmap
 
 1. **Labels:** assemble multi-RBP knockdown → ΔPSI (ENCODE shRNA-KD, ~200 RBPs)
-   + a neuronal TDP-43 KD set for the ALS arc.
+   + a neuronal TDP-43 KD set for the ALS arc. — **DONE (2026-07-28)** for the
+   A3SS/A5SS ENCODE-KD panel (`data/mane/GRCh38/m4_labels/kd_dpsi.parquet`, 185 RBPs;
+   `examples/data_preparation/m4/`). Remaining: SE cassette events + the neuronal
+   TDP-43 KD arm.
 2. **Train one conditional M4** on that corpus; perturbation via data-level
    ablation of the regulator. Generic features only.
 3. **(If warranted) regulator-resolved features:** RBP embedding / per-RBP
