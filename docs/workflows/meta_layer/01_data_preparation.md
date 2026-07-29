@@ -7,8 +7,11 @@ depends on: a per-splice-site table called `splice_sites_enhanced.tsv`. Nothing 
 yet — you are just extracting "where are the real donor and acceptor sites, by strand" from the GTF.
 
 !!! abstract "Inputs → Outputs"
-    **Reads:** a GTF/GFF (resolved through the registry, or passed with `--gtf`).
-    **Writes:** `data/<source>/<build>/splice_sites_enhanced.tsv` (14-column table).
+
+    **Reads:** a GTF/GFF — MANE for M1-S, Ensembl for M2-S (registry-resolved, or `--gtf <path>`).
+
+    **Writes:** `data/<source>/<build>/splice_sites_enhanced.tsv` — one row per splice site per
+    transcript, strand-aware (`data/mane/GRCh38/` for M1-S, `data/ensembl/GRCh38/` for M2-S).
 
 ---
 
