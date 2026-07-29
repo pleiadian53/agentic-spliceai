@@ -1,7 +1,15 @@
 # Variant Analysis Examples
 
-**Status**: Phase 1A+1B complete, Phase 2-3 planned
-**Model**: M1-S v2 (logit-space blend, PR-AUC 0.9954)
+**Status**: Phase 1A/1B/2 complete · Phase 3 (clinical pathogenicity head) design-only · Phases 4–5 planned
+**Models**: `m1s_v4_cleanannot` / `m2s_v4_cleanannot` (promoted; see `settings.yaml meta_models`)
+
+> **Read this first:** [Mutation-induced arm status](results/m4_variant_arm_status.md) — consolidated
+> results and the honest reason progress stalled (the delta score does **not** beat the base model on
+> pathogenicity ranking; the binding constraint is label granularity, not model capacity).
+>
+> The examples below still show the older `m1s_v2_logit_blend` checkpoint path for reproducibility of
+> the April-2026 sweep. For current work, point `--checkpoint` at
+> `output/meta_layer/m1s_v4_cleanannot/best.pt` (or the `m2s_` sibling).
 
 ---
 
@@ -70,6 +78,11 @@ BRCA2, MLH1), covering both strands and multiple consequence types.
 
 ## Results
 
+- [**Mutation-induced arm status**](results/m4_variant_arm_status.md) — the consolidated picture:
+  archive line (001–004), current ClinVar/MutSpliceDB numbers, the locus-cancellation finding, and
+  the label-granularity ceiling
+- [M4 benchmark sweep](results/m4_benchmark_sweep.md) — ClinVar × MutSpliceDB × radius sweep
+  (v2-era ClinVar numbers; MutSpliceDB concordance superseded by the v4 re-run)
 - [Variant effect validation](results/variant_effect_validation.md) —
   13 disease-gene variants + 4 SpliceAI paper RNA-seq validated cases
 
@@ -84,8 +97,10 @@ BRCA2, MLH1), covering both strands and multiple consequence types.
 
 - [Negative strand tutorial](../../docs/variant_analysis/negative_strand_and_variant_effects.md) — coordinate systems and strand handling
 - [OOD generalization](../meta_layer/docs/ood_generalization.md) — model limitations on unseen genes
-- [M1-S v2 results](../meta_layer/results/m1s_v2_logit_blend_results.md) — logit blend training results
+- [Meta-layer results](../../docs/meta_layer/results/README.md) — current M1/M2/M3 model results
+- [M3 novel-site results](../../docs/meta_layer/results/m3_novel.md) — the between-gene/within-gene
+  version of the same locus-level limitation that caps this arm
 
 ---
 
-**Last Updated**: April 2026
+**Last Updated**: July 2026
