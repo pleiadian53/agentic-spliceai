@@ -32,7 +32,8 @@ annotation passes the strand-validation gate (donor→GT / acceptor→AG, ~0.98
    - SpliceVault `SpliceVault_data_GRCh38.tsv.gz` → `data/splicevault/GRCh38/` (step 03)
    - RefSeq GTF `hg38.ncbiRefSeq.gtf` → `data/refseq/GRCh38/` (annotation)
    - SF3B1 Figshare `file_s03` → `data/sf3b1_deboever/` (step 05)
-   - ENCODE-KD SpliceTools rMATS A3SS/A5SS → `data/encode_kd_splicetools/1_RBP_kd/` (step 06)
+   - ENCODE-KD SpliceTools rMATS A3SS/A5SS → `data/encode_kd_splicetools/1_RBP_kd/` (step 06;
+     provenance + columns: [`../docs/encode_kd_splicetools.md`](../docs/encode_kd_splicetools.md))
 
 ## Run order
 
