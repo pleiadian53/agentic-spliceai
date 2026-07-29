@@ -21,7 +21,9 @@ the *how* and *in what order*.
 
 ## What gets built
 
-Solid arrows contribute rows; **dashed arrows are exclusions** (subtracted, not added).
+Solid arrows contribute rows; **dashed arrows are exclusions** (subtracted, not added). Colour encodes the
+split that matters most here — **orange = training labels**, **teal = held-out evaluation truth** — so the
+two never blur together.
 
 ```mermaid
 flowchart TD
@@ -34,7 +36,20 @@ flowchart TD
   D1 -. "excluded (no leakage)" .-> R
   D2 -. "excluded (no leakage)" .-> R
   D2 -. "anti-joined out" .-> P
+
+  classDef src   fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#1a1a1a
+  classDef train fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#1a1a1a
+  classDef mask  fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#1a1a1a
+  classDef eval  fill:#e0f2f1,stroke:#00897b,stroke-width:2px,color:#1a1a1a
+
+  class A,B,C,E src
+  class P,R train
+  class M mask
+  class D1,D2 eval
 ```
+
+<small>blue = raw evidence sources · orange = training labels · purple = the dual-role annotation mask ·
+teal = held-out eval truth (D1 / D2).</small>
 
 ### Who consumes what
 

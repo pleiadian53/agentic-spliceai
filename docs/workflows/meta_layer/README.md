@@ -41,7 +41,26 @@ flowchart LR
   E --> F["<b>6. Evaluation</b><br/>08 (yardstick) · 09 (alt sites)<br/>16 (tissue-stratified)<br/><i>eval_results.json</i>"]
   F --> G["<b>7. Reporting</b><br/>10 verify · results/*.md<br/>MANIFEST · settings.yaml promotion<br/>Bio Lab UI /metrics"]
   D -.-> H["<b>9–11. M3 sub-series</b><br/>label curation → training →<br/>anti-circular eval"]
+
+  classDef input fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#1a1a1a
+  classDef data  fill:#e0f7fa,stroke:#00838f,stroke-width:2px,color:#1a1a1a
+  classDef base  fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#1a1a1a
+  classDef train fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#1a1a1a
+  classDef eval  fill:#e0f2f1,stroke:#00897b,stroke-width:2px,color:#1a1a1a
+  classDef report fill:#ffebee,stroke:#d32f2f,stroke-width:2px,color:#1a1a1a
+  classDef m3    fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1a1a1a
+
+  class A input
+  class B,D data
+  class C base
+  class E train
+  class F eval
+  class G report
+  class H m3
 ```
+
+<small>Colour follows the project convention: blue = inputs · cyan = derived data · purple = base layer ·
+orange = training · teal = evaluation · pink = reporting · green = the M3 branch.</small>
 
 | # | Stage | Driver script | Reads | Writes |
 |---|-------|---------------|-------|--------|
