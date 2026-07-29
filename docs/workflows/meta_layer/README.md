@@ -1,4 +1,4 @@
-# Meta-Layer MLOps Workflow — Training & Evaluating M1-S / M2-S
+# Meta-Layer MLOps Workflow — Training & Evaluating M1-S / M2-S / M3
 
 This series is the **golden path** for the sequence-level meta-models: it walks the whole
 pipeline end to end, from raw genome annotation (GTF/GFF + FASTA) to a promoted, evaluated
@@ -10,8 +10,14 @@ checkpoint with reported metrics. It is written around the two production models
 — because they are the two that are fully trained, promoted, and in use. **M3 (novel sites)** reuses
 Stages 1–3 and then branches into its own **sub-series ([Stages 9–11](09_m3_label_curation.md))** —
 novel-site labels are curated from *evidence* (junction reads, long-read isoforms) rather than
-annotation, so M3 needs its own label curation, training, and anti-circular evaluation. M4
-(perturbation-induced sites) reuses most of the same stages and is out of scope here.
+annotation, so M3 needs its own label curation, training, and anti-circular evaluation.
+
+**M4 (perturbation-induced sites)** is out of scope for this series — it is *conditional* (predict the
+splicing change caused by a perturbation) rather than a per-site refiner, so its data prep and training
+formulation differ. Its two arms live elsewhere: the regulator/knockdown arm in
+[`examples/data_preparation/m4/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/data_preparation/m4/)
+(a built ΔPSI label corpus) and the mutation-induced arm in
+[`examples/variant_analysis/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/results/m4_variant_arm_status.md).
 
 !!! info "What this series is (and isn't)"
     It is the **connective tissue** between stages: which script runs, in what order, what it
@@ -23,15 +29,18 @@ annotation, so M3 needs its own label curation, training, and anti-circular eval
 
 ## The pipeline at a glance
 
+Stage numbers match the doc filenames throughout (training is two docs: `04` for M1-S, `05` for M2-S).
+
 ```mermaid
 flowchart LR
   A["MANE GFF / Ensembl GTF<br/>+ reference FASTA"] --> B["<b>1. Data prep</b><br/>04_generate_ground_truth.py<br/><i>splice_sites_enhanced.tsv</i>"]
   A --> C["<b>2. Base scoring</b><br/>OpenSpliceAI<br/><i>predictions_{chrom}.parquet</i>"]
   B --> D
   C --> D["<b>3. Feature engineering</b><br/>06_multimodal_genome_workflow.py<br/><i>analysis_sequences_{chrom}.parquet</i>"]
-  D --> E["<b>4. Training</b><br/>07_train_sequence_model.py<br/>--mode m1 / m2<br/><i>best.pt + config.pt</i>"]
-  E --> F["<b>5. Evaluation</b><br/>08 (yardstick) / 09 (alt sites)<br/><i>eval_results.json</i>"]
-  F --> G["<b>6. Reporting</b><br/>10 verify · results/*.md<br/>MANIFEST · settings.yaml promotion"]
+  D --> E["<b>4–5. Training</b><br/>07_train_sequence_model.py<br/>--mode m1 / m2<br/><i>best.pt + config.pt</i>"]
+  E --> F["<b>6. Evaluation</b><br/>08 (yardstick) · 09 (alt sites)<br/>16 (tissue-stratified)<br/><i>eval_results.json</i>"]
+  F --> G["<b>7. Reporting</b><br/>10 verify · results/*.md<br/>MANIFEST · settings.yaml promotion<br/>Bio Lab UI /metrics"]
+  D -.-> H["<b>9–11. M3 sub-series</b><br/>label curation → training →<br/>anti-circular eval"]
 ```
 
 | # | Stage | Driver script | Reads | Writes |
@@ -40,8 +49,8 @@ flowchart LR
 | [2](02_base_scoring.md) | Base scoring | base-layer prediction / `PredictionWorkflow` | FASTA + gene windows | `…/openspliceai_eval/precomputed/predictions_{chrom}.parquet` |
 | [3](03_feature_engineering.md) | Feature engineering | `features/06_multimodal_genome_workflow.py` | predictions + bigWig/junction/eCLIP | `…/openspliceai_eval/analysis_sequences/analysis_sequences_{chrom}.parquet` |
 | [4](04_training_m1s.md) · [5](05_training_m2s.md) | Training | `meta_layer/07_train_sequence_model.py` | labels + base scores + dense channels | `output/meta_layer/{m1s,m2s}_v4_cleanannot/` |
-| [6](06_evaluation.md) | Evaluation | `08_evaluate_sequence_model.py`, `09_evaluate_alternative_sites.py` | checkpoint + `.npz` cache | `eval_results.json`, `m2a_eval_results.json` |
-| [7](07_reporting.md) | Reporting | `10_verify_evaluation_stats.py`, `results/*.md` | result JSONs | roll-ups + promotion registry |
+| [6](06_evaluation.md) | Evaluation | `08_evaluate_sequence_model.py`, `09_evaluate_alternative_sites.py`, `16_evaluate_tissue_stratified.py` | checkpoint + `.npz` cache | `eval_results.json`, `m2a_eval_results.json`, `tissue_stratified.json` |
+| [7](07_reporting.md) | Reporting | `10_verify_evaluation_stats.py`, `results/*.md`, Bio Lab UI `/metrics` | result JSONs | roll-ups + promotion registry + dashboard |
 | [8](08_gpu_pods.md) | *(optional)* GPU pods | `meta_layer/ops_*.sh` | — | same artifacts, on a RunPod GPU |
 | **M3 sub-series** — reuses Stages 1–3, then: | | | | |
 | [9](09_m3_label_curation.md) | *(M3)* Label curation | `data_preparation/m3/*.py` | junctions + long-read + disease catalogs | `data/mane/GRCh38/m3_labels/*.parquet` |
@@ -113,8 +122,11 @@ Before Stage 1 you need the environment and the raw reference data resolvable th
   streamed and cached; the [Feature Engineering](03_feature_engineering.md) doc covers the cache.
 
 Genome-scale runs (all 24 chromosomes, all 9 modalities) are GPU/compute heavy; the
-[GPU Pods runbook](08_gpu_pods.md) covers running Stages 3–6 on RunPod. Every stage in this series
-also runs locally on a small gene subset for learning and smoke-testing.
+[GPU Pods runbook](08_gpu_pods.md) covers running the compute-bound stages (3–6, and the M3 sub-series)
+on RunPod. Every stage in this series also runs locally on a small gene subset for learning and
+smoke-testing — with two exceptions worth knowing up front: the **held-out base scores** and the
+**bigWig cache** live on the pod volume, so a full held-out evaluation (and anything needing dense
+multimodal features) is a pod job. See [Stage 6](06_evaluation.md) and the runbook.
 
 ---
 
@@ -122,11 +134,17 @@ also runs locally on a small gene subset for learning and smoke-testing.
 
 | Topic | Reference |
 |-------|-----------|
+| **What came out — evaluated results (M1/M2/M3)** | [meta_layer/results/](../../meta_layer/results/README.md) |
 | Model naming (`M{task}-{S/P}`, `Eval-*`) | [meta_layer/methods/naming_convention.md](../../meta_layer/methods/naming_convention.md) |
 | Meta-model concept & motivation | [meta_layer/README.md](../../meta_layer/README.md) |
 | Architecture (three-stream CNN, `[L,3]` contract) | [meta_layer/ARCHITECTURE.md](../../meta_layer/ARCHITECTURE.md) |
+| M3 novel-site formulation & anti-circular method | [meta_layer/methods/06_m3_novel_site_formulation.md](../../meta_layer/methods/06_m3_novel_site_formulation.md) |
 | Complete feature list (all modalities, every column) | [multimodal_feature_engineering/feature_catalog.md](../../multimodal_feature_engineering/feature_catalog.md) |
 | Evaluation modes & flags in depth | *linked from [Stage 6](06_evaluation.md)* |
+
+!!! tip "This series is *how*; the results series is *what came out*"
+    [meta_layer/results/](../../meta_layer/results/README.md) holds the evaluated numbers and the
+    findings they establish — including the honest negatives. Read it alongside Stage 6/7.
 
 ---
 
