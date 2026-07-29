@@ -21,26 +21,48 @@ the *how* and *in what order*.
 
 ## What gets built
 
+Solid arrows contribute rows; **dashed arrows are exclusions** (subtracted, not added).
+
 ```mermaid
 flowchart TD
-  A["GTEx junctions + SpliceVault"] --> P["<b>positives_pooled.parquet</b><br/>154,113 novel sites<br/>(longread_confirmed flag)"]
-  B["SF3B1 / ENCODE-KD / TDP-43<br/>disease catalogs"] --> D2["<b>disease_anchors.parquet</b><br/>6,351 (held-out D2)"]
-  C["GENCODE ∪ RefSeq"] --> M["<b>annotation_mask.parquet</b><br/>825,746 (loss-ignore + post-filter)"]
-  E["ENCODE long-read GTFs"] --> D1["<b>longread_truth_novel.parquet</b><br/>681,809 (independent D1 truth)"]
-  P --> R["<b>candidate_labels.parquet</b><br/>52,320 base-matched (M3-R)"]
-  M --> R
-  D1 --> R
-  D2 --> R
+  A["GTEx junctions + SpliceVault<br/><i>short-read evidence</i>"] --> P["<b>positives_pooled.parquet</b><br/>154,113 novel sites<br/>→ M3-S train"]
+  C["GENCODE ∪ RefSeq<br/><i>existing annotation</i>"] --> M["<b>annotation_mask.parquet</b><br/>825,746<br/>→ loss-ignore + post-filter"]
+  E["ENCODE long-read GTFs<br/><i>full-length reads</i>"] --> D1["<b>longread_truth_novel.parquet</b><br/>681,809<br/>→ EVAL truth D1"]
+  B["SF3B1 / ENCODE-KD / TDP-43<br/><i>disease catalogs</i>"] --> D2["<b>disease_anchors.parquet</b><br/>6,351<br/>→ EVAL truth D2"]
+  P -- "positives" --> R["<b>candidate_labels.parquet</b><br/>52,320 base-matched<br/>→ M3-R train"]
+  M -. "excluded" .-> R
+  D1 -. "excluded (no leakage)" .-> R
+  D2 -. "excluded (no leakage)" .-> R
+  D2 -. "anti-joined out" .-> P
 ```
 
-| Output | Built by | Role |
-|--------|----------|------|
-| `positives_pooled.parquet` | `03_ingest_splicevault.py` → `04_merge_positives.py` | recognizer positives (donor/acceptor) |
-| `disease_anchors.parquet` | `05`/`06`/`07_ingest_*` → `08_finalize_anchors.py` | held-out D2 eval truth |
-| `annotation_mask.parquet` | `09_build_negatives.py` (writes the mask) | loss ignore-index **and** the novelty post-filter set |
-| `negatives.parquet` | `09_build_negatives.py` | recognizer decoys (largely vestigial — see methods §4) |
-| `longread_truth_novel.parquet` | `10_build_longread_truth.py` | independent **D1** eval truth |
-| `candidate_labels.parquet` | `11_build_candidate_labels.py` | base-score-matched real-vs-artifact table (M3-R) |
+### Who consumes what
+
+Two things make this stage's outputs confusing until you see the shape: there are **two M3 models**, and
+the artifacts split into **training labels vs evaluation truth** — which must never mix.
+
+- **M3-S**, the *recognizer* — a sequence CNN that scores every position in a gene and ranks candidate
+  novel sites ([Stage 10](10_training_m3.md)).
+- **M3-R**, the *candidate refiner* — an XGBoost model that reranks base-proposed candidates as
+  real-vs-artifact.
+- **D1 / D2** are the two **independent** truth sets used at [Stage 11](11_m3_evaluation.md). They are
+  named because M3 cannot be evaluated against its own training annotation (that would be circular):
+  **D1** = ENCODE long-read confirmed novel junctions, **D2** = held-out disease cryptic sites.
+
+| Artifact | What it is | Used by | When | Built by |
+|----------|-----------|---------|------|----------|
+| `positives_pooled.parquet` | 154,113 evidence-supported novel sites, with a `longread_confirmed` flag | **M3-S** | **train** (positive class) | `03_ingest_splicevault.py` → `04_merge_positives.py` |
+| `negatives.parquet` | GT/AG dinucleotide decoys + easy non-sites | **M3-S** | **train** (decoys; largely vestigial — see [methods §4](../../meta_layer/methods/06_m3_novel_site_formulation.md)) | `09_build_negatives.py` |
+| `annotation_mask.parquet` | 825,746 already-annotated sites (GENCODE ∪ RefSeq) | **M3-S** | **dual role** — at train time the loss *ignores* these positions (so a known site is never scored as a negative); at inference they are *subtracted* so only novel calls survive | `09_build_negatives.py` |
+| `candidate_labels.parquet` | 52,320 base-proposed candidates labelled real-vs-artifact, with negatives matched to the positives' base-score distribution | **M3-R** | **train** | `11_build_candidate_labels.py` |
+| `longread_truth_novel.parquet` | 681,809 novel junctions confirmed by full-length long reads | both | **eval — D1** | `10_build_longread_truth.py` |
+| `disease_anchors.parquet` | 6,351 disease cryptic sites (TDP-43 / SF3B1 / ENCODE-KD), anti-joined out of training | both | **eval — D2** | `05`/`06`/`07_ingest_*` → `08_finalize_anchors.py` |
+
+!!! warning "The leakage rule that shapes this whole stage"
+    D1 and D2 are **excluded from every training set** — the anchors are anti-joined out of
+    `positives_pooled`, and Step 5 excludes `annotation ∪ positives ∪ D1 ∪ D2` when sampling negatives.
+    Without that, a held-out truth site could be trained on as an "artifact" and the anti-circular
+    evaluation would be meaningless.
 
 Scripts live in
 [`examples/data_preparation/m3/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/data_preparation/m3/).
