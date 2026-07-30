@@ -93,6 +93,15 @@ meta_models:
     dir: "output/meta_layer/m2s_v4_cleanannot"
     base_model: "openspliceai"
     notes: "Alternative-site model, clean annotation. Alt-site PR-AUC 0.99 vs base 0.91 (FN −88%); held-out F1 0.956 at F1-opt (recall 0.94 vs base 0.61, precision 0.97). Ensembl\\MANE."
+  m3_v1:
+    name: "M3-S (novel)"
+    variant: "M3-S"
+    dir: "output/meta_layer/m3_v1"
+    base_model: "openspliceai"
+    status: "research"
+    # M3 drops the junction channels — junction support is its training TARGET, not an input.
+    exclude_channels: ["junction_log1p", "junction_has_support"]
+    notes: "Novel-site ranker. NOT promoted: scored by per-gene precision@k on anti-circular truth, not PR-AUC, so it does not belong in the base-vs-meta dashboard. Best novel-site ranker in the system — the only meta model beating raw base on independent novel truth (D1 P@5 0.335 vs 0.277; D2 R@20 0.79 vs 0.51). Consumed by the Novel Site Explorer (/novel)."
 
 # External genomic tracks (conservation, epigenetic, etc.)
 # Used by feature modalities that access bigWig/bigBed files.

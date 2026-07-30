@@ -32,67 +32,25 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import polars as pl
 
-# Score-array channel order emitted by infer_full_gene / base_scores: [donor, acceptor, neither]
-DONOR_IDX, ACCEPTOR_IDX = 0, 1
-IDX_TO_TYPE = {DONOR_IDX: "donor", ACCEPTOR_IDX: "acceptor"}
-JOIN_KEY = ["chrom", "position", "strand", "splice_type"]
-
-
-# ---------------------------------------------------------------------------
-# Coordinate / chrom helpers
-# ---------------------------------------------------------------------------
-
-def strip_chr(chrom: str) -> str:
-    """``"chr1" -> "1"``; leave bare names untouched."""
-    return chrom[3:] if chrom.startswith("chr") else chrom
-
-
-def _strip_chr_expr(col: str = "chrom") -> pl.Expr:
-    return pl.col(col).cast(pl.String).str.replace_all(r"^chr", "").alias("chrom")
-
-
-# ---------------------------------------------------------------------------
-# Truth / annotation loading
-# ---------------------------------------------------------------------------
-
-def load_sites_parquet(
-    path: Path,
-    *,
-    keep_chroms_bare: Optional[Sequence[str]] = None,
-    is_novel_only: bool = False,
-    min_biosamples: int = 1,
-    extra_cols: Sequence[str] = (),
-) -> pl.DataFrame:
-    """Load a sites parquet, normalise chrom to bare, optionally filter.
-
-    Works for ``annotation_mask.parquet``, ``longread_truth_novel.parquet``
-    (``min_biosamples`` / ``n_biosamples``), and ``disease_anchors.parquet``
-    (``is_novel_only``). All share the ``chrom, position, strand, splice_type``
-    key with a bare ``chrom``.
-    """
-    df = pl.read_parquet(path)
-    df = df.with_columns(_strip_chr_expr("chrom"))
-    if is_novel_only and "is_novel" in df.columns:
-        df = df.filter(pl.col("is_novel"))
-    if min_biosamples > 1 and "n_biosamples" in df.columns:
-        df = df.filter(pl.col("n_biosamples") >= min_biosamples)
-    if keep_chroms_bare is not None:
-        df = df.filter(pl.col("chrom").is_in(list(keep_chroms_bare)))
-    cols = [*JOIN_KEY, *[c for c in extra_cols if c in df.columns]]
-    return df.select(cols)
-
-
-# ---------------------------------------------------------------------------
-# Gene universe
-# ---------------------------------------------------------------------------
-
-@dataclass(frozen=True)
-class GeneInterval:
-    gene_id: str
-    chrom: str  # bare
-    start: int  # 0-based, matches build_gene_cache / pyfaidx slicing
-    end: int
-    strand: str
+# The ranking primitives live in the installed package so the Bio Lab UI can reuse
+# them (a server module cannot import from examples/). They are re-exported here so
+# this module's public API — and run_selftest() below, which guards them — is
+# unchanged for the driver scripts.
+from agentic_spliceai.splice_engine.eval.novel_site_ranking import (  # noqa: F401
+    ACCEPTOR_IDX,
+    DONOR_IDX,
+    IDX_TO_TYPE,
+    JOIN_KEY,
+    GeneInterval,
+    SiteEvidenceIndex,
+    SiteIndex,
+    _strip_chr_expr,
+    load_sites_parquet,
+    slice_mm_channels,
+    strip_chr,
+    suppress_adjacent,
+    top_novel_candidates,
+)
 
 
 def _positions_by_chrom(truth_dfs: Sequence[pl.DataFrame]) -> Dict[str, np.ndarray]:
@@ -133,63 +91,6 @@ def resolve_truth_genes(
 # ---------------------------------------------------------------------------
 # Per-gene scoring -> novel candidates -> precision@k / recall@k
 # ---------------------------------------------------------------------------
-
-class SiteIndex:
-    """Fast lookup of site positions inside a gene window.
-
-    Pre-groups a sites DataFrame into ``(chrom, strand, splice_type) -> sorted
-    positions`` so per-gene lookups are ``searchsorted`` slices, not repeated
-    polars filters over an 800K-row frame. Built once per truth/annotation set.
-    """
-
-    def __init__(self, by_key: Dict[Tuple[str, str, str], np.ndarray]):
-        self._by_key = by_key
-
-    @classmethod
-    def from_df(cls, df: pl.DataFrame) -> "SiteIndex":
-        by_key: Dict[Tuple[str, str, str], np.ndarray] = {}
-        if df.height:
-            for key, sub in df.group_by(["chrom", "strand", "splice_type"]):
-                k = tuple(str(x) for x in key)  # (chrom, strand, splice_type)
-                by_key[k] = np.sort(sub.get_column("position").to_numpy().astype(np.int64))
-        return cls(by_key)
-
-    def positions_in(
-        self, chrom: str, strand: str, splice_type: str, start: int, end: int,
-    ) -> np.ndarray:
-        """Positions of matching sites in ``[start, end)``."""
-        arr = self._by_key.get((chrom, strand, splice_type))
-        if arr is None or arr.size == 0:
-            return np.empty(0, dtype=np.int64)
-        lo = np.searchsorted(arr, start, side="left")
-        hi = np.searchsorted(arr, end, side="left")
-        return arr[lo:hi]
-
-
-def top_novel_candidates(
-    probs_type: np.ndarray,
-    gene_start: int,
-    annotated_positions: np.ndarray,
-    max_k: int,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Top-``max_k`` novel candidate (genomic_position, prob), highest prob first.
-
-    Annotated positions are masked out (the post-filter) *before* ranking.
-    ``argpartition`` keeps this O(L) rather than a full O(L log L) sort.
-    """
-    p = probs_type.astype(np.float64).copy()
-    if annotated_positions.size:
-        rel = annotated_positions - gene_start
-        rel = rel[(rel >= 0) & (rel < p.size)]
-        p[rel] = -np.inf
-    k = int(min(max_k, p.size))
-    if k <= 0:
-        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.float64)
-    part = np.argpartition(-p, k - 1)[:k]
-    order = part[np.argsort(-p[part])]
-    order = order[np.isfinite(p[order])]  # drop masked if fewer than k survive
-    return gene_start + order, p[order]
-
 
 @dataclass
 class KMetricAccumulator:

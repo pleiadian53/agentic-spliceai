@@ -282,14 +282,42 @@ def list_available_models() -> list[str]:
     return list(cfg.base_models.keys()) if cfg.base_models else []
 
 
-def list_available_meta_models() -> list[str]:
+def list_available_meta_models(status: str | None = "promoted") -> list[str]:
     """List configured meta-layer models (M*-S).
 
     Returns the names from the ``meta_models`` block of settings.yaml
     (e.g. ``['m1s_v4_cleanannot', 'm2s_v4_cleanannot']``). Empty if none configured.
+
+    Parameters
+    ----------
+    status : str or None, default "promoted"
+        Only return models with this ``status``. Entries with **no** ``status`` key
+        are treated as ``"promoted"``, so the default preserves historical behaviour
+        for every existing caller. Pass ``None`` to return every configured model
+        regardless of status.
+
+        Research-status models (e.g. the M3 novel-site ranker) are excluded by
+        default on purpose: they are scored by different metrics and may expect a
+        different feature-channel count, so surfacing them in the generic
+        meta-overlay and metrics surfaces would misrepresent or break them.
+
+    Examples
+    --------
+    >>> list_available_meta_models()                    # doctest: +SKIP
+    ['m1s_v4_cleanannot', 'm2s_v4_cleanannot']
+    >>> list_available_meta_models(status=None)         # doctest: +SKIP
+    ['m1s_v4_cleanannot', 'm2s_v4_cleanannot', 'm3_v1']
     """
     cfg = load_config()
-    return list(cfg.meta_models.keys()) if cfg.meta_models else []
+    if not cfg.meta_models:
+        return []
+    if status is None:
+        return list(cfg.meta_models.keys())
+    return [
+        name
+        for name, spec in cfg.meta_models.items()
+        if (spec or {}).get("status", "promoted") == status
+    ]
 
 
 def get_meta_model_config(name: str) -> dict:
