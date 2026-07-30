@@ -556,6 +556,34 @@ Splice Agent is designed to be extensible. Contributions welcome!
 3. Test with real data
 4. Submit PR
 
+## 📖 Citation
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21696681.svg)](https://doi.org/10.5281/zenodo.21696681)
+
+If you use Agentic-SpliceAI in your work, please cite the archived release. The
+concept DOI below always resolves to the latest version:
+
+> Chiu, Po-Hsiang (Barnett). (2026). *Agentic-SpliceAI: An open-source framework
+> for adaptive splice-site prediction and novel isoform discovery*. Zenodo.
+> https://doi.org/10.5281/zenodo.21696681
+
+<details>
+<summary>BibTeX</summary>
+
+```bibtex
+@software{chiu_agentic_spliceai_2026,
+  author  = {Chiu, Po-Hsiang (Barnett)},
+  title   = {{Agentic-SpliceAI}: An open-source framework for adaptive
+             splice-site prediction and novel isoform discovery},
+  year    = {2026},
+  doi     = {10.5281/zenodo.21696681},
+  url     = {https://github.com/pleiadian53/agentic-spliceai},
+  note    = {ORCID: 0000-0001-8816-9799}
+}
+```
+
+</details>
+
 ## 📄 License
 
 MIT License - see LICENSE file for details

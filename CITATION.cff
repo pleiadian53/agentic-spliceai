@@ -25,6 +25,14 @@ date-released: "2026-07-29"
 license: MIT
 repository-code: "https://github.com/pleiadian53/agentic-spliceai"
 url: "https://pleiadian53.github.io/agentic-spliceai/"
+doi: "10.5281/zenodo.21696681"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21696681"
+    description: "Concept DOI — always resolves to the latest release"
+  - type: doi
+    value: "10.5281/zenodo.21696682"
+    description: "Version DOI — v0.1.0"
 keywords:
   - splice-site prediction
   - isoform discovery

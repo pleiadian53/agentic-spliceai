@@ -33,7 +33,7 @@ file, so GitHub also offers a **"Cite this repository"** button on the
 
 > Chiu, Po-Hsiang (Barnett). (2026). *Agentic-SpliceAI: An open-source framework
 > for adaptive splice-site prediction and novel isoform discovery* (Version 0.1.0)
-> [Computer software]. https://github.com/pleiadian53/agentic-spliceai
+> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.21696681
 
 **BibTeX**
 
@@ -44,6 +44,7 @@ file, so GitHub also offers a **"Cite this repository"** button on the
              splice-site prediction and novel isoform discovery},
   year    = {2026},
   version = {0.1.0},
+  doi     = {10.5281/zenodo.21696681},
   url     = {https://github.com/pleiadian53/agentic-spliceai},
   note    = {ORCID: 0000-0001-8816-9799}
 }
