@@ -1,0 +1,38 @@
+# This CITATION.cff file lets GitHub render a "Cite this repository" button
+# and provides machine-readable citation metadata (consumed by Zenodo, Google
+# Scholar, and reference managers). Format spec: https://citation-file-format.github.io
+#
+# The ORCID below permanently links BOTH "Po-Hsiang Chiu" and "Barnett Chiu"
+# to this project regardless of which name string an index sees.
+
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+title: "Agentic-SpliceAI"
+abstract: >-
+  An open-source framework for adaptive splice-site prediction and novel
+  isoform discovery, combining foundation models, multimodal biological
+  evidence, and agentic AI reasoning for context-aware discovery of
+  disease-specific, variant-induced, and tissue-specific splice variants.
+type: software
+authors:
+  - family-names: Chiu
+    given-names: "Po-Hsiang (Barnett)"
+    email: barnettchiu@gmail.com
+    orcid: "https://orcid.org/0000-0001-8816-9799"
+    website: "https://scholar.google.com/citations?user=EE3r5rgAAAAJ"
+version: "0.1.0"
+date-released: "2026-07-29"
+license: MIT
+repository-code: "https://github.com/pleiadian53/agentic-spliceai"
+url: "https://pleiadian53.github.io/agentic-spliceai/"
+keywords:
+  - splice-site prediction
+  - isoform discovery
+  - RNA splicing
+  - agentic AI
+  - foundation models
+  - multimodal deep learning
+  - meta-learning
+  - genomics
+  - precision medicine
+  - bioinformatics

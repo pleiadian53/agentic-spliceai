@@ -206,6 +206,7 @@ nav:
           - "M3 — 11. Evaluation": workflows/meta_layer/11_m3_evaluation.md
   - Roadmap: ROADMAP.md
   - About:
+      - Author & Citation: about/author.md
       - Contributing: CONTRIBUTING.md
       - Math Test Page: test_math.md
 

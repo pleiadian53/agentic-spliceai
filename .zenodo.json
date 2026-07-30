@@ -1,0 +1,25 @@
+{
+  "upload_type": "software",
+  "title": "Agentic-SpliceAI",
+  "description": "An open-source framework for adaptive splice-site prediction and novel isoform discovery, combining foundation models, multimodal biological evidence, and agentic AI reasoning for context-aware discovery of disease-specific, variant-induced, and tissue-specific splice variants.",
+  "creators": [
+    {
+      "name": "Chiu, Po-Hsiang (Barnett)",
+      "orcid": "0000-0001-8816-9799"
+    }
+  ],
+  "license": "MIT",
+  "access_right": "open",
+  "keywords": [
+    "splice-site prediction",
+    "isoform discovery",
+    "RNA splicing",
+    "agentic AI",
+    "foundation models",
+    "multimodal deep learning",
+    "meta-learning",
+    "genomics",
+    "precision medicine",
+    "bioinformatics"
+  ]
+}
