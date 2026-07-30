@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}Novel Sites: {{ gene_name }} — AgenticSpliceAI Lab{% endblock %}
+{% block nav_novel %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    .controls { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
+    .control-group { display: flex; flex-direction: column; gap: 0.3rem; }
+    .control-group label {
+        font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px;
+        color: #888; font-weight: 600;
+    }
+    .control-group input, .control-group select {
+        padding: 0.45rem 0.6rem; border: 1px solid #dee2e6; border-radius: 6px;
+        font-size: 0.9rem; min-width: 150px;
+    }
+
+    .held-out-note {
+        margin-top: 0.75rem; padding: 0.6rem 0.9rem; border-left: 3px solid #3572a5;
+        background: #f2f7fb; border-radius: 6px; font-size: 0.85rem; color: #33566f;
+    }
+
+    table.cand { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    table.cand th {
+        text-align: left; padding: 0.55rem 0.6rem; border-bottom: 2px solid #e9ecef;
+        font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.4px; color: #7a7a7a;
+    }
+    table.cand td { padding: 0.5rem 0.6rem; border-bottom: 1px solid #f1f3f5; }
+    table.cand tr:hover td { background: #fafbfc; }
+    td.num { font-variant-numeric: tabular-nums; text-align: right; }
+
+    .badge {
+        display: inline-block; padding: 0.12rem 0.5rem; border-radius: 10px;
+        font-size: 0.72rem; font-weight: 700; margin-right: 0.25rem;
+    }
+    .badge.donor    { background: #e8f0f7; color: #26557d; }
+    .badge.acceptor { background: #fdeceb; color: #a5372c; }
+    .badge.d1       { background: #e8f6ec; color: #1b6b32; }
+    .badge.d2       { background: #fdf1e0; color: #8a5a13; }
+    .badge.canon    { background: #eef1f4; color: #5b6b7a; }
+    .badge.noncanon { background: #f6f0f0; color: #9a6b6b; }
+
+    .prob-bar { display: inline-block; height: 7px; border-radius: 4px; background: #27ae60; vertical-align: middle; }
+    .prob-bar.base { background: #b6c2cc; }
+
+    .caveat {
+        margin-top: 1rem; padding: 0.75rem 1rem; border-left: 3px solid #f39c12;
+        background: #fff8ec; border-radius: 6px; font-size: 0.85rem; color: #7a5b1e;
+    }
+    @media (max-width: 900px) { .chart-two { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="page-header">
+    <h1>Novel Site Explorer</h1>
+    <p>Candidate <em>unannotated</em> splice sites ranked by the M3 novel-site model</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="controls">
+        <div class="control-group">
+            <label for="gene-select">Gene</label>
+            <select id="gene-select"><option>Loading…</option></select>
+        </div>
+        <div class="control-group">
+            <label for="anchor-filter">Filter</label>
+            <select id="anchor-filter">
+                <option value="all">All genes</option>
+                <option value="anchor">Has known disease anchor</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="topk">Top k</label>
+            <input type="number" id="topk" value="{{ default_top_k }}" min="1" max="100">
+        </div>
+        <div class="control-group">
+            <label for="minprob">Min score</label>
+            <input type="number" id="minprob" value="{{ default_min_prob }}" min="0" max="1" step="0.01">
+        </div>
+        <button class="btn" id="run-btn" onclick="loadCandidates()">Rank</button>
+    </div>
+    <div class="held-out-note" id="universe-note">
+        The inspectable universe is the <strong>held-out</strong> test chromosomes (1, 3, 5, 7, 9) —
+        every gene here is one the model never trained on.
+    </div>
+</div>
+
+<div id="loading-panel" class="card" style="display:none;">
+    <div class="spinner"></div> <span id="loading-msg">Ranking candidates…</span>
+</div>
+<div id="error-panel" class="card" style="display:none; border-left:3px solid #c62828;">
+    <strong>Could not rank this gene</strong>
+    <div id="error-msg" style="margin-top:0.4rem; font-size:0.9rem; color:#666;"></div>
+</div>
+
+<div id="results" style="display:none;">
+    <div class="meta-grid" id="summary-grid" style="display:grid;"></div>
+
+    <div class="card">
+        <h2 style="margin-bottom:0.25rem;">Top novel candidates</h2>
+        <p class="text-muted" style="font-size:0.85rem; margin-top:0;">
+            Annotated sites are removed before ranking, so every row is a position absent from
+            GENCODE ∪ RefSeq. Evidence columns are <strong>independent</strong> of M3's training data.
+        </p>
+        <div style="overflow-x:auto;">
+            <table class="cand" id="cand-table"></table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Base model vs M3 — where each candidate ranks</h2>
+        <div id="rank-compare" style="height:340px;"></div>
+        <p class="text-muted" style="font-size:0.85rem;">
+            Lines rising to the right are sites M3 promotes over the base model. Candidates the base
+            model never surfaces are drawn at the bottom of its column.
+        </p>
+    </div>
+
+    <div class="caveat">
+        <strong>How to read this.</strong> M3 is a <em>ranker</em>, scored by per-gene precision@k against
+        independent truth — not a calibrated detector. On held-out data roughly <strong>1–2 of a top-5</strong>
+        are long-read-confirmed (D1 P@5 ≈ 0.34 vs base 0.28). Its advantage comes mostly from the learned
+        head's recalibration of base + sequence; the multimodal channels add little here (+0.016).
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const INITIAL_GENE = "{{ gene_name }}";
+    const META_MODEL = "{{ meta_model }}";
+    let allGenes = [];
+
+    document.addEventListener('DOMContentLoaded', init);
+
+    async function init() {
+        try {
+            const resp = await fetch('/api/novel/genes');
+            allGenes = await resp.json();
+        } catch (e) {
+            console.error('gene list failed', e);
+        }
+        renderGeneOptions();
+        document.getElementById('anchor-filter').addEventListener('change', renderGeneOptions);
+        loadCandidates();
+    }
+
+    function renderGeneOptions() {
+        const onlyAnchor = document.getElementById('anchor-filter').value === 'anchor';
+        const sel = document.getElementById('gene-select');
+        const current = sel.value || INITIAL_GENE;
+        const list = allGenes.filter(g => !onlyAnchor || g.has_disease_anchor);
+        sel.innerHTML = list.map(g =>
+            `<option value="${g.gene_name}">${g.gene_name} (chr${g.chrom}${g.strand})${g.has_disease_anchor ? ' ★' : ''}</option>`
+        ).join('');
+        const match = list.find(g => g.gene_name.toUpperCase() === current.toUpperCase());
+        sel.value = match ? match.gene_name : (list.length ? list[0].gene_name : '');
+        const n = list.length;
+        document.getElementById('universe-note').innerHTML =
+            `Showing <strong>${n.toLocaleString()}</strong> genes from the <strong>held-out</strong> ` +
+            `test chromosomes (1, 3, 5, 7, 9) — every gene here is one the model never trained on. ` +
+            `★ = contains a known disease cryptic site.`;
+    }
+
+    function setState(state, msg) {
+        document.getElementById('loading-panel').style.display = state === 'loading' ? 'block' : 'none';
+        document.getElementById('error-panel').style.display = state === 'error' ? 'block' : 'none';
+        document.getElementById('results').style.display = state === 'done' ? 'block' : 'none';
+        document.getElementById('run-btn').disabled = state === 'loading';
+        if (state === 'error') document.getElementById('error-msg').textContent = msg || '';
+    }
+
+    async function loadCandidates() {
+        const gene = document.getElementById('gene-select').value || INITIAL_GENE;
+        const topK = document.getElementById('topk').value;
+        const minProb = document.getElementById('minprob').value;
+        setState('loading');
+        try {
+            const url = `/api/novel/${encodeURIComponent(gene)}/candidates?top_k=${topK}&min_prob=${minProb}`;
+            const resp = await fetch(url);
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
+                throw new Error(err.detail || `HTTP ${resp.status}`);
+            }
+            render(await resp.json());
+            setState('done');
+            history.replaceState(null, '', `/novel/${encodeURIComponent(gene)}`);
+        } catch (e) {
+            setState('error', e.message);
+        }
+    }
+
+    function render(d) {
+        const nD1 = d.candidates.filter(c => c.longread_confirmed).length;
+        const nD2 = d.candidates.filter(c => c.disease_anchor).length;
+        const nCanon = d.candidates.filter(c => c.dinucleotide === 'GT' || c.dinucleotide === 'AG').length;
+
+        document.getElementById('summary-grid').innerHTML = `
+            <div class="meta-item"><div class="meta-label">Gene</div><div class="meta-value">${d.gene_name}</div></div>
+            <div class="meta-item"><div class="meta-label">Window</div><div class="meta-value">chr${d.chrom}:${d.gene_start.toLocaleString()}–${d.gene_end.toLocaleString()} (${d.strand})</div></div>
+            <div class="meta-item"><div class="meta-label">Annotated sites masked</div><div class="meta-value">${d.n_annotated_masked}</div></div>
+            <div class="meta-item"><div class="meta-label">Long-read confirmed</div><div class="meta-value">${nD1} / ${d.candidates.length}</div></div>
+            <div class="meta-item"><div class="meta-label">Canonical GT/AG</div><div class="meta-value">${nCanon} / ${d.candidates.length}</div></div>
+            <div class="meta-item"><div class="meta-label">Disease anchors</div><div class="meta-value">${nD2}</div></div>
+        `;
+
+        const rows = d.candidates.map(c => {
+            const canon = (c.dinucleotide === 'GT' || c.dinucleotide === 'AG');
+            const ev = [];
+            if (c.longread_confirmed) {
+                const n = c.longread_n_biosamples;
+                ev.push(`<span class="badge d1" title="ENCODE long-read confirmed">long-read${n ? ` ×${n}` : ''}</span>`);
+            }
+            if (c.disease_anchor) {
+                ev.push(`<span class="badge d2" title="${c.disease_source || ''}: ${c.disease_mechanism || ''}">disease anchor</span>`);
+            }
+            return `<tr>
+                <td class="num">${c.rank}</td>
+                <td class="num">${c.position.toLocaleString()}</td>
+                <td><span class="badge ${c.splice_type}">${c.splice_type}</span></td>
+                <td class="num">${c.meta_prob.toFixed(3)}
+                    <span class="prob-bar" style="width:${Math.round(c.meta_prob * 44)}px"></span></td>
+                <td class="num">${c.base_prob.toFixed(3)}
+                    <span class="prob-bar base" style="width:${Math.round(c.base_prob * 44)}px"></span></td>
+                <td class="num">${c.base_rank ?? '—'}</td>
+                <td><span class="badge ${canon ? 'canon' : 'noncanon'}">${c.dinucleotide || '?'}</span></td>
+                <td>${ev.join('') || '<span class="text-muted" style="font-size:0.8rem;">—</span>'}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('cand-table').innerHTML = `
+            <thead><tr>
+                <th style="text-align:right;">#</th><th style="text-align:right;">Position</th><th>Type</th>
+                <th style="text-align:right;">M3</th><th style="text-align:right;">Base</th>
+                <th style="text-align:right;">Base rank</th><th>Dinuc</th><th>Independent evidence</th>
+            </tr></thead><tbody>${rows}</tbody>`;
+
+        renderRankCompare(d);
+    }
+
+    function renderRankCompare(d) {
+        const worst = d.candidates.length + 3;   // where "base never surfaced it" sits
+        const traces = d.candidates.map(c => {
+            const baseY = c.base_rank ?? worst;
+            const promoted = baseY > c.rank;
+            return {
+                x: ['Base model', 'M3'],
+                y: [baseY, c.rank],
+                mode: 'lines+markers',
+                type: 'scatter',
+                name: `${c.position}`,
+                line: { color: promoted ? '#27ae60' : '#b6c2cc', width: promoted ? 2 : 1 },
+                marker: { size: c.disease_anchor ? 11 : (c.longread_confirmed ? 9 : 6),
+                          symbol: c.disease_anchor ? 'star' : 'circle',
+                          color: promoted ? '#27ae60' : '#b6c2cc' },
+                hovertemplate: `${c.position} (${c.splice_type})<br>base rank %{y}<extra></extra>`,
+                showlegend: false,
+            };
+        });
+        Plotly.newPlot('rank-compare', traces, {
+            font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 12 },
+            margin: { t: 20, b: 40, l: 60, r: 20 },
+            paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+            yaxis: { title: 'Rank (1 = best)', autorange: 'reversed', gridcolor: '#eee', dtick: 1 },
+            xaxis: { gridcolor: '#eee' },
+        }, { responsive: true, displayModeBar: false });
+    }
+</script>
+{% endblock %}

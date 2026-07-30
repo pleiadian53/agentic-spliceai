@@ -87,3 +87,51 @@ class GenomeResponse(BaseModel):
     meta_n_tp: Optional[int] = None
     meta_n_fp: Optional[int] = None
     meta_n_fn: Optional[int] = None
+
+
+# ── Novel Site Explorer (M3) ──────────────────────────────────────────────────
+# A ranker, not an overlay: M3 answers "which unannotated positions in this gene
+# are worth inspecting?", so the payload is sparse ranked rows rather than the
+# dense parallel arrays GenomeResponse carries.
+
+class NovelSiteCandidate(BaseModel):
+    rank: int
+    position: int
+    splice_type: str            # 'donor' | 'acceptor'
+    strand: str
+    meta_prob: float            # M3 score
+    base_prob: float            # base model at the same position
+    base_rank: Optional[int] = None   # rank under the base model, same filtering
+    dinucleotide: str = ''      # GT/AG in transcript orientation; a coordinate sanity check
+
+    # Independent evidence. Deliberately excludes SpliceVault / positives_pooled:
+    # those are M3's own training pool, so showing them as support would be circular.
+    longread_confirmed: bool = False
+    longread_n_biosamples: Optional[int] = None
+    disease_anchor: bool = False
+    disease_mechanism: Optional[str] = None
+    disease_source: Optional[str] = None
+
+
+class NovelSitesResponse(BaseModel):
+    gene_name: str
+    gene_id: str
+    chrom: str
+    strand: str
+    gene_start: int
+    gene_end: int
+    meta_model: str
+    top_k: int
+    min_prob: float
+    candidates: List[NovelSiteCandidate]
+    n_annotated_masked: int     # sites removed by the novelty post-filter
+    n_considered: int           # positions scored (gene length)
+    n_disease_anchors_in_gene: int
+
+
+class NovelSiteGene(BaseModel):
+    gene_id: str
+    gene_name: str
+    chrom: str
+    strand: str
+    has_disease_anchor: bool = False

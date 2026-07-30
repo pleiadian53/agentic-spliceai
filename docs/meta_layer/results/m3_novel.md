@@ -61,6 +61,13 @@ that thought.
 **Conclusion.** M3-v1 is the best novel-site ranker and the current within-gene deliverable for the
 discovery task.
 
+!!! tip "See it per gene — the Novel Site Explorer"
+    These are aggregate numbers; the Bio Lab UI renders the ranking itself. Run
+    `python -m server.bio.app` and open `/novel/TPR` for a gene's top-k candidate unannotated sites,
+    each with the base model's score and rank alongside M3's, the splice dinucleotide, and independent
+    evidence badges (ENCODE long-read support, held-out disease anchors). Serving is restricted to the
+    same held-out chromosomes evaluated here, so every inspectable gene is one M3 never trained on.
+
 ### Tier 1 — does cleaner labels help? (no)
 
 M3-v1 trains on all 154,113 pooled positives with long-read-confirmed ones up-weighted 2×. Only ~50%

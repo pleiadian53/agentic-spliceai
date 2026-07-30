@@ -93,6 +93,29 @@ The full tables and the within-vs-between-gene decomposition that explains Tier 
 
 ---
 
+## Inspect the ranker interactively — the Novel Site Explorer
+
+The aggregate precision@k numbers say M3 ranks well; the **Novel Site Explorer** lets you see it
+per gene. Launch the Bio Lab UI and open a gene:
+
+```bash
+conda run -n agentic-spliceai python -m server.bio.app   # http://localhost:8005/novel/TPR
+```
+
+For a gene it shows M3's top-k candidate **unannotated** sites with the novelty post-filter applied,
+each row carrying its M3 score, the base model's score and rank at the same position, the splice
+dinucleotide, and **independent** evidence badges — ENCODE long-read support (D1, with biosample
+count) and held-out disease anchors (D2, with mechanism). SpliceVault/`positives_pooled` is
+deliberately *not* shown as evidence: it is M3's training pool, so it would be circular.
+
+The serving universe is the same held-out set this stage evaluates (test chromosomes 1/3/5/7/9), so
+every inspectable gene is one M3 never trained on. `TPR` is a good first look — both of its
+SF3B1-cryptic anchors land in the top 5, at base scores of ~0.09–0.13.
+
+Implementation: `server/bio/m3_inference.py`, sharing the ranking primitives in
+[`splice_engine/eval/novel_site_ranking.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/src/agentic_spliceai/splice_engine/eval/novel_site_ranking.py)
+with this stage's harness, so the UI and the eval rank identically by construction.
+
 ## Related
 
 - Tissue-stratified evaluation (an M2-S-oriented protocol, applicable when tissue context matters):

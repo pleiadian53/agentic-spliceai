@@ -36,6 +36,7 @@ from agentic_spliceai.splice_engine.base_layer.prediction.evaluation import (
     filter_annotations_by_transcript,
 )
 from . import config
+from . import m3_inference
 from . import meta_metrics
 from .gene_cache import get_genes, get_gene_stats, get_chromosomes
 from .model_cache import get_models as get_cached_models, is_cached as is_model_cached
@@ -323,6 +324,91 @@ async def get_meta_metrics_run(run_id: str):
     if run is None:
         raise HTTPException(status_code=404, detail=f"Meta run '{run_id}' not found")
     return run
+
+
+# =========================
+# Novel Site Explorer (M3)
+# =========================
+# M3 ranks candidate *unannotated* sites per gene — a sparse ranked list, not a
+# dense overlay — so it gets its own route, cache and response model.
+
+# LRU: gene_name -> the expensive part (full ranking at MAX_TOP_K, min_prob=0).
+# top_k / min_prob are cheap re-slices and stay OUT of the key, the same split
+# _genome_predict_meta uses for `threshold`.
+_m3_cache: OrderedDict[str, dict] = OrderedDict()
+
+
+def _m3_cache_put(key: str, value: dict) -> None:
+    _m3_cache[key] = value
+    _m3_cache.move_to_end(key)
+    while len(_m3_cache) > config.MAX_CACHED_PREDICTIONS:
+        evicted, _ = _m3_cache.popitem(last=False)
+        logger.info(f"M3 cache evicted: {evicted}")
+
+
+def _m3_cache_get(key: str) -> dict | None:
+    if key in _m3_cache:
+        _m3_cache.move_to_end(key)
+        return _m3_cache[key]
+    return None
+
+
+@app.get("/novel/{gene_name}", response_class=HTMLResponse)
+async def novel_sites_page(request: Request, gene_name: str):
+    """Novel Site Explorer page for a specific gene."""
+    return templates.TemplateResponse("novel_sites.html", {
+        "request": request,
+        "gene_name": gene_name,
+        "meta_model": config.M3_MODEL_NAME,
+        "default_top_k": config.DEFAULT_TOP_K,
+        "default_min_prob": config.DEFAULT_MIN_PROB,
+    })
+
+
+@app.get("/api/novel/genes")
+async def novel_sites_genes():
+    """The inspectable gene universe (held-out chromosomes), flagged for D2 anchors."""
+    loop = asyncio.get_event_loop()
+    try:
+        return await loop.run_in_executor(None, m3_inference.list_inspectable_genes)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/api/novel/{gene_name}/candidates")
+async def novel_sites_candidates(
+    gene_name: str,
+    top_k: int = Query(config.DEFAULT_TOP_K, ge=1, le=config.MAX_TOP_K),
+    min_prob: float = Query(config.DEFAULT_MIN_PROB, ge=0.0, le=1.0),
+):
+    """Top-k novel candidates for a gene, M3-ranked with the novelty post-filter."""
+    loop = asyncio.get_event_loop()
+    cache_key = gene_name.upper()
+
+    full = _m3_cache_get(cache_key)
+    if full is None:
+        try:
+            full = await loop.run_in_executor(
+                None,
+                lambda: m3_inference.rank_novel_candidates(
+                    gene_name, top_k=config.MAX_TOP_K, min_prob=0.0
+                ),
+            )
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Exception as e:
+            logger.exception(f"M3 ranking failed for {gene_name}")
+            raise HTTPException(status_code=500, detail=str(e))
+        _m3_cache_put(cache_key, full)
+
+    # Cheap re-slice of the cached full ranking.
+    kept = [c for c in full["candidates"] if c["meta_prob"] >= min_prob][:top_k]
+    for i, c in enumerate(kept, start=1):
+        c = dict(c)
+        c["rank"] = i
+        kept[i - 1] = c
+
+    return {**full, "candidates": kept, "top_k": top_k, "min_prob": min_prob}
 
 
 # =========================
