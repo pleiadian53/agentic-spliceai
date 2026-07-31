@@ -185,7 +185,7 @@
         <select id="meta-select">
             <option value="">— none (base only) —</option>
             {% for mm in meta_models %}
-            <option value="{{ mm }}">{{ mm }}</option>
+            <option value="{{ mm.key }}" title="{{ mm.key }}">{{ mm.label }}</option>
             {% endfor %}
         </select>
     </div>

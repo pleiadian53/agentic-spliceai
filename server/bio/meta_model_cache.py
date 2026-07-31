@@ -3,7 +3,7 @@
 Mirrors ``model_cache.py`` (base models): caches loaded meta-splice models so
 the load cost is paid once, and serializes loads on a single-worker executor to
 avoid a double-load race. Keyed by the meta-model name from the ``meta_models``
-block of settings.yaml (e.g. ``m1s_v4_cleanannot``).
+block of settings.yaml (e.g. ``m1s.concat_fusion.cleanannot``).
 """
 
 import asyncio
@@ -25,8 +25,8 @@ _meta_cache: Dict[str, Tuple[object, object]] = {}
 # Single-worker executor to serialize loading (prevents double-load race)
 _executor = ThreadPoolExecutor(max_workers=1)
 
-# Meta inference runs on CPU in the Lab UI (one gene at a time; the v3 models
-# are tiny — ~370K params — so CPU latency is sub-second once features exist).
+# Meta inference runs on CPU in the Lab UI (one gene at a time; the concat_fusion
+# models are tiny — ~370K params — so CPU latency is sub-second once features exist).
 _DEVICE = torch.device("cpu")
 
 

@@ -30,7 +30,7 @@ MAX_CACHED_PREDICTIONS = 50
 # M3 ranks candidate *unannotated* sites per gene. It serves from the eval gene
 # cache, whose universe is the held-out SpliceAI test chromosomes (1/3/5/7/9) —
 # every inspectable gene is therefore one the model never trained on.
-M3_MODEL_NAME = "m3_v1"
+M3_MODEL_NAME = "m3s.concat_fusion.cleanannot"
 M3_EVAL_DIR = PROJECT_ROOT / "output" / "meta_layer" / "m3_eval_d1"
 M3_GENE_CACHE_DIR = M3_EVAL_DIR / "gene_cache"
 M3_EVAL_GENES = M3_EVAL_DIR / "eval_genes.parquet"

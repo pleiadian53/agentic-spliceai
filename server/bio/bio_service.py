@@ -23,6 +23,7 @@ from agentic_spliceai.splice_engine.resources import (
     list_available_models,
     list_available_meta_models,
     get_meta_model_config,
+    resolve_meta_model_name,
 )
 from agentic_spliceai.splice_engine.base_layer.data.preparation import (
     prepare_splice_site_annotations,
@@ -419,12 +420,19 @@ async def novel_sites_candidates(
 async def genome_view_page(request: Request, gene_name: str):
     """Genome view page for a specific gene."""
     models = list_available_models()
+    # Show the human-readable `name` ("M1-S (canonical)") in the dropdown while
+    # keeping the canonical <variant>.<arch>.<corpus> key as the option value —
+    # the key is precise but not what a demo audience should be reading.
+    meta_models = [
+        {"key": key, "label": get_meta_model_config(key).get("name", key)}
+        for key in list_available_meta_models()
+    ]
     return templates.TemplateResponse("genome_view.html", {
         "request": request,
         "gene_name": gene_name,
         "models": models,
         "default_model": models[0] if models else None,
-        "meta_models": list_available_meta_models(),
+        "meta_models": meta_models,
     })
 
 
@@ -725,7 +733,7 @@ async def genome_predict(
     gene_name: str,
     model: str = Query(..., description="Base model type (e.g., openspliceai)"),
     threshold: float = Query(0.5, ge=0.0, le=1.0, description="Classification threshold"),
-    meta: str | None = Query(None, description="Optional meta model (e.g. m1s_v4_cleanannot) for a base-vs-meta overlay"),
+    meta: str | None = Query(None, description="Optional meta model (e.g. m1s.concat_fusion.cleanannot) for a base-vs-meta overlay"),
 ):
     """Run on-demand splice site prediction for a single gene.
 
@@ -744,6 +752,9 @@ async def genome_predict(
 
     # Meta-layer overlay path (base vs meta) when a meta model is requested.
     if meta:
+        # Resolve retired keys (e.g. m1s_v4_cleanannot) so bookmarked URLs and
+        # older notebooks keep working; the cache is keyed on the canonical name.
+        meta = resolve_meta_model_name(meta)
         if meta not in list_available_meta_models():
             raise HTTPException(status_code=400, detail=f"Unknown meta model: {meta}")
         try:
