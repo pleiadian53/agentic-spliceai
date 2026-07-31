@@ -208,7 +208,7 @@ a practical map of complementary datasets that extend GTEx's reach.
 ### 3.5 Evolutionary conservation
 
 - Sites evolutionarily conserved across mammals are more likely
-  functional. The conservation modality is already in M2-S v2;
+  functional. The conservation modality is already in M2-S;
   using a stricter conservation threshold on novel-junction
   candidates is a cheap filter.
 
@@ -307,7 +307,7 @@ drug-target identification.
 - The 67,490 novel candidates are a pool, but without independent
   confirmation (§2.3) they're a mix of real novelty, annotation
   lag, and alignment artifacts.
-- M2-S (v4_cleanannot) already achieves alt-site PR-AUC 0.990 on the
+- M2-S (`m2s.concat_fusion.cleanannot`) already achieves alt-site PR-AUC 0.990 on the
   corrected annotation (the earlier 0.967 was computed against a
   minus-strand-buggy annotation). The marginal return on adding an M3
   head (which would compete for capacity with M2-S) may be small.
