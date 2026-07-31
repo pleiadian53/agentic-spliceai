@@ -57,10 +57,10 @@ class Manifest:
         Free-form human description. May be multi-paragraph.
     tags : list of str
         Free-form labels for filtered registry views, e.g.
-        ``["demo:ui_integration", "meta:v4"]``. Convention: ``namespace:value``.
+        ``["demo:ui_integration", "corpus:cleanannot"]``. Convention: ``namespace:value``.
     referenced_by : list of str
         Optional list of code/doc paths that depend on this artifact's
-        identity (e.g. ``settings.yaml meta_models.m1s_v4_cleanannot``).
+        identity (e.g. ``settings.yaml meta_models."m1s.concat_fusion.cleanannot"``).
     """
 
     path: Path

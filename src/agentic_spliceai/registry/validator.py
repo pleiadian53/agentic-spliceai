@@ -90,7 +90,17 @@ def validate(
     # 3. Cross-check `status: active` against settings.yaml.
     if settings_yaml is not None and parsed:
         settings = _load_settings(settings_yaml)
-        active_meta = set((settings.get("meta_models") or {}).keys())
+        # Meta-model *keys* are canonical `<variant>.<arch>.<corpus>` IDs and are
+        # deliberately decoupled from directory names (checkpoint dirs keep their
+        # historical names). Match on the `dir:` field's basename, which is what
+        # an artifact directory actually is. See
+        # docs/meta_layer/methods/naming_convention.md.
+        meta_specs = settings.get("meta_models") or {}
+        active_meta = {
+            Path(spec["dir"]).name
+            for spec in meta_specs.values()
+            if isinstance(spec, dict) and spec.get("dir")
+        }
         active_base = set((settings.get("base_models") or {}).keys())
 
         for m in parsed:
@@ -99,7 +109,15 @@ def validate(
             # Only require settings membership for likely-runtime artifacts:
             # those whose name is conventionally a meta or base model name.
             # We can't perfectly classify; this is a soft check (warning).
-            looks_like_meta = m.name.startswith(("m1s", "m2s", "m3s", "m4s", "m1p", "m2p"))
+            # An eval/cache artifact often inherits the model's name prefix
+            # (m2s_v4_cleanannot_alt_eval) but is not itself a servable model,
+            # so it must never be required in meta_models:. The `eval` tag is
+            # the artifact's own declaration of role — trust it over the name.
+            is_eval_artifact = "eval" in m.tags
+            looks_like_meta = (
+                not is_eval_artifact
+                and m.name.startswith(("m1s", "m2s", "m3s", "m4s", "m1p", "m2p"))
+            )
             looks_like_base = m.topic in {"splice_classifier"} or m.name.startswith(("spliceai", "openspliceai", "splicebert"))
             if looks_like_meta and m.name not in active_meta:
                 issues.append(
