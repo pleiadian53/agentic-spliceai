@@ -34,9 +34,14 @@ human-facing story about it. A given finding usually has both.
 - **Topic** = a major workstream. Current topics: `meta_layer`,
   `m4_benchmarks`, `exon_classifier`, `fm_scalars`, `gpu_runs`,
   `splice_classifier`, `bio_cache`. New workstream → new topic dir.
-- **Artifact name** must be self-describing. Good: `m1s_v4_cleanannot`,
-  `mutsplicedb_m2s_v2_r50`, `clinvar_splice_m1s_v2_r100`. Bad:
-  `experiment2`, `final_run`, `test`.
+- **Artifact name** must be self-describing, and every version token must
+  name the axis it belongs to. Good: `m1s.concat_fusion.cleanannot`,
+  `mutsplicedb_m2s_encode_rbp_r50`. Bad: `experiment2`, `final_run`, `test` —
+  and equally bad, a bare ordinal like `m1s_v4` that never says whether the
+  `4` is an architecture, a corpus, or a run.
+  Full rules: [Naming convention](../meta_layer/methods/naming_convention.md).
+  Existing directories keep their historical names (`m1s_v4_cleanannot`);
+  the decoder table in that page resolves them.
 - For dated runs that are 1-of-N replicates, suffix the date:
   `openspliceai_GRCh38_20260303_141338/`.
 - Inside an artifact dir, conventional files: `best.pt`, `config.pt`,
@@ -51,7 +56,7 @@ A **tag**, never a path component. Status changes never move files.
 | Tag | Meaning |
 |---|---|
 | `active` | Current best of its class; referenced by code/docs; promoted in `settings.yaml` (for models). |
-| `baseline` | Kept as a historical reference for comparison (e.g. v2 vs v4). Not promoted. |
+| `baseline` | Kept as a historical reference for comparison (e.g. the `encode_rbp` corpus vs `cleanannot`). Not promoted. |
 | `experimental` | Trained / produced but not yet plumbed through a runtime protocol. May graduate to `active` or be dropped. |
 | `archived` | Kept for reproducibility; not referenced by current code/docs. |
 | `placeholder` | Empty / pointer dir; the underlying work moved elsewhere (e.g. to a sibling project). |
@@ -103,9 +108,9 @@ notes: >                      # one-paragraph human description
   at F1-opt, P/R/F1 ≈ 0.997. Promoted in settings.yaml.
 tags:                         # optional: free-form labels for filtered views
   - demo:ui_integration
-  - meta:v4
+  - corpus:cleanannot
 referenced_by:                # optional: code/docs that depend on this path
-  - settings.yaml meta_models.m1s_v4_cleanannot
+  - settings.yaml meta_models."m1s.concat_fusion.cleanannot"
   - examples/UI_integration/02_build_showcase_feature_cache.py
 ```
 
@@ -117,7 +122,8 @@ No enforced vocabulary, but the conventions in use:
 | Namespace | Examples | What it means |
 |---|---|---|
 | `demo:` | `demo:ui_integration`, `demo:interview_2026` | Which presentation/demo this artifact appears in. Critical for multi-purpose presentations — `registry list --tag demo:interview_2026` shows only the rows relevant to that scenario. |
-| `meta:` | `meta:v4`, `meta:v3`, `meta:v2` | Meta-layer model generation. |
+| `arch:` | `arch:concat_fusion`, `arch:xattn_fusion` | Which **neural architecture** the artifact embodies or evaluates. |
+| `corpus:` | `corpus:cleanannot`, `corpus:neuronal_rbp`, `corpus:encode_rbp` | Which **feature/label build** it was trained or evaluated on. |
 | `m3` / `m4` / `data_prep` / `eval` / `explainability` | (single-word) | Workstream or artifact role. |
 | `foundation_models:` | `foundation_models:evo2`, `foundation_models:splicebert` | Which foundation model this is associated with. |
 | `baseline` / `archived_sample` / `candidate_base_model` | (single-word) | Free-form role tags. |
@@ -125,6 +131,19 @@ No enforced vocabulary, but the conventions in use:
 When you introduce a new presentation or research direction, **mint a
 new `demo:` or workstream tag** rather than overloading an existing one
 — the registry list filter is the entire point.
+
+!!! warning "Retired: the `meta:vN` tag"
+
+    `meta:v4` / `meta:v3` / `meta:v2` meant "meta-layer model generation", but
+    the ordinal tracked the **corpus** while the same ordinals in module names
+    (`meta_splice_model_v3.py`, `meta_splice_v4_xattn.py`) tracked the
+    **architecture**. Two unrelated axes, one token — and it had already
+    produced a wrong label (`m3_v1` was tagged `meta:v1` though its `train.log`
+    reads `Arch: v3, variant: M3-S` on the cleanannot corpus).
+
+    Never mint a bare ordinal tag. Use `arch:` and `corpus:`, which name the
+    axis they belong to. Full rules:
+    [Model naming](../meta_layer/methods/naming_convention.md).
 
 ### Tool: `agentic_spliceai.registry`
 
@@ -143,7 +162,7 @@ python -m agentic_spliceai.registry validate
 python -m agentic_spliceai.registry add output/meta_layer/my_new_run \
     --status active \
     --produced-by "examples/meta_layer/07_train_sequence_model.py --mode m1" \
-    --tag meta:v4 --tag demo:interview_2026
+    --tag arch:concat_fusion --tag corpus:cleanannot --tag demo:interview_2026
 
 # Filtered listing — the multi-presentation lever
 python -m agentic_spliceai.registry list --tag demo:interview_2026
@@ -170,7 +189,7 @@ manager, not by string-concatenating. Two main entry points:
 ```python
 from agentic_spliceai.splice_engine.resources import (
     get_model_resources,   # base models: spliceai, openspliceai, ...
-    get_meta_model_config, # meta models: m1s_v4_cleanannot, ...
+    get_meta_model_config, # meta models: m1s.concat_fusion.cleanannot, ...
 )
 
 # Base model resources (build, GTF, FASTA, weights dir, etc.):
@@ -178,7 +197,7 @@ res = get_model_resources("openspliceai")
 gtf = res.get_registry().get_gtf_path()
 
 # Meta model config (dir, name, notes, ...):
-cfg = get_meta_model_config("m1s_v4_cleanannot")
+cfg = get_meta_model_config("m1s.concat_fusion.cleanannot")
 checkpoint = Path(cfg["dir"]) / "best.pt"
 ```
 
@@ -196,9 +215,9 @@ appeared under `output/<topic>/`.** Stub a starter manifest for it (and
 any other unregistered dirs from the same session) with one command:
 
 ```bash
-python -m agentic_spliceai.registry stub --tag meta:v2 --tag m3
+python -m agentic_spliceai.registry stub --tag corpus:cleanannot --tag m3
 # Found 1 unmanaged dir(s).
-#   stubbed: output/meta_layer/m3_v2_longread_aware/MANIFEST.yaml
+#   stubbed: output/meta_layer/m3s_longread_aware/MANIFEST.yaml
 #     (status=experimental, created=2026-06-01)
 ```
 
@@ -284,8 +303,8 @@ generated `REGISTRY.md`.
 
 | Question | Command |
 |---|---|
-| "Where is M1-S?" | `grep m1s output/REGISTRY.md`. In code: `get_meta_model_config('m1s_v4_cleanannot')`. |
-| "What's the v2 baseline for comparison?" | `python -m agentic_spliceai.registry list --status baseline` |
+| "Where is M1-S?" | `grep m1s output/REGISTRY.md`. In code: `get_meta_model_config('m1s.concat_fusion.cleanannot')`. |
+| "What's the pre-cleanannot baseline for comparison?" | `python -m agentic_spliceai.registry list --status baseline` |
 | "What's in the interview demo?" | `python -m agentic_spliceai.registry list --tag demo:interview_2026` |
 | "What's running for M3?" | `python -m agentic_spliceai.registry list --tag m3` |
 | "What experiments did we run on MutSpliceDB?" | Registry → rows under `output/m4_benchmarks/` + `examples/variant_analysis/results/`. |
