@@ -293,9 +293,9 @@ def main() -> int:
     parser.add_argument(
         "--n-heads", type=int, default=None,
         help=(
-            "Number of attention heads (v4_xattn and later). "
-            "Must divide --hidden-dim. Default: arch-specific (4 for v4_xattn). "
-            "Ignored for v3."
+            "Number of attention heads (attention-based archs only). "
+            "Must divide --hidden-dim. Default: arch-specific (4 for "
+            "xattn_fusion). Ignored for concat_fusion."
         ),
     )
     parser.add_argument(
@@ -304,7 +304,7 @@ def main() -> int:
             "Local windowed attention: each position attends to "
             "[i - W//2, i + W//2] only. Default None = global attention. "
             "Recommended 128–256 for splice prediction (biology is local). "
-            "Ignored for v3."
+            "Ignored for concat_fusion."
         ),
     )
     parser.add_argument("--window-size", type=int, default=5001)
@@ -347,14 +347,18 @@ def main() -> int:
     )
     # Late-imported to avoid loading heavy torch/model deps at --help time.
     from agentic_spliceai.splice_engine.meta_layer.models.factory import (
+        ARCH_ALIASES,
         ARCH_REGISTRY,
     )
     parser.add_argument(
-        "--arch", choices=list(ARCH_REGISTRY), default="v3",
+        "--arch", choices=list(ARCH_REGISTRY) + list(ARCH_ALIASES),
+        default="concat_fusion",
         help=(
-            "Model architecture. Defaults to v3 (current dilated-CNN). "
-            "Future stages (v4_attn, v4_xattn, v5_transformer) plug in via "
-            "the build_model() factory."
+            "Model architecture, named for its fusion mechanism: "
+            "'concat_fusion' (default; 3 streams concatenated into a 1x1 conv) "
+            "or 'xattn_fusion' (sequence cross-attends to the base+multimodal "
+            "signal). Retired ordinal names (v3, v4_xattn) still resolve, with "
+            "a warning. New architectures plug in via the build_model() factory."
         ),
     )
     parser.add_argument(
@@ -449,7 +453,7 @@ def main() -> int:
             "max_genes": 3,
             "patience": 1,
             "accumulation_steps": 1,
-            # n_heads=2 so smoke's hidden_dim=8 is divisible (v4_xattn and later).
+            # n_heads=2 so smoke's hidden_dim=8 is divisible (attention archs).
             "n_heads": 2,
         }
         applied = []
@@ -484,9 +488,11 @@ def main() -> int:
           f"accumulation = {eff_batch} effective")
 
     # ── Imports ──────────────────────────────────────────────────────
-    from agentic_spliceai.splice_engine.meta_layer.models.factory import build_model
     from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset import (
         SequenceLevelDataset, ShardedSequenceLevelDataset, build_gene_cache,
+    )
+    from agentic_spliceai.splice_engine.meta_layer.models.factory import (
+        build_model, resolve_arch,
     )
     from agentic_spliceai.splice_engine.meta_layer.data.shard_packing import (
         pack_gene_cache_to_shards, verify_shard_integrity,
@@ -724,13 +730,15 @@ def main() -> int:
         arch_overrides["seq_dilations"] = list(args.seq_dilations)
         arch_overrides["seq_n_blocks"] = len(args.seq_dilations)
     # Arch-specific overrides — only forward to archs that accept the field.
-    if args.n_heads is not None and args.arch in ("v4_xattn",):
+    # Resolve first so the legacy --arch v4_xattn spelling still gates correctly.
+    arch = resolve_arch(args.arch)
+    if args.n_heads is not None and arch in ("xattn_fusion",):
         arch_overrides["n_heads"] = args.n_heads
-    if args.attention_window_size is not None and args.arch in ("v4_xattn",):
+    if args.attention_window_size is not None and arch in ("xattn_fusion",):
         arch_overrides["attention_window_size"] = args.attention_window_size
 
     model, cfg = build_model(
-        arch=args.arch,
+        arch=arch,
         mode=args.mode,
         hidden_dim=args.hidden_dim,
         mm_channels=mm_channels,
@@ -808,7 +816,7 @@ def main() -> int:
     # context_padding could be derived from cfg.effective_context_padding.
     n_params = sum(p.numel() for p in model.parameters())
 
-    print(f"\n  Arch: {args.arch}, variant: {cfg.variant}, {n_params:,} params, H={cfg.hidden_dim}")
+    print(f"\n  Arch: {arch}, variant: {cfg.variant}, {n_params:,} params, H={cfg.hidden_dim}")
     print(f"  mm_channels={mm_channels}, merge_base_scores={cfg.merge_base_scores}")
     rf = getattr(model, "receptive_field", cfg.receptive_field)
     print(f"  Receptive field: {rf} bp, effective_context_padding: {ctx_padding} bp")

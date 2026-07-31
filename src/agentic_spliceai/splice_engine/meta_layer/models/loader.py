@@ -3,8 +3,15 @@
 A meta-splice checkpoint carries its architecture in ``config.pt``; the config
 *type* determines which model class to instantiate:
 
-  - ``MetaSpliceConfig``       → v3 dilated-CNN (:class:`MetaSpliceModel`)
-  - ``MetaSpliceXAttnConfig``  → v4 cross-attention (:class:`MetaSpliceXAttnModel`)
+  - ``MetaSpliceConfig``       → ``concat_fusion`` (:class:`MetaSpliceModel`)
+  - ``MetaSpliceXAttnConfig``  → ``xattn_fusion``  (:class:`MetaSpliceXAttnModel`)
+
+The config class is the *checkpoint's* record of its architecture, and it is
+load-bearing: ``config.pt`` pickles the fully-qualified class path, so neither
+the class nor its module may be renamed without breaking every checkpoint on
+disk. The ordinals in those Python names (``meta_splice_model_v3``,
+``meta_splice_v4_xattn``) are frozen history — the architecture *identifier*
+is the ``arch`` name above. See ``docs/meta_layer/methods/naming_convention.md``.
 
 This is the single source of truth for that dispatch so callers (the Bio Lab UI
 meta-model cache, the UI-integration example scripts, eval drivers) never
@@ -15,6 +22,35 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Tuple
+
+#: Config dataclass name → canonical ``arch`` name in
+#: :data:`...models.factory.ARCH_REGISTRY`. Keyed by class *name* rather than
+#: the class itself so this stays importable without pulling in torch.
+CONFIG_TYPE_TO_ARCH: dict[str, str] = {
+    "MetaSpliceConfig": "concat_fusion",
+    "MetaSpliceXAttnConfig": "xattn_fusion",
+}
+
+
+def arch_of_config(cfg: object) -> str:
+    """Return the canonical ``arch`` name a loaded config represents.
+
+    The checkpoint's config class is the authoritative record of which
+    architecture produced it — more reliable than a directory name or a
+    registry entry, both of which are hand-maintained.
+
+    Raises
+    ------
+    TypeError
+        If the config class is not a known meta-splice architecture.
+    """
+    name = type(cfg).__name__
+    if name not in CONFIG_TYPE_TO_ARCH:
+        raise TypeError(
+            f"Unknown meta-model config type {name!r}. Known: "
+            f"{sorted(CONFIG_TYPE_TO_ARCH)}"
+        )
+    return CONFIG_TYPE_TO_ARCH[name]
 
 
 def load_meta_model(model_dir: Path | str, device) -> Tuple[object, object]:
@@ -32,7 +68,8 @@ def load_meta_model(model_dir: Path | str, device) -> Tuple[object, object]:
     (model, config)
         ``model`` is in ``eval()`` mode on ``device``; ``config`` is the loaded
         config dataclass (carries ``window_size``, ``effective_context_padding``,
-        ``variant``, etc.).
+        ``variant``, etc.). Pass it to :func:`arch_of_config` for the
+        architecture name.
     """
     import torch
     from agentic_spliceai.splice_engine.meta_layer.models.meta_splice_model_v3 import (

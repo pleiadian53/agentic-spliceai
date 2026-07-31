@@ -223,8 +223,8 @@ class MetaSpliceXAttnModel(nn.Module):
             config = MetaSpliceXAttnConfig()
         if not config.merge_base_scores:
             raise NotImplementedError(
-                "v4_xattn requires merge_base_scores=True (2-stream design). "
-                "For 3-stream layouts, use the v3 model."
+                "xattn_fusion requires merge_base_scores=True (2-stream design). "
+                "For 3-stream layouts, use the concat_fusion model."
             )
 
         self.config = config
