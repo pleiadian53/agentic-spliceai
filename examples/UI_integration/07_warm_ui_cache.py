@@ -34,7 +34,10 @@ import urllib.request
 
 # BRCA1 + ALS panel — the showcase set warmed by 02_build_showcase_feature_cache.py.
 DEFAULT_GENES = ["BRCA1", "STMN2", "UNC13A", "SOD1", "TARDBP", "FUS", "C9orf72"]
-DEFAULT_META = ["m1s_v4_cleanannot", "m2s_v4_cleanannot"]
+# Canonical <variant>.<arch>.<corpus> keys. The retired spellings
+# (m1s_v4_cleanannot, ...) still resolve server-side via META_MODEL_ALIASES, so
+# passing either to --meta-models works.
+DEFAULT_META = ["m1s.concat_fusion.cleanannot", "m2s.concat_fusion.cleanannot"]
 
 
 def _get(url: str, timeout: float = 900.0) -> dict:
@@ -69,13 +72,13 @@ def main() -> int:
             try:
                 t = time.time()
                 d = _get(f"{base}/api/genome/{g}/predict?model={args.base_model}&meta={urllib.parse.quote(mm)}&threshold={args.threshold}")
-                print(f"  ↳ {mm:18s} {gene:10s} "
+                print(f"  ↳ {mm:28s} {gene:10s} "
                       f"FN {d['n_fn']:>3}→{d['meta_n_fn']:<3} | "
                       f"FP {d['n_fp']:>3}→{d['meta_n_fp']:<4} | "
                       f"meta TP={d['meta_n_tp']:>3}   ({time.time()-t:5.1f}s)")
                 ok += 1
             except Exception as e:  # noqa: BLE001
-                print(f"  ↳ {mm:18s} {gene:10s} FAILED: {e}")
+                print(f"  ↳ {mm:28s} {gene:10s} FAILED: {e}")
                 fail += 1
     print(f"\nWarmed {ok} responses, {fail} failed.")
     if fail:

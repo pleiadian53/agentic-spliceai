@@ -41,7 +41,7 @@ models behind the Lab UI — so it gets its own topic directory.
 - Roadmap: [`dev/meta_layer/UI_integration/m1s_m2s_ui_integration_plan.md`](../../dev/meta_layer/UI_integration/m1s_m2s_ui_integration_plan.md)
 - **Phases A–E DONE (2026-05-23): the genome view is now meta-capable.** The
   genome endpoint takes an optional `meta` param
-  (`/api/genome/{gene}/predict?model=openspliceai&meta=m1s_v3_neuronal&threshold=T`)
+  (`/api/genome/{gene}/predict?model=openspliceai&meta=m1s.concat_fusion.cleanannot&threshold=T`)
   and returns a **base-vs-meta overlay** — base donor/acceptor (the OpenSpliceAI
   scores the meta layer refines) plus the meta layer's donor/acceptor + its own
   TP/FP/FN at the same positions. The genome view adds a **Meta overlay**
