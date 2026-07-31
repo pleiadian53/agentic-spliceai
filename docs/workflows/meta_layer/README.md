@@ -109,7 +109,7 @@ they drive *which positions get sampled* and feed the foundation-model scalar st
 itself trains on dense `.npz` channels, not the parquet rows. Keep this distinction in mind at
 Stages 3–4.
 
-### 3. Three independent config levers (and two confusingly-named "v4"s)
+### 3. Three independent config levers
 
 Nothing about the architecture lives in a YAML. Model identity is set by two CLI flags at training
 time plus one promotion registry:
@@ -117,14 +117,22 @@ time plus one promotion registry:
 | Lever | Where | Controls |
 |-------|-------|----------|
 | `--mode {m1,m2,m3}` | `07_train_sequence_model.py` | **variant / label source** — `m1`=canonical/MANE, `m2`=alt/Ensembl |
-| `--arch {v3,v4_xattn}` | `07_train_sequence_model.py` | **neural architecture** — `v3` (default, promoted) vs `v4_xattn` (cross-attention, WIP) |
+| `--arch {concat_fusion,xattn_fusion}` | `07_train_sequence_model.py` | **neural architecture** — `concat_fusion` (default, promoted) vs `xattn_fusion` (cross-attention, WIP) |
 | `meta_models:` block | `config/settings.yaml` | **promotion pointer** — which output dir is the canonical M1-S / M2-S |
 
-!!! warning "`v4_cleanannot` is *not* the `v4_xattn` architecture"
-    The promoted directories `m1s_v4_cleanannot` / `m2s_v4_cleanannot` carry a **data/experiment**
-    version tag ("v4" = minus-strand-corrected clean annotation + neuronal-RBP union). The models
-    inside are still **architecture v3** — `config.pt` is the v3 `MetaSpliceConfig`. Do not read the
-    directory "v4" as the neural `--arch v4_xattn`. They are orthogonal axes.
+These levers are **orthogonal**, and each one has its own history. A rebuilt training corpus does
+not imply a new architecture, and vice versa — so no version number is allowed to float free of the
+axis it belongs to. The promoted model is
+`m1s.concat_fusion.cleanannot`: variant M1-S, `concat_fusion` architecture, `cleanannot` corpus.
+
+!!! note "Reading the older directory names"
+    Checkpoint directories keep their historical names, so you will still see
+    `output/meta_layer/m1s_v4_cleanannot` on disk. That "v4" is the **corpus** generation, and the
+    model inside is the `concat_fusion` architecture — the ordinal never referred to
+    `meta_splice_v4_xattn.py`. The
+    [naming convention](../../meta_layer/methods/naming_convention.md) carries a decoder table for
+    every artifact, and `scripts/check_meta_model_registry.py` verifies each declared architecture
+    against what is actually pickled in its `config.pt`.
 
 ---
 

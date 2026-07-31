@@ -70,7 +70,7 @@ Every model directory carries a `MANIFEST.yaml` recording how it was produced:
 ```yaml
 status: active
 produced_by: 07_train_sequence_model.py --mode m1
-referenced_by: settings.yaml meta_models.m1s_v4_cleanannot
+referenced_by: settings.yaml meta_models."m1s.concat_fusion.cleanannot"
 ```
 
 Directory-level provenance rolls up into `output/REGISTRY.md`. Superseded models
@@ -88,21 +88,31 @@ The `meta_models:` block is a pointer registry:
 
 ```yaml
 meta_models:
-  m1s_v4_cleanannot:
+  m1s.concat_fusion.cleanannot:      # <variant>.<arch>.<corpus>
     name: "M1-S (canonical)"
     variant: "M1-S"
-    dir: "output/meta_layer/m1s_v4_cleanannot"
+    arch: "concat_fusion"
+    corpus: "cleanannot"
+    dir: "output/meta_layer/m1s_v4_cleanannot"   # historical dir name, decoupled
     base_model: "openspliceai"
-  m2s_v4_cleanannot:
+  m2s.concat_fusion.cleanannot:
     name: "M2-S (alternative)"
     variant: "M2-S"
+    arch: "concat_fusion"
+    corpus: "cleanannot"
     dir: "output/meta_layer/m2s_v4_cleanannot"
     base_model: "openspliceai"
 ```
 
-This block — and *only* this block — decides which directory is canonical. It carries no architecture
-or hyperparameters (those live in the checkpoint's `config.pt`); it is purely "which trained bundle is
-the official M1-S / M2-S." It is consumed by `model_resources.py`
+The **key** is the canonical model ID and names all three axes; the **`dir`** is just where the bytes
+live, so checkpoint directories keep their historical names. Retired keys (`m1s_v4_cleanannot`, …)
+still resolve through `META_MODEL_ALIASES`, so older scripts and bookmarked URLs keep working. See
+[Naming convention](../../meta_layer/methods/naming_convention.md); verify with
+`python scripts/check_meta_model_registry.py`.
+
+This block — and *only* this block — decides which directory is canonical. The `arch`/`corpus` fields
+are declarative labels for humans and the consistency checker; the authoritative hyperparameters live
+in the checkpoint's `config.pt`. It is consumed by `model_resources.py`
 (`list_available_meta_models()` / `get_meta_model_config()`), which is how the inference path and the
 Bio Lab UI discover a meta model by name.
 

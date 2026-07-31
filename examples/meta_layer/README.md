@@ -34,7 +34,7 @@ see the published series:
 
 | Script | Purpose |
 |--------|---------|
-| `07_train_sequence_model.py` | **Primary trainer** for M1-S / M2-S / M3-S. Variant via `--mode {m1,m2,m3}`, architecture via `--arch {v3,v4_xattn}`. |
+| `07_train_sequence_model.py` | **Primary trainer** for M1-S / M2-S / M3-S. Variant via `--mode {m1,m2,m3}`, architecture via `--arch {concat_fusion,xattn_fusion}`. |
 | `01_xgboost_baseline.py` | M1-P position-level XGBoost baseline. |
 | `14_train_candidate_refiner.py` | M3-R candidate-refiner (XGBoost reranker, base-matched hard negatives). |
 

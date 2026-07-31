@@ -57,7 +57,7 @@ python examples/meta_layer/13_evaluate_m3_novel.py --mode eval \
 `--mode eval` scores **base / M1-S / M2-S / M3-v1 / M3-v1-mm0 / M3-v1.1** on the *same* candidate set, so
 every number is meta-vs-base on identical genes. It **fails fast** if base scores are missing (they would
 silently become a uniform prior and invalidate the eval) and loads each checkpoint via the config-type
-dispatcher `load_meta_model` (not the v3-hardcoded path in `08`/`09`).
+dispatcher `load_meta_model` (not the `concat_fusion`-hardcoded path in `08`/`09`).
 
 ## M3-R — refiner eval
 

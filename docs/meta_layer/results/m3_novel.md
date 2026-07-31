@@ -39,6 +39,13 @@ site above the decoys *in the same gene?*). That within-gene framing is central 
 A 3-class sequence-CNN recognizer (the M2-S backbone with junction dropped) that ranks candidate novel
 sites per gene. On the anti-circular D1 truth, it is the only meta model that improves on base:
 
+!!! info "What **M3-v1** names"
+    Canonical ID **`m3s.concat_fusion.cleanannot`** — variant M3-S, `concat_fusion` architecture,
+    `cleanannot` corpus. "v1" is the **training run**, not an architecture or a corpus generation;
+    it is the first M3 fit, and `M3-v1.1` below is the confirmed-only retrain of the same three
+    axes. Checkpoint: `output/meta_layer/m3_v1/`. See the
+    [naming convention](../methods/naming_convention.md).
+
 | Model | P@5 | R@5 | P@20 | R@20 |
 |-------|-----|-----|------|------|
 | Base | 0.277 | 0.160 | 0.160 | 0.315 |

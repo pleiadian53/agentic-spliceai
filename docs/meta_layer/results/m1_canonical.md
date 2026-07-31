@@ -85,15 +85,23 @@ the decisive evidence for canonical sites.
 
 ### Version history
 
-| Version | What changed | Result |
-|---------|--------------|--------|
-| v1 (prob blend) | probability-space blend of base + meta | val PR-AUC 0.9899, test 0.9994 |
-| v2 (logit blend) | learned logit-space blend (α = 0.535, per-class T = [1.18, 0.94, 1.14]) | val PR-AUC 0.9954, test 0.9996; FN 643, FP 13,427; recovers 93–95% of base signal on MYBPC3 donor-loss (v1: 68–71%) |
-| **v4 (`cleanannot`)** | minus-strand-corrected clean annotation + neuronal-RBP union | **current promoted model** — macro PR-AUC 0.9986 → 0.9998 |
+Every entry below is the **same architecture** (`concat_fusion`). What changed was the blend
+hyperparameter, then the training corpus — two different axes, which the old `vN` labels did not
+distinguish. Axis names in parentheses.
 
-The "v4" here is a **data/experiment** version, not the `v4_xattn` neural architecture — the promoted
-model is architecture v3. See the
-[workflow overview](../../workflows/meta_layer/README.md#3-three-independent-config-levers-and-two-confusingly-named-v4s).
+| Step | Axis that moved | What changed | Result |
+|------|-----------------|--------------|--------|
+| prob blend | hyperparameter | probability-space blend of base + meta | val PR-AUC 0.9899, test 0.9994 |
+| logit blend | hyperparameter | learned logit-space blend (α = 0.535, per-class T = [1.18, 0.94, 1.14]) | val PR-AUC 0.9954, test 0.9996; FN 643, FP 13,427; recovers 93–95% of base signal on MYBPC3 donor-loss (prob blend: 68–71%) |
+| `encode_rbp` → `neuronal_rbp` | **corpus** | RBP channel widened to the neuronal union | superseded before promotion |
+| **`neuronal_rbp` → `cleanannot`** | **corpus** | minus-strand-corrected annotation | **current promoted model** — macro PR-AUC 0.9986 → 0.9998 |
+
+Blend mode is a `config.pt` field, not a version — every checkpoint on disk now uses `logit`.
+The promoted model's canonical ID is **`m1s.concat_fusion.cleanannot`**; its directory keeps the
+historical name `m1s_v4_cleanannot`, where the `v4` is the corpus generation and never referred to
+the `xattn_fusion` architecture. See the
+[naming convention](../methods/naming_convention.md) and the
+[workflow overview](../../workflows/meta_layer/README.md#3-three-independent-config-levers).
 
 ---
 

@@ -4,6 +4,15 @@ How a model trained on one set of splice sites generalizes (or fails to
 generalize) to splice sites it has never seen, and what this tells us
 about the architecture and training data.
 
+> **Naming note.** Throughout this document, **v1** and **v2** refer to the
+> **blend mode** — probability-space (v1) vs logit-space (v2) blending of base
+> and meta logits. That is a *hyperparameter*, not an architecture or a corpus
+> generation: both are the `concat_fusion` architecture, and `blend_mode` is now
+> a field in `config.pt` (every checkpoint on disk uses `logit`). The v1/v2
+> labels are retained here because they are the vocabulary the experiment was
+> recorded in. See
+> [naming_convention.md](../../../docs/meta_layer/methods/naming_convention.md).
+
 ---
 
 ## 1. The Setup

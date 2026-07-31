@@ -322,15 +322,20 @@ support for annotated alt isoforms, not annotation artifacts.**
 
 ## 5. Implications
 
-### For interpreting M2-S v2 results
+> **Naming note.** The "v2" / "v3" in this section are **corpus** generations
+> (`encode_rbp`, then `neuronal_rbp`), not architectures — every M2-S discussed
+> here is the `concat_fusion` architecture. See
+> [naming_convention.md](../../../docs/meta_layer/methods/naming_convention.md).
 
-M2-S v2's alt-site recall gains (+6.7 points over v1) are driven by
-junction features that actually fire. The ~45% of alt-only sites with
+### For interpreting the `encode_rbp` M2-S results
+
+That model's alt-site recall gains (+6.7 points over the preceding run) are
+driven by junction features that actually fire. The ~45% of alt-only sites with
 legitimate junction support is where those gains come from. The other
 ~55% must be recovered (if at all) via sequence + conservation, which
 is harder.
 
-### For M2-S v3 design
+### For the next M2-S corpus
 
 - Filtering the Ensembl splice-site TSV to exclude retained_intron,
   NMD, and pseudogene-only sites before training would reduce label

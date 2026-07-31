@@ -65,16 +65,20 @@ Two orthogonal choices define the model, and neither lives in a YAML:
 | Flag | Default | Effect |
 |------|---------|--------|
 | `--mode {m1,m2,m3}` | `m1` | Variant + label source. `m1` → M1-S, MANE. |
-| `--arch {v3,v4_xattn}` | `v3` | Neural architecture. `v3` = dilated-CNN with concat fusion (promoted); `v4_xattn` = cross-attention fusion (WIP, not yet promoted). |
+| `--arch {concat_fusion,xattn_fusion}` | `concat_fusion` | Neural architecture. `concat_fusion` = dilated CNN, three streams concatenated into a 1×1 conv (promoted); `xattn_fusion` = cross-attention fusion (WIP, not yet promoted). Legacy `v3` / `v4_xattn` still accepted, with a warning. |
 
-The chosen architecture's config dataclass (`MetaSpliceConfig` for v3, `MetaSpliceXAttnConfig` for
-v4_xattn) is built by the model factory and **pickled to `config.pt`** as the definitive record of how
-the checkpoint was constructed. Evaluation reloads it from there.
+The chosen architecture's config dataclass (`MetaSpliceConfig` for `concat_fusion`,
+`MetaSpliceXAttnConfig` for `xattn_fusion`) is built by the model factory and **pickled to
+`config.pt`** as the definitive record of how the checkpoint was constructed. Evaluation reloads it
+from there, and `loader.arch_of_config()` maps the class back to its architecture name — which is
+why the class names themselves can never be renamed.
 
-!!! warning "`m1s_v4_cleanannot` is a data version, not `--arch v4_xattn`"
-    The `v4_cleanannot` in the output directory name is an **experiment/data** tag (clean minus-strand
-    annotation + neuronal-RBP union). The promoted M1-S is architecture **v3**. The two "v4"s are
-    unrelated axes — see the [series overview](README.md#3-three-independent-config-levers-and-two-confusingly-named-v4s).
+!!! note "Reading `m1s_v4_cleanannot`"
+    The `v4_cleanannot` in the output directory name is the **corpus** generation (clean
+    minus-strand annotation + neuronal-RBP union); the architecture is `concat_fusion`. The
+    canonical ID for this model is `m1s.concat_fusion.cleanannot`, which names both axes —
+    see the [series overview](README.md#3-three-independent-config-levers) and the
+    [naming convention](../../meta_layer/methods/naming_convention.md).
 
 ---
 
