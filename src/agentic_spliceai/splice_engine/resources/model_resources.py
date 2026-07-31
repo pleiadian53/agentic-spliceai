@@ -282,11 +282,44 @@ def list_available_models() -> list[str]:
     return list(cfg.base_models.keys()) if cfg.base_models else []
 
 
+#: Retired meta-model keys → canonical ``<variant>.<arch>.<corpus>`` keys.
+#:
+#: The old keys embedded an ordinal (``v4``) that named the *corpus* generation
+#: while the same ordinal elsewhere named an *architecture* generation — two
+#: unrelated axes, one token. They stay resolvable so the ~100 existing
+#: references across docs, example scripts and result files keep working; new
+#: code should use the canonical key.
+#: See ``docs/meta_layer/methods/naming_convention.md``.
+META_MODEL_ALIASES: dict[str, str] = {
+    "m1s_v4_cleanannot": "m1s.concat_fusion.cleanannot",
+    "m2s_v4_cleanannot": "m2s.concat_fusion.cleanannot",
+    "m3_v1": "m3s.concat_fusion.cleanannot",
+}
+
+
+def resolve_meta_model_name(name: str) -> str:
+    """Normalize a meta-model key, accepting retired aliases.
+
+    Unknown names pass through unchanged so the caller's own lookup produces
+    the error message (with the configured-key list).
+
+    Examples
+    --------
+    >>> resolve_meta_model_name("m1s.concat_fusion.cleanannot")
+    'm1s.concat_fusion.cleanannot'
+    >>> resolve_meta_model_name("m1s_v4_cleanannot")
+    'm1s.concat_fusion.cleanannot'
+    """
+    return META_MODEL_ALIASES.get(name, name)
+
+
 def list_available_meta_models(status: str | None = "promoted") -> list[str]:
     """List configured meta-layer models (M*-S).
 
-    Returns the names from the ``meta_models`` block of settings.yaml
-    (e.g. ``['m1s_v4_cleanannot', 'm2s_v4_cleanannot']``). Empty if none configured.
+    Returns the canonical ``<variant>.<arch>.<corpus>`` keys from the
+    ``meta_models`` block of settings.yaml. Empty if none configured.
+    Retired aliases are never returned — pass them *in* to
+    :func:`get_meta_model_config`, but read canonical keys *out* of here.
 
     Parameters
     ----------
@@ -304,9 +337,9 @@ def list_available_meta_models(status: str | None = "promoted") -> list[str]:
     Examples
     --------
     >>> list_available_meta_models()                    # doctest: +SKIP
-    ['m1s_v4_cleanannot', 'm2s_v4_cleanannot']
+    ['m1s.concat_fusion.cleanannot', 'm2s.concat_fusion.cleanannot']
     >>> list_available_meta_models(status=None)         # doctest: +SKIP
-    ['m1s_v4_cleanannot', 'm2s_v4_cleanannot', 'm3_v1']
+    ['m1s.concat_fusion.cleanannot', 'm2s.concat_fusion.cleanannot', 'm3s.concat_fusion.cleanannot']
     """
     cfg = load_config()
     if not cfg.meta_models:
@@ -323,18 +356,30 @@ def list_available_meta_models(status: str | None = "promoted") -> list[str]:
 def get_meta_model_config(name: str) -> dict:
     """Return the settings.yaml config dict for a meta-layer model.
 
+    Parameters
+    ----------
+    name : str
+        Canonical ``<variant>.<arch>.<corpus>`` key, or a retired key from
+        :data:`META_MODEL_ALIASES`.
+
     Raises
     ------
     ValueError
-        If ``name`` is not in the ``meta_models`` block.
+        If ``name`` is neither a configured key nor a known alias.
+
+    Examples
+    --------
+    >>> get_meta_model_config("m1s.concat_fusion.cleanannot")["arch"]  # doctest: +SKIP
+    'concat_fusion'
     """
     cfg = load_config()
     meta = cfg.meta_models or {}
-    if name not in meta:
+    resolved = resolve_meta_model_name(name)
+    if resolved not in meta:
         raise ValueError(
             f"Unknown meta model: {name}. Configured: {list(meta.keys())}"
         )
-    return meta[name]
+    return meta[resolved]
 
 
 def get_model_info(model_name: str) -> dict:

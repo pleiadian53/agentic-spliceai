@@ -25,6 +25,8 @@ from .model_resources import (
     list_available_models,
     list_available_meta_models,
     get_meta_model_config,
+    resolve_meta_model_name,
+    META_MODEL_ALIASES,
     get_model_info,
 )
 from .schema import (
@@ -46,6 +48,8 @@ __all__ = [
     'list_available_models',
     'list_available_meta_models',
     'get_meta_model_config',
+    'resolve_meta_model_name',
+    'META_MODEL_ALIASES',
     'get_model_info',
     # Registry
     'Registry',
