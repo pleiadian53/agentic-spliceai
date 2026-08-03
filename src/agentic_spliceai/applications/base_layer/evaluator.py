@@ -206,29 +206,55 @@ def _compute_metrics(
     # chromosomes, we rely on the predictor's processed_genes.
     target_genes = list(genes) if genes else sorted(pred_result.processed_genes)
 
-    annotations = prepare_splice_site_annotations(
-        target_genes=target_genes,
+    # Resolve the annotation cache directory from the predictor's OWN declared
+    # build/annotation_source rather than a settings.yaml lookup, so predictors
+    # registered only via predictors.yaml (no base_models entry) also evaluate.
+    from agentic_spliceai.splice_engine.resources.model_resources import ModelResources
+
+    annotations_dir = ModelResources(
+        model_name=predictor.name,
         build=predictor.training_build,
         annotation_source=predictor.annotation_source,
+    ).get_annotations_dir()
+
+    # prepare_splice_site_annotations returns a result dict, not a DataFrame.
+    annotations_result = prepare_splice_site_annotations(
+        output_dir=str(annotations_dir),
+        genes=target_genes,
+        build=predictor.training_build,
+        annotation_source=predictor.annotation_source,
+        verbosity=0,
     )
+    annotations_df = annotations_result.get("splice_sites_df")
+    if annotations_df is None or annotations_df.height == 0:
+        logger.warning(
+            "No annotated splice sites found for %d target gene(s); "
+            "metrics will be empty.", len(target_genes),
+        )
+        return {"predictor": predictor.name, "threshold": threshold}
 
     if verbosity >= 1:
         logger.info(
             "Evaluating %d predicted positions against %d annotated sites...",
-            pred_result.positions.height,
-            getattr(annotations, "height", len(annotations))
-            if annotations is not None else 0,
+            pred_result.positions.height, annotations_df.height,
         )
 
-    eval_metrics = evaluate_splice_site_predictions(
-        predictions_df=pred_result.positions,
-        annotations_df=annotations,
+    # evaluate_splice_site_predictions consumes the per-gene dict emitted by
+    # predict_splice_sites_for_genes(output_format='dict'), keyed by gene_id to
+    # match the annotation table — not a long-format DataFrame.
+    predictions = _positions_df_to_gene_dict(pred_result.positions)
+
+    _error_df, positions_df, pr_metrics = evaluate_splice_site_predictions(
+        predictions=predictions,
+        annotations_df=annotations_df,
         threshold=threshold,
+        collect_tn=False,
+        verbosity=0,
+        return_pr_metrics=True,
     )
 
-    # Normalize to a flat dict. evaluate_splice_site_predictions may return
-    # a DataFrame, dict, or custom object depending on library vintage.
-    metrics = _flatten_eval(eval_metrics)
+    metrics = _summarize_positions(positions_df)
+    metrics.update(pr_metrics)
     metrics["predictor"] = predictor.name
     metrics["training_build"] = predictor.training_build
     metrics["annotation_source"] = predictor.annotation_source
@@ -241,23 +267,79 @@ def _compute_metrics(
     return metrics
 
 
-def _flatten_eval(obj: Any) -> Dict[str, Any]:
-    """Flatten library-produced eval output into a dict of scalars."""
-    if obj is None:
+def _positions_df_to_gene_dict(positions_df: pl.DataFrame) -> dict[str, dict[str, Any]]:
+    """Adapt long-format predictions to the per-gene dict the evaluator wants.
+
+    Keyed by ``gene_id`` because that is what the annotation table joins on;
+    ``strand`` is carried through because the evaluator needs it and it is not
+    recoverable from the positions alone. Positions are sorted ascending, since
+    minus-strand predictors emit them in descending genomic order.
+    """
+    if positions_df is None or positions_df.height == 0:
         return {}
-    if isinstance(obj, dict):
-        return {k: v for k, v in obj.items()}
-    if isinstance(obj, pl.DataFrame):
-        if obj.height == 0:
-            return {}
-        # Single-row frame -> dict; multi-row -> record keyed by first col.
-        if obj.height == 1:
-            return dict(zip(obj.columns, obj.row(0)))
-        return {"rows": obj.to_dicts()}
-    # Duck-type for custom result objects.
-    if hasattr(obj, "__dict__"):
-        return {k: v for k, v in vars(obj).items() if not k.startswith("_")}
-    return {"result": obj}
+
+    key = "gene_id" if "gene_id" in positions_df.columns else "gene"
+    predictions: dict[str, dict[str, Any]] = {}
+
+    for (gene_id,), gene_df in positions_df.group_by([key], maintain_order=True):
+        gene_df = gene_df.sort("position")
+        entry: dict[str, Any] = {
+            "positions": gene_df["position"].to_list(),
+            "donor_prob": gene_df["donor_prob"].to_list(),
+            "acceptor_prob": gene_df["acceptor_prob"].to_list(),
+        }
+        if "neither_prob" in gene_df.columns:
+            entry["neither_prob"] = gene_df["neither_prob"].to_list()
+        for col, name in (("chrom", "chrom"), ("strand", "strand"), ("gene", "gene_name")):
+            if col in gene_df.columns:
+                entry[name] = gene_df[col][0]
+        predictions[str(gene_id)] = entry
+
+    return predictions
+
+
+def _summarize_positions(positions_df: pl.DataFrame) -> dict[str, Any]:
+    """Reduce classified positions to headline counts and rates.
+
+    Reported at the caller's threshold. Splice sites are a small fraction of
+    positions, so precision/recall/F1 are the meaningful summary — accuracy
+    would be ~1.0 for any model and is deliberately not reported.
+    """
+    if positions_df is None or positions_df.height == 0:
+        return {"n_tp": 0, "n_fp": 0, "n_fn": 0}
+
+    pred_types = positions_df["pred_type"].to_list()
+    tp = pred_types.count("TP")
+    fp = pred_types.count("FP")
+    fn = pred_types.count("FN")
+
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+
+    metrics: dict[str, Any] = {
+        "n_tp": tp, "n_fp": fp, "n_fn": fn,
+        "precision": round(precision, 6),
+        "recall": round(recall, 6),
+        "f1": round(f1, 6),
+    }
+
+    # Per-site-type breakdown — donors and acceptors fail differently.
+    if "splice_type" in positions_df.columns:
+        for site_type in ("donor", "acceptor"):
+            sub = positions_df.filter(pl.col("splice_type") == site_type)
+            if sub.height == 0:
+                continue
+            types = sub["pred_type"].to_list()
+            s_tp, s_fp, s_fn = types.count("TP"), types.count("FP"), types.count("FN")
+            metrics[f"{site_type}_n_tp"] = s_tp
+            metrics[f"{site_type}_n_fp"] = s_fp
+            metrics[f"{site_type}_n_fn"] = s_fn
+            metrics[f"{site_type}_recall"] = round(
+                s_tp / (s_tp + s_fn) if (s_tp + s_fn) else 0.0, 6
+            )
+
+    return metrics
 
 
 def _persist_metrics(metrics: Dict[str, Any], *, output_dir: Path) -> None:
