@@ -29,9 +29,6 @@ from agentic_spliceai.splice_engine.base_layer.data.preparation import (
     prepare_splice_site_annotations,
     prepare_gene_data,
 )
-from agentic_spliceai.splice_engine.base_layer.prediction.core import (
-    predict_splice_sites_for_genes,
-)
 from agentic_spliceai.splice_engine.base_layer.prediction.evaluation import (
     evaluate_splice_site_predictions,
     filter_annotations_by_transcript,
@@ -39,8 +36,9 @@ from agentic_spliceai.splice_engine.base_layer.prediction.evaluation import (
 from . import config
 from . import m3_inference
 from . import meta_metrics
+from .base_inference import is_servable, predict_gene as base_predict_gene
 from .gene_cache import get_genes, get_gene_stats, get_chromosomes
-from .model_cache import get_models as get_cached_models, is_cached as is_model_cached
+from .model_cache import is_cached as is_model_cached
 from .meta_inference import build_overlay_predictions
 from .schemas import (
     GeneRecord, GeneListResponse, GeneStatsResponse, ModelInfo,
@@ -56,6 +54,18 @@ templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
 # Lifespan Management
 # =========================
 
+def servable_models() -> list[str]:
+    """Base models the UI both offers and can actually run.
+
+    The menu is declared in settings.yaml but predictions are served by two
+    different loaders, so a model can be declared without being loadable. Every
+    place that lists or validates a model goes through here, which makes the
+    invariant "if it's in the menu, a click works" structural rather than a
+    convention someone has to remember.
+    """
+    return [name for name in list_available_models() if is_servable(name)]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan."""
@@ -63,7 +73,11 @@ async def lifespan(app: FastAPI):
     logger.info(f"Templates: {config.TEMPLATES_DIR}")
     logger.info(f"Cache dir: {config.CACHE_DIR}")
 
-    models = list_available_models()
+    declared = list_available_models()
+    models = servable_models()
+    if len(models) != len(declared):
+        hidden = sorted(set(declared) - set(models))
+        logger.warning(f"Declared but not servable, hidden from menu: {hidden}")
     logger.info(f"Available models: {models}")
 
     yield
@@ -109,7 +123,7 @@ app.include_router(ingest_api.router)
 @app.get("/", response_class=HTMLResponse)
 async def gene_browser_page(request: Request):
     """Gene browser page."""
-    models = list_available_models()
+    models = servable_models()
     return templates.TemplateResponse("gene_browser.html", {
         "request": request,
         "models": models,
@@ -125,7 +139,7 @@ async def gene_browser_page(request: Request):
 async def get_models():
     """List available models with build info."""
     result = []
-    for name in list_available_models():
+    for name in servable_models():
         resources = get_model_resources(name)
         result.append(ModelInfo(
             name=name,
@@ -154,7 +168,7 @@ async def get_gene_list(
 ):
     """Paginated gene list with optional filtering."""
     # Validate model
-    available = list_available_models()
+    available = servable_models()
     if model not in available:
         return GeneListResponse(
             genes=[], total=0, page=page, per_page=per_page, total_pages=0
@@ -200,7 +214,7 @@ async def get_genes_stats(
     model: str = Query(..., description="Model name"),
 ):
     """Summary statistics for a model's gene set."""
-    available = list_available_models()
+    available = servable_models()
     if model not in available:
         return GeneStatsResponse(
             model=model, build="unknown", annotation_source="unknown",
@@ -216,7 +230,7 @@ async def get_chromosome_list(
     model: str = Query(..., description="Model name"),
 ):
     """Get sorted list of chromosomes for a model."""
-    available = list_available_models()
+    available = servable_models()
     if model not in available:
         return []
     return get_chromosomes(model)
@@ -419,7 +433,7 @@ async def novel_sites_candidates(
 @app.get("/genome/{gene_name}", response_class=HTMLResponse)
 async def genome_view_page(request: Request, gene_name: str):
     """Genome view page for a specific gene."""
-    models = list_available_models()
+    models = servable_models()
     # Show the human-readable `name` ("M1-S (canonical)") in the dropdown while
     # keeping the canonical <variant>.<arch>.<corpus> key as the option value —
     # the key is precise but not what a demo audience should be reading.
@@ -744,7 +758,7 @@ async def genome_predict(
     arrays carry the OpenSpliceAI scores the meta layer refines, and the
     ``meta_*`` fields carry the meta layer's prediction at the same positions.
     """
-    available = list_available_models()
+    available = servable_models()
     if model not in available:
         raise HTTPException(status_code=400, detail=f"Unknown model: {model}")
 
@@ -809,19 +823,15 @@ async def genome_predict(
                     detail=f"Gene '{gene_name}' not found in {build}/{annotation_source}",
                 )
 
-            # 3. Load ML models (cached after first call)
-            models = await get_cached_models(model)
-
-            # 4. Run prediction (~3-10s per gene)
-            predictions = await loop.run_in_executor(
-                None,
-                lambda: predict_splice_sites_for_genes(
-                    gene_df=genes_df,
-                    models=models,
-                    context=10000,
-                    output_format='dict',
-                    verbosity=0,
-                ),
+            # 3-4. Load the model and predict (~3-10s per gene). Dispatch to
+            # whichever loader serves this model — in-tree SpliceAI/OpenSpliceAI
+            # or the predictor registry — see server/bio/base_inference.py.
+            predictions = await base_predict_gene(
+                model_name=model,
+                gene_name=gene_name,
+                genes_df=genes_df,
+                loop=loop,
+                context=10000,
             )
 
             if not predictions:
