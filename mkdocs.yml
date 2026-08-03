@@ -1,13 +1,13 @@
 site_name: Agentic-SpliceAI
 site_description: Agentic-SpliceAI — open-source framework for adaptive splice-site prediction and novel isoform discovery with foundation models, multimodal evidence, and agentic AI.
-site_author: pleiadian53
+site_author: Po-Hsiang (Barnett) Chiu
 site_url: https://pleiadian53.github.io/agentic-spliceai/
 
 repo_name: pleiadian53/agentic-spliceai
 repo_url: https://github.com/pleiadian53/agentic-spliceai
 edit_uri: edit/main/docs/
 
-copyright: Copyright &copy; 2026 pleiadian53
+copyright: Copyright &copy; 2026 Po-Hsiang (Barnett) Chiu
 
 # Theme configuration
 theme:

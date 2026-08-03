@@ -15,10 +15,12 @@ multimodal evidence fusion and agentic AI validation.
 I publish under **Po-Hsiang Chiu** and also go by **Barnett Chiu**; both names
 refer to the same person and resolve to the ORCID iD above.
 
+- **Website:** <https://pleiadian53.github.io/>
 - **ORCID:** <https://orcid.org/0000-0001-8816-9799>
 - **Email:** <barnettchiu@gmail.com>
 - **GitHub:** [@pleiadian53](https://github.com/pleiadian53)
 - **Google Scholar:** <https://scholar.google.com/citations?user=EE3r5rgAAAAJ>
+- **LinkedIn:** <https://www.linkedin.com/in/barnettchiu53>
 
 <!-- Optional: add a current affiliation / title line here if you'd like one. -->
 
