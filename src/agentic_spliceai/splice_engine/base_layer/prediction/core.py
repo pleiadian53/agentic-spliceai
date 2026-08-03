@@ -121,6 +121,62 @@ def normalize_strand(strand: str) -> str:
         return strand
 
 
+def genomic_positions_for_indices(
+    *,
+    gene_start: int,
+    gene_end: int,
+    strand: str,
+    n: int,
+    transcript_offset: int = 0,
+) -> np.ndarray:
+    """Map per-nucleotide model output indices to absolute genomic coordinates.
+
+    This is the single definition of the index -> coordinate convention used
+    across the base layer. Index 0 is the first nucleotide the model saw, which
+    for a minus-strand gene is the *highest* genomic coordinate, because gene
+    sequences are handed to predictors already reverse-complemented (see the
+    contract on :func:`predict_splice_sites_for_genes`).
+
+    Getting this wrong is silent and severe: an ascending range on a
+    minus-strand gene places every call in its mirror-image position, so the
+    model scores 0.0 at every true site and looks broken when it is correct.
+
+    Parameters
+    ----------
+    gene_start, gene_end : int
+        Gene bounds in the same frame the caller's annotations use.
+    strand : str
+        '+' or '-' (anything ``normalize_strand`` accepts).
+    n : int
+        Number of output positions.
+    transcript_offset : int, default=0
+        Shift applied in *transcript* direction (downstream positive), for
+        checkpoints whose training labels sit off the annotated base. Default
+        0 = the annotation's own frame. Anchoring on ``gene_end`` for the minus
+        strand keeps this correct even when ``n`` is shorter than the gene.
+
+    Returns
+    -------
+    np.ndarray
+        int64 array of length ``n``.
+
+    Examples
+    --------
+    >>> genomic_positions_for_indices(
+    ...     gene_start=100, gene_end=104, strand='+', n=3
+    ... ).tolist()
+    [100, 101, 102]
+    >>> genomic_positions_for_indices(
+    ...     gene_start=100, gene_end=104, strand='-', n=3
+    ... ).tolist()
+    [104, 103, 102]
+    """
+    idx = np.arange(n, dtype=np.int64)
+    if normalize_strand(strand) == '-':
+        return gene_end - idx - transcript_offset
+    return gene_start + idx + transcript_offset
+
+
 def predict_splice_sites_for_genes(
     gene_df: pl.DataFrame,
     models: List,

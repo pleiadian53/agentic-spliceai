@@ -48,6 +48,27 @@ from ..protocol import PredictionResult
 logger = logging.getLogger(__name__)
 
 
+# Shift, in transcript direction, between this checkpoint's output index and
+# the annotated splice-site base. It is -1 because the two ends of the pipeline
+# disagree on coordinate frame: ``build_splice_labels`` places a label at
+# ``position - gene_start`` using the 0-based gene start stored in the training
+# parquet, while ``prepare_gene_data`` hands the serving path a 1-based GTF
+# start. The model therefore fires one index downstream of the true base.
+#
+# Verified by scanning peaks against annotated sites — every neighbouring
+# offset scores exactly 0 recovered sites, so this is a sharp fit rather than
+# fitted slack. Re-run that scan before changing it.
+#
+# This is specific to THIS checkpoint, not a project-wide frame error. The
+# in-tree models are correct at offset 0: base scores in the stored feature
+# store (analysis_sequences_chr*.parquet, produced through
+# predict_splice_sites_for_genes) peak exactly on the annotated base — measured
+# unanimously over ~22,900 sites across chr7/21/22 on both strands. So a new
+# adapter should start at transcript_offset=0 and only deviate if its own scan
+# says otherwise.
+CHECKPOINT_LABEL_OFFSET = -1
+
+
 # ---------------------------------------------------------------------------
 # Public factory (registered via predictors.yaml manifest)
 # ---------------------------------------------------------------------------
@@ -137,6 +158,10 @@ class FoundationModelPredictor:
         from agentic_spliceai.splice_engine.base_layer.data.preparation import (
             prepare_gene_data,
         )
+        from agentic_spliceai.splice_engine.base_layer.prediction.core import (
+            normalize_strand,
+        )
+
 
         gene_df = prepare_gene_data(
             genes=list(genes),
@@ -163,6 +188,7 @@ class FoundationModelPredictor:
             start = int(row.get("start") or row.get("gene_start") or 0)
             end = int(row.get("end") or row.get("gene_end") or 0)
             sequence = row.get("sequence")
+            strand = normalize_strand(str(row.get("strand", "+")))
 
             if not sequence or end <= start:
                 continue
@@ -170,8 +196,11 @@ class FoundationModelPredictor:
             try:
                 df = self._predict_gene(
                     gene_name=str(gene_symbol),
+                    gene_id=str(row.get("gene_id") or gene_symbol),
                     chrom=str(chrom),
                     start=start,
+                    end=end,
+                    strand=strand,
                     sequence=str(sequence),
                     verbosity=verbosity,
                 )
@@ -360,14 +389,21 @@ class FoundationModelPredictor:
         self,
         *,
         gene_name: str,
+        gene_id: str,
         chrom: str,
         start: int,
+        end: int,
+        strand: str,
         sequence: str,
         verbosity: int,
     ) -> Optional[pl.DataFrame]:
         """Run live inference for a single gene."""
         import torch
         from foundation_models.utils.chunking import chunk_sequence, stitch_embeddings
+
+        from agentic_spliceai.splice_engine.base_layer.prediction.core import (
+            genomic_positions_for_indices,
+        )
 
         fm = self._fm
         classifier = self._classifier
@@ -448,12 +484,24 @@ class FoundationModelPredictor:
             neither = (1.0 - donor - acceptor).astype(np.float32)
 
         n = int(min(donor.shape[0], acceptor.shape[0], gene_len))
-        positions = np.arange(start, start + n, dtype=np.int64)
 
+        positions = genomic_positions_for_indices(
+            gene_start=start,
+            gene_end=end,
+            strand=strand,
+            n=n,
+            transcript_offset=CHECKPOINT_LABEL_OFFSET,
+        )
+
+        # `gene_id` and `strand` make the output self-describing: a position is
+        # not interpretable without its strand, and downstream evaluation joins
+        # on gene_id (the annotation's key), not the display symbol.
         return pl.DataFrame({
             "chrom": [chrom] * n,
             "position": positions,
             "gene": [gene_name] * n,
+            "gene_id": [gene_id] * n,
+            "strand": [strand] * n,
             "donor_prob": donor[:n].astype(np.float32),
             "acceptor_prob": acceptor[:n].astype(np.float32),
             "neither_prob": neither[:n].astype(np.float32),
