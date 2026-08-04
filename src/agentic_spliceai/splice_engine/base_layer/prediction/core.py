@@ -295,9 +295,23 @@ def predict_splice_sites_for_genes(
         
         # Prepare input blocks
         input_blocks = prepare_input_sequence(sequence, context)
-        
+
         if verbosity >= 2:
             print(f"  Generated {len(input_blocks)} blocks")
+
+        # Index -> coordinate map for the whole gene, built once per gene from
+        # the shared convention rather than re-derived per position. Sized to
+        # the padded block span, since the final block runs past the gene end;
+        # those positions are trimmed below against the gene bounds.
+        n_mapped = len(input_blocks) * SPLICEAI_BLOCK_SIZE
+        if has_absolute_positions:
+            position_map = genomic_positions_for_indices(
+                gene_start=gene_start, gene_end=gene_end, strand=strand, n=n_mapped,
+            )
+        else:
+            # No gene bounds on the row: fall back to 1-based positions relative
+            # to the sequence rather than absolute genomic coordinates.
+            position_map = np.arange(1, n_mapped + 1, dtype=np.int64)
         
         # Predict for each block
         for block_index, block in enumerate(input_blocks):
@@ -312,25 +326,20 @@ def predict_splice_sites_for_genes(
             acceptor_prob = y[0, :, 1]
             neither_prob = y[0, :, 0]
             
-            # Position mapping: absolute genomic positions are computed here.
+            # Position mapping is read from the per-gene map built above; see
+            # genomic_positions_for_indices for the convention itself.
             # This pipeline does NOT need np.roll() coordinate adjustments.
             # See docstring Notes for details on low recall.
-            
+
             # Calculate block start position
             block_start = block_index * SPLICEAI_BLOCK_SIZE
-            
+
             # Store results with adjusted positions
             for i, (donor_p, acceptor_p, neither_p) in enumerate(
                 zip(donor_prob, acceptor_prob, neither_prob)
             ):
-                if has_absolute_positions:
-                    if strand == '+':
-                        absolute_position = gene_start + (block_start + i)
-                    else:  # strand == '-'
-                        absolute_position = gene_end - (block_start + i)
-                else:
-                    absolute_position = block_start + i + 1
-                
+                absolute_position = int(position_map[block_start + i])
+
                 pos_key = (gene_id, absolute_position)
                 
                 # Append probabilities (will be averaged for overlapping positions)
