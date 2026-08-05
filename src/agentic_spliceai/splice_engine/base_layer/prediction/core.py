@@ -201,7 +201,8 @@ def predict_splice_sites_for_genes(
     adjustment_dict : Optional[Dict[str, Dict[str, int]]], default=None
         UNUSED - This pipeline's position mapping is correct and does not require
         coordinate adjustments. Parameter retained for API compatibility.
-        If you see ~40% recall, see Notes about multi-transcript annotations.
+        See the Notes on multi-transcript annotations before reaching for a
+        coordinate adjustment to explain a low recall.
     output_format : str, default='dict'
         Output format: 'dict' for efficient dictionary, 'dataframe' for full DataFrame
     verbosity : int, default=1
@@ -230,20 +231,43 @@ def predict_splice_sites_for_genes(
         }
     }
     
-    **Understanding Low Recall (~40%)**
-    
-    If you observe ~40% recall against ground truth annotations, this is most likely
-    caused by evaluating against ALL transcripts (including alternative isoforms),
-    not a coordinate offset bug. SpliceAI primarily predicts canonical splice sites 
-    from major transcripts. Alternative/minor transcript sites often have zero signal.
-    
-    Investigation (2026-02) confirmed:
-    - This pipeline's position mapping is correct (no coordinate offset exists)
-    - Canonical transcript recall is ~82-90% (the true base model performance)
-    - All-transcript recall is ~40% due to 17+ transcripts per gene
-    - Missed sites have literally 0.0 scores within ±5bp (not a threshold issue)
-    
-    Use the evaluation's transcript filtering and gap analysis to understand this:
+    **Recall depends on how many transcripts you score against**
+
+    Recall against an annotation is driven by that annotation's transcript
+    multiplicity, not by the model. MANE carries one transcript per gene
+    (median 1.0); Ensembl carries a median of 8 for the same genes. Scoring a
+    MANE-trained model against the Ensembl union therefore adds minor-isoform
+    boundaries it was never trained to emit, and those score 0.0 outright —
+    this is a denominator effect, not a threshold or coordinate problem.
+
+    Measured on chr21 (208 genes with stored OpenSpliceAI scores, threshold
+    0.5, +/-2 window), the same predictions scored three ways:
+
+        MANE union (the training annotation)   3,561 sites   96.0% recall
+        Ensembl, canonical transcript only     3,826 sites   87.6%
+        Ensembl, all transcripts               4,765 sites   72.3%
+
+    Closing that last gap WITHOUT retraining the base model is what the meta
+    layer exists to do; the base scores become an input feature and multimodal
+    evidence recalibrates them. See the M2-S alternative-site evaluation in
+    examples/meta_layer/09_evaluate_alternative_sites.py, which scores only
+    sites present in the eval annotation and absent from MANE, so shared
+    canonical sites cannot inflate the result.
+
+    **A ~40% figure today means something else.** An earlier version of this
+    note reported ~40% all-transcript recall from a 2026-02 investigation and
+    attributed it to isoform multiplicity. That measurement predates the
+    minus-strand annotation fix of 2026-05-25. Re-measured on the same genes,
+    the pre-fix annotation gives 59.6% overall — plus strand 72.7%, minus
+    strand 48.4% — while the current annotation gives 72.3% with the strands
+    balanced (72.7% / 71.8%) and ~786 spurious minus-strand sites gone. Most
+    of that deficit was a coordinate bug, not biology. So if you see recall
+    near 40% now, suspect coordinates FIRST and validate with the GT/AG
+    dinucleotide oracle split by strand: a collapse on one strand only is the
+    signature, and a correct extractor scores ~0.98 on both.
+
+    Use the evaluation's transcript filtering and gap analysis to separate the
+    two effects:
     
     ```python
     from agentic_spliceai.splice_engine.base_layer.prediction.evaluation import (
