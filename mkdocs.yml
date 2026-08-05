@@ -147,6 +147,7 @@ nav:
           - Overview: meta_layer/results/README.md
           - M1 — Canonical: meta_layer/results/m1_canonical.md
           - M2 — Alternative: meta_layer/results/m2_alternative.md
+          - "M2 — Modality Attribution": meta_layer/results/m2_ablation.md
           - M3 — Novel: meta_layer/results/m3_novel.md
       - Methods:
           - Model Variants (M1–M4): meta_layer/methods/00_model_variants_m1_m4.md

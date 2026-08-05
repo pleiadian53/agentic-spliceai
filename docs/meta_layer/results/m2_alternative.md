@@ -85,3 +85,6 @@ it drops overall PR-AUC by 0.029, the largest single-modality effect (removing a
   reached the same conclusion: leverage is upstream in features and labels, not in fusion.
 - Junction evidence again carries the multimodal signal — consistent with M1, and a useful contrast
   with [M3](m3_novel.md), where junction is deliberately withheld as the prediction target.
+  **Now quantified**: see [M2-S Modality Attribution](m2_ablation.md). Multimodal evidence accounts for
+  ~80% of the lift over base, junction support for ~70% of that, and the remaining channels turn out to
+  be mutually redundant rather than inert.

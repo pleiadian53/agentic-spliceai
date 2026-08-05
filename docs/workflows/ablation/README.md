@@ -119,7 +119,9 @@ table looks like:
 | … | | |
 
 Published findings belong in the [results series](../../meta_layer/results/README.md), not here. This
-page is the method.
+page is the method. The worked example is
+[M2-S Modality Attribution](../../meta_layer/results/m2_ablation.md), which applies this protocol to the
+promoted alternative-site model.
 
 ---
 
