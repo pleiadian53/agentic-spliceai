@@ -32,6 +32,12 @@ is where multimodal refinement pays off most dramatically; and the novel-site fr
 learned recognizer (M3-v1) helps but genome-averaged multimodal evidence, by itself, does not
 ([M3-R](m3_novel.md#m3-r-the-candidate-refiner-milestone)).
 
+**Which signals earn that lift** is answered separately by
+[M2-S Modality Attribution](m2_ablation.md): multimodal evidence accounts for ~80% of M2-S's gain over
+base, junction support alone for ~70% of that, and the remaining channels prove mutually redundant
+rather than inert. It is also the clearest illustration of the operating-point convention below, since
+the same run shows a 90% false-negative reduction and a 76x false-positive increase at a 0.5 threshold.
+
 ---
 
 ## How to read these numbers
