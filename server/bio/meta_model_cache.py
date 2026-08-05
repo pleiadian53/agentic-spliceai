@@ -17,6 +17,8 @@ import torch
 from agentic_spliceai.splice_engine.meta_layer.models.loader import load_meta_model
 from agentic_spliceai.splice_engine.resources import get_meta_model_config
 
+from . import config
+
 logger = logging.getLogger(__name__)
 
 # In-memory cache: meta-model name -> (model, config)
@@ -36,7 +38,10 @@ def _load_meta_sync(name: str) -> Tuple[object, object]:
         return _meta_cache[name]
 
     spec = get_meta_model_config(name)  # raises ValueError if unknown
-    model_dir = Path(spec["dir"])
+    # settings.yaml stores `dir` relative to the project root, so anchor it
+    # there rather than to the process working directory (meta_metrics.py
+    # resolves the same field the same way). An absolute `dir` is preserved.
+    model_dir = config.PROJECT_ROOT / spec["dir"]
     if not (model_dir / "best.pt").exists():
         raise FileNotFoundError(
             f"Meta model '{name}' checkpoint not found at {model_dir}/best.pt"

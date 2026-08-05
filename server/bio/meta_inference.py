@@ -33,11 +33,18 @@ from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset impor
     _load_gene_npz,
 )
 
+from . import config
 from .meta_model_cache import get_meta_model_sync
 
 logger = logging.getLogger(__name__)
 
-UI_CACHE_DIR = Path("output/meta_layer/ui_cache/gene_cache")
+# Anchored to the project root, not the process working directory: a relative
+# path here made the meta overlay depend on where the server was launched from,
+# and the failure is silent — the cache lookup just misses and every showcase
+# gene falls back to streaming features. Note this is a DIFFERENT cache from the
+# M3 explorer's (config.M3_GENE_CACHE_DIR): 7 genes at 9 channels for the
+# genome-view overlay, vs 4,956 held-out genes for novel-site ranking.
+UI_CACHE_DIR = config.PROJECT_ROOT / "output" / "meta_layer" / "ui_cache" / "gene_cache"
 _DEVICE = torch.device("cpu")
 
 
