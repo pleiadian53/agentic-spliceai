@@ -254,17 +254,10 @@ def predict_splice_sites_for_genes(
     sites present in the eval annotation and absent from MANE, so shared
     canonical sites cannot inflate the result.
 
-    **A ~40% figure today means something else.** An earlier version of this
-    note reported ~40% all-transcript recall from a 2026-02 investigation and
-    attributed it to isoform multiplicity. That measurement predates the
-    minus-strand annotation fix of 2026-05-25. Re-measured on the same genes,
-    the pre-fix annotation gives 59.6% overall — plus strand 72.7%, minus
-    strand 48.4% — while the current annotation gives 72.3% with the strands
-    balanced (72.7% / 71.8%) and ~786 spurious minus-strand sites gone. Most
-    of that deficit was a coordinate bug, not biology. So if you see recall
-    near 40% now, suspect coordinates FIRST and validate with the GT/AG
-    dinucleotide oracle split by strand: a collapse on one strand only is the
-    signature, and a correct extractor scores ~0.98 on both.
+    Recall far below these figures is not explained by isoform multiplicity.
+    Suspect a coordinate or strand problem and validate with the GT/AG
+    dinucleotide oracle split by strand: a correct extractor scores ~0.98 on
+    both strands, and a collapse on one strand only is the signature.
 
     Use the evaluation's transcript filtering and gap analysis to separate the
     two effects:
