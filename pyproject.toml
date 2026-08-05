@@ -108,6 +108,17 @@ bio = [
     "biopython>=1.80",
     "pysam>=0.20",
     "pyvcf3>=1.0",
+    # All three are imported at run time rather than at module import, so a
+    # clean install without them succeeds and then fails partway into a
+    # pipeline. They went undeclared for months because a long-lived dev env
+    # already had them; only a fresh GPU pod surfaced it.
+    #   pyfaidx  — base_layer.data.genomic_extraction (FASTA slicing)
+    #   gffutils — utils.hgvs_resolver (GTF-backed transcript lookup)
+    #   mappy    — data.homology (minimap2 alignment for paralog detection,
+    #              which every leakage-clean eval split runs)
+    "pyfaidx>=0.7",
+    "gffutils>=0.12",
+    "mappy>=2.24",
 ]
 
 # Conservation / epigenetic track access (bigWig format)
