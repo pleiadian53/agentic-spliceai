@@ -8,8 +8,14 @@
 # alternative splice site prediction.
 #
 # Prerequisites:
-#   1. M2-S checkpoint: output/meta_layer/m2c/best.pt + config.pt
-#   2. Ensembl test cache: /runpod-volume/output/meta_layer/gene_cache_ensembl/test/
+#   1. M2-S checkpoint: output/meta_layer/m2s_v4_cleanannot/{best,config}.pt
+#   2. Ensembl test cache built on the cleanannot corpus, as produced by
+#      ops_eval_tissue_pod.sh:
+#      /runpod-volume/output/meta_layer/gene_cache_ensembl_cleanannot/test/
+#
+# Paths are overridable so a differently-named checkpoint or cache can be
+# pointed at without editing the script:
+#   CHECKPOINT=... CACHE_DIR=... bash ops_ablation_m2s_pod.sh
 #
 # Usage:
 #   ssh <cluster>
@@ -20,9 +26,9 @@
 set -e
 
 WORKDIR=~/sky_workdir
-CHECKPOINT=$WORKDIR/output/meta_layer/m2c/best.pt
-CACHE_DIR=/runpod-volume/output/meta_layer/gene_cache_ensembl/test
-OUTPUT_DIR=/runpod-volume/output/m2s_ablation
+CHECKPOINT="${CHECKPOINT:-$WORKDIR/output/meta_layer/m2s_v4_cleanannot/best.pt}"
+CACHE_DIR="${CACHE_DIR:-/runpod-volume/output/meta_layer/gene_cache_ensembl_cleanannot/test}"
+OUTPUT_DIR="${OUTPUT_DIR:-/runpod-volume/output/m2s_ablation}"
 
 cd "$WORKDIR"
 mkdir -p "$OUTPUT_DIR"
@@ -34,11 +40,18 @@ echo "  Cache:      $CACHE_DIR"
 echo "  Output:     $OUTPUT_DIR"
 echo "============================================================"
 
-# Verify cache exists
-CACHE_COUNT=$(find "$CACHE_DIR" -name "*.npz" | wc -l)
+# Verify prerequisites before burning GPU time on a run that cannot finish
+if [ ! -f "$CHECKPOINT" ]; then
+    echo "ERROR: checkpoint not found: $CHECKPOINT"
+    echo "  Stage it to the volume, or set CHECKPOINT=<path>."
+    exit 1
+fi
+CACHE_COUNT=$(find "$CACHE_DIR" -name "*.npz" 2>/dev/null | wc -l)
 echo "  Gene cache: $CACHE_COUNT genes"
 if [ "$CACHE_COUNT" -lt 100 ]; then
-    echo "ERROR: Cache too small. Build Ensembl test cache first."
+    echo "ERROR: cache too small or missing at $CACHE_DIR"
+    echo "  Build it with ops_eval_tissue_pod.sh (~3.4 h, needs the bigWig cache),"
+    echo "  or set CACHE_DIR=<path> to an existing Ensembl test cache."
     exit 1
 fi
 
@@ -85,8 +98,12 @@ echo "Results: $OUTPUT_DIR/eval_ablation_*.json"
 echo "============================================================"
 echo ""
 echo "Summary of all ablation results:"
-for f in "$OUTPUT_DIR"/eval_ablation_*.json; do
-    label=$(basename "$f" .json | sed 's/eval_ablation_//')
+# The full-model baseline writes eval_results.json (08 names the file after the
+# zeroed channels), so glob both or the run everything is compared against is
+# silently missing from the table.
+for f in "$OUTPUT_DIR"/eval_results.json "$OUTPUT_DIR"/eval_ablation_*.json; do
+    [ -f "$f" ] || continue
+    label=$(basename "$f" .json | sed 's/eval_ablation_/zeroed:/; s/eval_results/full_model/')
     pr_auc=$(python -c "import json; d=json.load(open('$f')); print(f'{d[\"meta_model\"][\"macro_pr_auc\"]:.4f}')" 2>/dev/null || echo "N/A")
     fn_red=$(python -c "import json; d=json.load(open('$f')); print(f'{d[\"fn_reduction_pct\"]:+.1f}%')" 2>/dev/null || echo "N/A")
     echo "  $label: PR-AUC=$pr_auc  FN_red=$fn_red"
