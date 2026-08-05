@@ -204,6 +204,7 @@ nav:
           - "M3 — 9. Label Curation": workflows/meta_layer/09_m3_label_curation.md
           - "M3 — 10. Training": workflows/meta_layer/10_training_m3.md
           - "M3 — 11. Evaluation": workflows/meta_layer/11_m3_evaluation.md
+      - Ablation Studies: workflows/ablation/README.md
   - Roadmap: ROADMAP.md
   - About:
       - Author & Citation: about/author.md
