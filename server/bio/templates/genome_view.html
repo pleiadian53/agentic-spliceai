@@ -191,12 +191,52 @@
     </div>
     {% endif %}
     <div class="control-group">
-        <label for="threshold-range">Threshold</label>
-        <input type="range" id="threshold-range" min="0" max="1" step="0.05" value="0.5">
+        <label for="threshold-range" id="threshold-label">Threshold</label>
+        <input type="range" id="threshold-range" min="0" max="1" step="0.01" value="0.5">
         <span class="threshold-display" id="threshold-display">0.50</span>
     </div>
+    <!-- A second cutoff, not a second copy of the first. The meta layer's scores
+         sit far higher than the base model's, so one shared slider always scores
+         one of the two at the wrong operating point. Hidden until a meta overlay
+         is selected, and linked to the base slider until deliberately unlinked. -->
+    <div class="control-group" id="meta-threshold-group" style="display:none;">
+        <label for="meta-threshold-range">
+            Meta threshold
+            <input type="checkbox" id="meta-threshold-link" checked
+                   style="margin-left:0.35rem; vertical-align:middle;"
+                   title="Linked: the meta model uses the same cutoff as the base model. Uncheck to give it its own.">
+            <span style="font-weight:normal; color:#5a7ea6;">link</span>
+        </label>
+        <input type="range" id="meta-threshold-range" min="0" max="1" step="0.01" value="0.5" disabled>
+        <span class="threshold-display" id="meta-threshold-display">0.50</span>
+    </div>
+    <div class="control-group">
+        <label for="optimal-btn">Operating point</label>
+        <button class="btn" id="optimal-btn" onclick="findOptimalThreshold()"
+                title="Sweep thresholds for this gene and report the F1-optimal point for each model.">Find F1-optimal</button>
+    </div>
     <button class="btn btn-primary" id="run-btn" onclick="runPrediction()">Run Prediction</button>
+    <div class="control-group" style="margin-left:auto;">
+        <label for="gene-input">Go to gene</label>
+        <div style="display:flex; gap:0.35rem;">
+            <input type="search" id="gene-input" placeholder="e.g. TARDBP" style="width:130px;"
+                   title="Jump to another gene, keeping the current base model.">
+            <button class="btn" onclick="gotoGene()">Go</button>
+        </div>
+    </div>
 </div>
+
+<!-- F1-optimal readout -->
+<div id="optimal-panel" style="display:none; margin-top:0.75rem; padding:0.6rem 0.9rem;
+     background:#eef4fb; border-left:4px solid #3572a5; border-radius:4px; font-size:0.85rem;
+     color:#1e3a5f;"></div>
+
+<!-- Stale-result notice: the controls changed but the chart below has not been
+     re-run. Without this the page silently shows results for a different
+     model/threshold than the one selected. -->
+<div id="stale-notice" style="display:none; margin-top:0.75rem; padding:0.5rem 0.9rem;
+     background:#fff8ec; border-left:4px solid #f39c12; border-radius:4px; font-size:0.85rem;
+     color:#7a4f00;">Controls changed &mdash; showing previous results. Re-running&hellip;</div>
 
 <!-- Gene info bar (shown after prediction) -->
 <div id="gene-info" style="display:none;">
@@ -263,9 +303,181 @@ function setState(state, message, hint) {
 
 const thresholdRange = document.getElementById('threshold-range');
 const thresholdDisplay = document.getElementById('threshold-display');
+
+// Every control used to be inert until "Run Prediction" was clicked, so
+// changing the meta overlay left the previous (base-only) numbers on screen
+// with nothing indicating they were stale. Controls now re-run themselves.
+let rerunTimer = null;
+function scheduleRerun(delay) {
+    document.getElementById('stale-notice').style.display = 'block';
+    clearTimeout(rerunTimer);
+    rerunTimer = setTimeout(async () => {
+        await runPrediction();
+        document.getElementById('stale-notice').style.display = 'none';
+    }, delay);
+}
+
+const metaThresholdGroup = document.getElementById('meta-threshold-group');
+const metaThresholdRange = document.getElementById('meta-threshold-range');
+const metaThresholdDisplay = document.getElementById('meta-threshold-display');
+const metaThresholdLink = document.getElementById('meta-threshold-link');
+
+// While linked, the meta slider mirrors the base one, so the page opens in the
+// familiar single-cutoff state and nothing changes until the link is broken.
+function syncMetaThreshold() {
+    if (!metaThresholdLink || !metaThresholdLink.checked) return;
+    metaThresholdRange.value = thresholdRange.value;
+    metaThresholdDisplay.textContent = parseFloat(thresholdRange.value).toFixed(2);
+}
+
+function metaThresholdValue() {
+    if (!metaThresholdLink || metaThresholdLink.checked) return null;  // omit → server shares
+    return metaThresholdRange.value;
+}
+
 thresholdRange.addEventListener('input', function() {
     thresholdDisplay.textContent = parseFloat(this.value).toFixed(2);
+    syncMetaThreshold();
+    // Debounced: the slider fires continuously while dragging, but the raw
+    // predictions are cached so only the cheap re-classification re-runs.
+    scheduleRerun(350);
 });
+
+if (metaThresholdRange) {
+    metaThresholdRange.addEventListener('input', function() {
+        metaThresholdDisplay.textContent = parseFloat(this.value).toFixed(2);
+        scheduleRerun(350);
+    });
+    metaThresholdLink.addEventListener('change', function() {
+        metaThresholdRange.disabled = this.checked;
+        document.getElementById('threshold-label').textContent =
+            this.checked ? 'Threshold' : 'Base threshold';
+        syncMetaThreshold();
+        scheduleRerun(0);
+    });
+}
+
+document.getElementById('model-select').addEventListener('change', () => scheduleRerun(0));
+const metaSelectEl = document.getElementById('meta-select');
+if (metaSelectEl) {
+    metaSelectEl.addEventListener('change', () => { updateMetaThresholdVisibility(); scheduleRerun(0); });
+}
+
+// The second slider is meaningless without a meta overlay to apply it to.
+function updateMetaThresholdVisibility() {
+    if (!metaThresholdGroup) return;
+    const on = !!(metaSelectEl && metaSelectEl.value);
+    metaThresholdGroup.style.display = on ? '' : 'none';
+    if (!on) {
+        metaThresholdLink.checked = true;
+        metaThresholdRange.disabled = true;
+        document.getElementById('threshold-label').textContent = 'Threshold';
+    }
+}
+updateMetaThresholdVisibility();
+
+// --- Gene navigation ---
+
+function gotoGene() {
+    const g = document.getElementById('gene-input').value.trim();
+    if (!g) return;
+    const model = document.getElementById('model-select').value;
+    window.location.href = `/genome/${encodeURIComponent(g)}?model=${encodeURIComponent(model)}`;
+}
+document.getElementById('gene-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') gotoGene();
+});
+
+// --- F1-optimal operating point ---
+
+async function findOptimalThreshold() {
+    const btn = document.getElementById('optimal-btn');
+    const panel = document.getElementById('optimal-panel');
+    const model = document.getElementById('model-select').value;
+    const meta = metaSelectEl ? metaSelectEl.value : '';
+
+    btn.disabled = true; btn.textContent = 'Sweeping...';
+    panel.style.display = 'block';
+    panel.textContent = 'Sweeping thresholds for this gene...';
+    try {
+        let url = `/api/genome/${encodeURIComponent(GENE_NAME)}/threshold-sweep?model=${encodeURIComponent(model)}`;
+        if (meta) url += `&meta=${encodeURIComponent(meta)}`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
+            throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+        const d = await resp.json();
+        // Each model gets its own button, because each gets its own slider. The
+        // old panel offered one number for both, which is the very thing the
+        // sweep exists to show is wrong.
+        const btnFor = (label, t) =>
+            ` <button class="btn" style="margin-left:0.4rem; padding:0.1rem 0.45rem; font-size:0.8rem;"`
+            + ` onclick="applyThreshold('${label.toLowerCase()}', ${t})">Use ${t.toFixed(2)}</button>`;
+        const row = (label, r) => `<strong>${label}</strong>: threshold <strong>${r.threshold.toFixed(2)}</strong>`
+            + ` &rarr; F1 ${r.f1.toFixed(3)} (TP ${r.tp} / FP ${r.fp} / FN ${r.fn})`
+            + btnFor(label, r.threshold);
+
+        let html = `<div style="font-weight:600; margin-bottom:0.25rem;">This gene (post-hoc)</div>`;
+        html += row('Base', d.base.best);
+        if (d.meta) html += `<br>${row('Meta', d.meta.best)}`;
+        html += `<div style="color:#5a7ea6; margin-top:0.3rem;">${d.note}</div>`;
+
+        // The held-out optimum is the number to quote. It is measured across
+        // every held-out gene rather than fitted to the one on screen.
+        if (d.held_out && d.held_out.models) {
+            const ho = d.held_out;
+            const hrow = (label, m) => {
+                if (!m) return '';
+                const edge = m.at_grid_edge
+                    ? ` <span title="F1 was still rising at the last grid point, so the true optimum may be higher.">(grid edge)</span>`
+                    : '';
+                return `<strong>${label}</strong>: threshold <strong>${m.threshold.toFixed(2)}</strong>`
+                     + ` &rarr; macro F1 ${m.macro_f1.toFixed(3)}${edge}`
+                     + btnFor(label, m.threshold);
+            };
+            html += `<div style="font-weight:600; margin:0.55rem 0 0.25rem;">`
+                  + `Held-out evaluation (all test genes)</div>`;
+            html += hrow('Base', ho.models.base);
+            if (ho.models.meta) html += `<br>${hrow('Meta', ho.models.meta)}`;
+            html += `<div style="color:#5a7ea6; margin-top:0.3rem;">${ho.note}`
+                  + (ho.approximate
+                      ? ' Corrected at read time from a sweep written before the correction existed.'
+                      : '')
+                  + `</div>`;
+        }
+
+        if (d.meta) {
+            html += `<div style="color:#5a7ea6; margin-top:0.3rem;">`
+                  + `Applying different thresholds to the two models unlinks the sliders.</div>`;
+        }
+        panel.innerHTML = html;
+    } catch (e) {
+        panel.textContent = `Threshold sweep failed: ${e.message}`;
+    } finally {
+        btn.disabled = false; btn.textContent = 'Find F1-optimal';
+    }
+}
+
+// `which` is 'base' or 'meta'. Setting a meta threshold that differs from the
+// base one unlinks the sliders automatically: the alternative is silently
+// moving both, which is the behaviour this whole panel argues against.
+function applyThreshold(which, t) {
+    if (which === 'meta' && metaThresholdRange) {
+        if (parseFloat(t) !== parseFloat(thresholdRange.value)) {
+            metaThresholdLink.checked = false;
+            metaThresholdRange.disabled = false;
+            document.getElementById('threshold-label').textContent = 'Base threshold';
+        }
+        metaThresholdRange.value = t;
+        metaThresholdDisplay.textContent = parseFloat(t).toFixed(2);
+    } else {
+        thresholdRange.value = t;
+        thresholdDisplay.textContent = parseFloat(t).toFixed(2);
+        syncMetaThreshold();
+    }
+    scheduleRerun(0);
+}
 
 // --- Prediction ---
 
@@ -283,6 +495,8 @@ async function runPrediction() {
     try {
         let url = `/api/genome/${encodeURIComponent(GENE_NAME)}/predict?model=${model}&threshold=${threshold}`;
         if (meta) url += `&meta=${encodeURIComponent(meta)}`;
+        const mt = metaThresholdValue();
+        if (meta && mt !== null) url += `&meta_threshold=${mt}`;
         const resp = await fetch(url);
 
         if (!resp.ok) {
@@ -291,6 +505,20 @@ async function runPrediction() {
         }
 
         const data = await resp.json();
+
+        // Annotation tracks are additive context. Fetched separately and
+        // tolerated on failure — a missing track parquet must never cost you
+        // the prediction chart.
+        try {
+            const aResp = await fetch(
+                `/api/genome/${encodeURIComponent(GENE_NAME)}/annotation-tracks`
+                + `?chrom=${encodeURIComponent(data.chrom)}`);
+            window.__annotationTracks = aResp.ok ? await aResp.json() : null;
+        } catch (e) {
+            console.warn('Annotation tracks unavailable:', e);
+            window.__annotationTracks = null;
+        }
+
         setState('done');
         renderGeneInfo(data);
         renderTracks(data);
@@ -315,21 +543,85 @@ function renderGeneInfo(data) {
     if (data.meta_model) {
         chipsHtml += `<div class="info-chip" style="background:#eafaf1;"><span class="label">Meta</span><span class="value">${data.meta_model}</span></div>`;
     }
-    chipsHtml += `<div class="info-chip"><span class="label">Threshold</span><span class="value">${data.threshold}</span></div>`;
+    // Name the threshold per model when they differ, so a reader can never
+    // mistake a two-cutoff comparison for a one-cutoff one.
+    const splitThr = data.meta_model && data.meta_threshold != null
+        && parseFloat(data.meta_threshold) !== parseFloat(data.threshold);
+    chipsHtml += `<div class="info-chip"><span class="label">${splitThr ? 'Base thr' : 'Threshold'}</span>`
+               + `<span class="value">${data.threshold}</span></div>`;
+    if (splitThr) {
+        chipsHtml += `<div class="info-chip" style="background:#eafaf1;"><span class="label">Meta thr</span>`
+                   + `<span class="value">${data.meta_threshold}</span></div>`;
+    }
     chips.innerHTML = chipsHtml;
 
     const summary = document.getElementById('class-summary');
-    const baseTag = data.meta_model ? '<span style="font-weight:600;margin-right:6px;">Base:</span>' : '';
+    const baseTag = data.meta_model
+        ? `<span style="font-weight:600;margin-right:6px;">Base${splitThr ? ` @${data.threshold}` : ''}:</span>` : '';
     let summaryHtml = `${baseTag}
         <span class="class-badge tp"><span class="dot"></span>TP: ${data.n_tp}</span>
         <span class="class-badge fp"><span class="dot"></span>FP: ${data.n_fp}</span>
         <span class="class-badge fn"><span class="dot"></span>FN: ${data.n_fn}</span>`;
     if (data.meta_model) {
-        summaryHtml += `<br><span style="font-weight:600;margin-right:6px;color:#27ae60;">Meta:</span>
+        summaryHtml += `<br><span style="font-weight:600;margin-right:6px;color:#27ae60;">`
+            + `Meta${splitThr ? ` @${data.meta_threshold}` : ''}:</span>
             <span class="class-badge tp"><span class="dot"></span>TP: ${data.meta_n_tp}</span>
             <span class="class-badge fp"><span class="dot"></span>FP: ${data.meta_n_fp}</span>
             <span class="class-badge fn"><span class="dot"></span>FN: ${data.meta_n_fn}</span>`;
     }
+    // ── Alternative-site detection (the delta set) ──────────────────────
+    // Scoring M2-S against MANE alone measures the wrong thing: it exists to
+    // find sites MANE does not contain. Report recall on `Ensembl \ MANE`
+    // instead — the same set 09_evaluate_alternative_sites.py uses.
+    //
+    // Reported as detected/total rather than TP/FP/FN: "false positive" is not
+    // well defined against a *subset* of truth, since a call away from an alt
+    // site may be a correct canonical call.
+    //
+    // Safe under downsampling: it is peak-preserving (every position with
+    // prob > 0.01 is kept), so any site above a sane threshold survives; sites
+    // dropped from the array were below the floor and count as missed.
+    const at = window.__annotationTracks;
+    const alt = at && at.tracks.find(t => t.key === 'ensembl_minus_mane');
+    if (alt && alt.n > 0) {
+        const idx = new Map();
+        for (let i = 0; i < data.positions.length; i++) idx.set(data.positions[i], i);
+        const thr = parseFloat(data.threshold);
+        const metaThr = data.meta_threshold != null ? parseFloat(data.meta_threshold) : thr;
+
+        // The denominator must be sites that COULD be detected. Prediction runs
+        // over the gene's span in the *model's* annotation (MANE), and Ensembl
+        // genes are frequently longer — TARDBP is 18,184 bp in Ensembl vs 12,838
+        // in MANE, putting 8 of its 30 alt sites outside the scored window
+        // entirely. Counting those as misses would understate every model.
+        const inWin = p => p >= data.gene_start && p <= data.gene_end;
+        const dIn = alt.donor.filter(inWin), aIn = alt.acceptor.filter(inWin);
+        const nIn = dIn.length + aIn.length;
+        const nOut = alt.n - nIn;
+
+        const hits = (dProb, aProb, t) => {
+            let n = 0;
+            for (const p of dIn) { const i = idx.get(p); if (i !== undefined && dProb[i] > t) n++; }
+            for (const p of aIn) { const i = idx.get(p); if (i !== undefined && aProb[i] > t) n++; }
+            return n;
+        };
+        const baseHit = hits(data.donor_prob, data.acceptor_prob, thr);
+        let altHtml = `<br><span style="font-weight:600;margin-right:6px;color:#e67e22;">`
+            + `Alt sites (Ensembl&nbsp;∖&nbsp;MANE):</span>`
+            + `<span class="class-badge" style="background:#fdf0e3;color:#8a5000;">`
+            + `base ${baseHit}/${nIn}</span>`;
+        if (data.meta_model && data.meta_donor_prob) {
+            const metaHit = hits(data.meta_donor_prob, data.meta_acceptor_prob, metaThr);
+            altHtml += ` <span class="class-badge" style="background:#eafaf1;color:#1e7a4c;">`
+                + `meta ${metaHit}/${nIn}</span>`;
+        }
+        altHtml += ` <span style="color:#888;font-size:0.8rem;">`
+            + `detected at threshold ${splitThr ? `${data.threshold} / ${data.meta_threshold}` : data.threshold}`
+            + (nOut ? `; ${nOut} of ${alt.n} lie outside the ${data.chrom} MANE gene span and cannot be scored` : '')
+            + `. Recall on the delta set, not TP/FP/FN.</span>`;
+        summaryHtml += altHtml;
+    }
+
     summary.innerHTML = summaryHtml;
 
     // Downsample notice
@@ -469,6 +761,22 @@ function renderTracks(data) {
             name: 'Meta Acceptor', xaxis: 'x', yaxis: 'y2',
             hovertemplate: 'Pos: %{x:,}<br>Prob: %{y:.4f}<extra>Meta Acceptor</extra>',
         });
+        // A second cutoff line, in the meta colour, only when it actually differs.
+        // Otherwise the grey line already says everything and a duplicate would
+        // imply a distinction that is not being made.
+        if (data.meta_threshold != null
+            && parseFloat(data.meta_threshold) !== parseFloat(data.threshold)) {
+            const span = [data.positions[0], data.positions[data.positions.length - 1]];
+            for (const ax of ['y', 'y2']) {
+                traces.push({
+                    x: span, y: [data.meta_threshold, data.meta_threshold],
+                    type: 'scatter', mode: 'lines',
+                    line: { color: '#27ae60', width: 1, dash: 'dot' },
+                    name: 'Meta threshold', xaxis: 'x', yaxis: ax,
+                    showlegend: false, hoverinfo: 'skip',
+                });
+            }
+        }
         const mtp = data.meta_markers.filter(m => m.pred_type === 'TP');
         const mfp = data.meta_markers.filter(m => m.pred_type === 'FP');
         const mfn = data.meta_markers.filter(m => m.pred_type === 'FN');
@@ -504,31 +812,70 @@ function renderTracks(data) {
         });
     });
 
+    // ── Annotation tracks (4th band) ────────────────────────────────────
+    // Stacked ground-truth rows, genome-browser style. Plotly's legend gives
+    // per-track show/hide for free, so no bespoke toggle UI: the two that
+    // matter are on, the rest start collapsed.
+    const annTracks = (window.__annotationTracks && window.__annotationTracks.tracks) || [];
+    const ANN_ROWS = {
+        mane:                   { y: 4, color: '#1e3a5f', on: true },
+        ensembl_minus_mane:     { y: 3, color: '#e67e22', on: true },
+        ensembl:                { y: 2, color: '#7f8c8d', on: false },
+        gencode_minus_ensembl:  { y: 1, color: '#8e44ad', on: false },
+    };
+    annTracks.forEach(t => {
+        const row = ANN_ROWS[t.key];
+        if (!row || !t.available) return;
+        const xs = t.donor.concat(t.acceptor);
+        if (!xs.length && !row.on) return;   // hide empty optional rows entirely
+        traces.push({
+            x: xs,
+            y: xs.map(() => row.y),
+            mode: 'markers',
+            type: 'scattergl',
+            name: `${t.label} (${t.n})`,
+            xaxis: 'x', yaxis: 'y4',
+            marker: { color: row.color, size: 7, symbol: 'line-ns-open',
+                      line: { width: 2, color: row.color } },
+            hovertemplate: `${t.label}<br>%{x:,d}<extra></extra>`,
+            visible: row.on ? true : 'legendonly',
+        });
+    });
+
     const layout = {
         xaxis: {
             title: { text: `Genomic Position (${data.chrom})`, font: { size: 12 } },
             showgrid: true,
             gridcolor: '#f0f0f0',
             tickformat: ',d',
-            anchor: 'y3',
+            anchor: 'y4',
         },
         yaxis: {
             title: { text: 'Donor Prob', font: { size: 11, color: '#3572a5' } },
             range: [0, 1.05],
-            domain: [0.70, 1.0],
+            domain: [0.76, 1.0],
             gridcolor: '#f0f0f0',
         },
         yaxis2: {
             title: { text: 'Acceptor Prob', font: { size: 11, color: '#e74c3c' } },
             range: [0, 1.05],
-            domain: [0.37, 0.67],
+            domain: [0.50, 0.73],
             gridcolor: '#f0f0f0',
         },
         yaxis3: {
             title: { text: 'Classification', font: { size: 11 } },
             range: [0, 1.1],
-            domain: [0.0, 0.32],
+            domain: [0.24, 0.47],
             gridcolor: '#f0f0f0',
+        },
+        yaxis4: {
+            title: { text: 'Annotations', font: { size: 11 } },
+            range: [0.4, 4.6],
+            domain: [0.0, 0.21],
+            gridcolor: '#f0f0f0',
+            tickvals: [4, 3, 2, 1],
+            ticktext: ['MANE', 'Ens∖MANE', 'Ensembl', 'Gc∖Ens'],
+            tickfont: { size: 9 },
         },
         shapes: shapes,
         showlegend: true,

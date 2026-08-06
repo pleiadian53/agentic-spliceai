@@ -22,6 +22,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from agentic_spliceai.splice_engine.eval.operating_points import operating_points
 from agentic_spliceai.splice_engine.resources import (
     get_meta_model_config,
     list_available_meta_models,
@@ -125,15 +126,17 @@ def _normalize_scope(
     }
 
 
-def _discover() -> list[tuple[str, Path, str, str | None, str, str]]:
+def _discover() -> list[tuple[str, Path, str, str | None, str, str, str]]:
     """Discover base-vs-meta runs for the PROMOTED meta models (settings.yaml).
 
-    Returns ``(run_id, path, kind, eval_annotation, variant, display_name)``. A model
-    with an alternative-site eval (``<dir>_alt_eval/``) is surfaced through that file
-    (its ``overall`` scope subsumes the standalone ``eval_results.json``); otherwise
-    its own ``eval_results.json`` is used. ``run_id`` is slash-free (safe URL param).
+    Returns ``(run_id, path, kind, eval_annotation, variant, display_name, model_name)``.
+    A model with an alternative-site eval (``<dir>_alt_eval/``) is surfaced through that
+    file (its ``overall`` scope subsumes the standalone ``eval_results.json``); otherwise
+    its own ``eval_results.json`` is used. ``run_id`` is slash-free (safe URL param);
+    ``model_name`` is the registry key, kept because the threshold sweep lives in the
+    model directory rather than in the discovered result file.
     """
-    found: list[tuple[str, Path, str, str | None, str, str]] = []
+    found: list[tuple[str, Path, str, str | None, str, str, str]] = []
     try:
         names = list_available_meta_models()
     except Exception as e:  # registry missing/misconfigured — fall back to no meta runs
@@ -157,19 +160,21 @@ def _discover() -> list[tuple[str, Path, str, str | None, str, str]]:
         if alt_hits:
             for path, annotation in alt_hits:
                 run_id = f"{name}__{path.name.split('_')[0]}"  # e.g. m2s_..__m2a
-                found.append((run_id, path, "m2", annotation, variant, display))
+                found.append((run_id, path, "m2", annotation, variant, display, name))
         else:
             m1 = model_dir / "eval_results.json"
             if m1.exists():
-                found.append((name, m1, "m1", None, variant, display))
+                found.append((name, m1, "m1", None, variant, display, name))
     return found
 
 
 def _build_run(
-    run_id: str, path: Path, kind: str, annotation: str | None, variant: str, display: str
+    run_id: str, path: Path, kind: str, annotation: str | None, variant: str, display: str,
+    model_name: str,
 ) -> dict[str, Any]:
     data = json.loads(path.read_text())
     model = variant or data.get("model", "meta")
+    op = held_out_operating_points(model_name)
 
     if kind == "m1":
         caveat = None
@@ -199,6 +204,7 @@ def _build_run(
                 "annotation_source": data.get("annotation_source"),
             },
             "scopes": [_normalize_scope("test", "Held-out test set", scope_block, caveat)],
+            "operating_points": op,
         }
 
     # kind == "m2"
@@ -237,7 +243,35 @@ def _build_run(
         },
         "scopes": scopes,
         "tissue": tissue,
+        "operating_points": op,
     }
+
+
+def held_out_operating_points(meta_model_name: str) -> dict[str, Any] | None:
+    """Per-model F1-optimal thresholds for one promoted meta model.
+
+    The sweep lives in the model's own ``eval_results.json``, which is *not* the
+    file this dashboard surfaces for an M2-style model: that one comes from the
+    ``<dir>_alt_eval/`` sibling, and the alternative-site eval writes no sweep.
+    So the operating points existed on disk the whole time and never reached a
+    page. This reads the model directory directly rather than the discovered
+    result path.
+
+    Returns ``None`` for a model with no sweep on disk.
+    """
+    try:
+        spec = get_meta_model_config(meta_model_name)
+    except Exception as e:
+        logger.warning("operating points: no config for %s (%s)", meta_model_name, e)
+        return None
+    path = config.PROJECT_ROOT / spec["dir"] / "eval_results.json"
+    if not path.exists():
+        return None
+    try:
+        return operating_points(json.loads(path.read_text()))
+    except (json.JSONDecodeError, OSError, KeyError) as e:
+        logger.warning("operating points: could not read %s (%s)", path, e)
+        return None
 
 
 def _headline_teaser(run: dict[str, Any]) -> str:
@@ -254,9 +288,9 @@ def _headline_teaser(run: dict[str, Any]) -> str:
 def list_meta_runs() -> list[dict[str, Any]]:
     """Return lightweight summaries of every available meta-layer comparison run."""
     runs = []
-    for run_id, path, kind, annotation, variant, display in _discover():
+    for run_id, path, kind, annotation, variant, display, name in _discover():
         try:
-            run = _build_run(run_id, path, kind, annotation, variant, display)
+            run = _build_run(run_id, path, kind, annotation, variant, display, name)
         except (json.JSONDecodeError, OSError, KeyError) as e:
             logger.warning("meta-metrics: could not summarize %s (%s)", path, e)
             continue
@@ -275,7 +309,7 @@ def list_meta_runs() -> list[dict[str, Any]]:
 
 def get_meta_run(run_id: str) -> dict[str, Any] | None:
     """Return the full normalized comparison payload for one run, or None if unknown."""
-    for rid, path, kind, annotation, variant, display in _discover():
+    for rid, path, kind, annotation, variant, display, name in _discover():
         if rid == run_id:
-            return _build_run(rid, path, kind, annotation, variant, display)
+            return _build_run(rid, path, kind, annotation, variant, display, name)
     return None

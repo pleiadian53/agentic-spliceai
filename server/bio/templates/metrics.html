@@ -179,6 +179,13 @@
         <div id="mchart-tissue" style="height:320px;"></div>
         <div class="meta-context" id="meta-tissue-caption" style="margin-top:0.5rem;"></div>
     </div>
+    <!-- The headline numbers above are argmax over the 3 classes, one decision rule
+         for both models. These are the per-model operating points, which is what a
+         reader needs before quoting any single-threshold comparison. -->
+    <div class="chart-card full-width" id="meta-oppoints-card" style="display:none; margin-top:1.25rem;">
+        <h3>Operating points (held-out, per model)</h3>
+        <div id="meta-oppoints"></div>
+    </div>
     <div class="caveat" id="meta-caveat" style="display:none;"></div>
 </div>
 
@@ -685,10 +692,69 @@
         renderMetaCounts(scope);
         renderMetaTopk(scope);
         renderMetaTissue(run);
+        renderMetaOperatingPoints(run);
 
         const cav = document.getElementById('meta-caveat');
         if (scope.caveat) { cav.style.display = 'block'; cav.textContent = 'Note: ' + scope.caveat; }
         else { cav.style.display = 'none'; }
+    }
+
+    // The headline comparison uses argmax over the three classes, which is a single
+    // fixed decision rule for both models. That is defensible as a comparison but it
+    // is not either model's operating point, and the two are far apart: a base model
+    // peaking near 0.25 and a meta model near 0.99 look very different at any one
+    // shared cutoff. This panel states both, so nobody quotes a threshold number the
+    // evaluation never used.
+    function renderMetaOperatingPoints(run) {
+        const card = document.getElementById('meta-oppoints-card');
+        const el = document.getElementById('meta-oppoints');
+        const op = run.operating_points;
+        if (!op || !op.models) { card.style.display = 'none'; return; }
+        card.style.display = 'block';
+
+        const row = (label, m, color) => {
+            if (!m) return '';
+            const pc = m.per_class || {};
+            const cell = c => pc[c]
+                ? `P ${pc[c].precision.toFixed(3)} / R ${pc[c].recall.toFixed(3)}` : '—';
+            const edge = m.at_grid_edge
+                ? ` <span class="text-muted" title="F1 was still rising at the last swept threshold, so the true optimum may be higher than this.">(grid edge)</span>`
+                : '';
+            return `<tr>
+                <td style="padding:0.35rem 0.75rem 0.35rem 0;"><strong style="color:${color};">${label}</strong></td>
+                <td style="padding:0.35rem 0.75rem;"><strong>${m.threshold.toFixed(2)}</strong>${edge}</td>
+                <td style="padding:0.35rem 0.75rem;">${m.macro_f1.toFixed(3)}</td>
+                <td style="padding:0.35rem 0.75rem;">${cell('donor')}</td>
+                <td style="padding:0.35rem 0.75rem;">${cell('acceptor')}</td>
+            </tr>`;
+        };
+
+        let html = `<table style="border-collapse:collapse; font-size:0.9rem;">
+            <thead><tr style="text-align:left; border-bottom:1px solid #e1e6eb;">
+                <th style="padding:0.35rem 0.75rem 0.35rem 0;">Model</th>
+                <th style="padding:0.35rem 0.75rem;">F1-optimal threshold</th>
+                <th style="padding:0.35rem 0.75rem;">Macro F1</th>
+                <th style="padding:0.35rem 0.75rem;">Donor</th>
+                <th style="padding:0.35rem 0.75rem;">Acceptor</th>
+            </tr></thead><tbody>`;
+        html += row('Base', op.models.base, META_BASE_COLOR);
+        html += row('Meta', op.models.meta, META_META_COLOR);
+        html += `</tbody></table>`;
+        html += `<div class="meta-context" style="margin-top:0.6rem;">${op.note}</div>`;
+        if (op.approximate) {
+            html += `<div class="meta-context" style="margin-top:0.3rem;">`
+                  + `Corrected at read time (subsample rate ${op.neither_subsample_rate}); this eval `
+                  + `predates the correction being applied at write time.</div>`;
+        }
+        const v = op.validation || {};
+        const checks = Object.keys(v).map(k =>
+            `${k} ${(v[k].relative_error * 100).toFixed(1)}%`).join(', ');
+        if (checks) {
+            html += `<div class="meta-context" style="margin-top:0.3rem;">`
+                  + `Correction cross-checked against the argmax precision measured over all `
+                  + `positions: ${checks} relative difference.</div>`;
+        }
+        el.innerHTML = html;
     }
 
     function metaBarPair(base_y, meta_y) {
