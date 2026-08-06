@@ -97,7 +97,13 @@ meta_models:
     corpus: "cleanannot"
     dir: "output/meta_layer/m1s_v4_cleanannot"
     base_model: "openspliceai"
-    notes: "Canonical refiner, minus-strand-clean annotation. Held-out macro PR-AUC 0.9998 vs base 0.9986; at F1-opt threshold P/R/F1 ≈ 0.997 (vs base F1 ~0.97). FP/FN reported at F1-opt, not 0.5."
+    # Training provenance — verified against output/meta_layer/m1s_v4_cleanannot/train.log.
+    # `eval_protocol` also selects the ground-truth set the Bio UI scores this model against.
+    train_annotation: "mane"
+    train_build: "GRCh38"
+    base_scores: "data/mane/GRCh38/openspliceai_eval/precomputed"
+    eval_protocol: "canonical"
+    notes: "Canonical refiner, minus-strand-clean annotation. Held-out macro PR-AUC 0.9998 vs base 0.9986. Each model at ITS OWN F1-opt (they differ): M1-S t=0.99 P/R 0.975/0.974, base t=0.40 P/R 0.946/0.952. Counts are prevalence-corrected; never report at 0.5."
   m2s.concat_fusion.cleanannot:
     name: "M2-S (alternative)"
     variant: "M2-S"
@@ -105,7 +111,15 @@ meta_models:
     corpus: "cleanannot"
     dir: "output/meta_layer/m2s_v4_cleanannot"
     base_model: "openspliceai"
-    notes: "Alternative-site model, clean annotation. Alt-site PR-AUC 0.99 vs base 0.91 (FN −88%); held-out F1 0.956 at F1-opt (recall 0.94 vs base 0.61, precision 0.97). Ensembl\\MANE."
+    # Trained on Ensembl 112, and on a DIFFERENT precomputed base-score set than M1/M3.
+    # eval_protocol "alt_sites" means the honest ground truth is the delta set
+    # (Ensembl \ MANE) — scoring this model against MANE alone measures the wrong thing,
+    # since capturing sites MANE lacks is the entire point of the variant.
+    train_annotation: "ensembl"
+    train_build: "GRCh38"
+    base_scores: "data/ensembl/GRCh38/openspliceai_eval/precomputed"
+    eval_protocol: "alt_sites"
+    notes: "Alternative-site model, clean annotation. Alt-site PR-AUC 0.99 vs base 0.91 (FN −88%). Overall Ensembl at each model's own F1-opt: M2-S t=0.99 P/R 0.866/0.797 (macro F1 0.830), base t=0.25 P/R 0.832/0.654 (0.733). Ensembl\\MANE."
   m3s.concat_fusion.cleanannot:
     name: "M3-S (novel)"
     variant: "M3-S"
@@ -116,6 +130,15 @@ meta_models:
     status: "research"
     # M3 drops the junction channels — junction support is its training TARGET, not an input.
     exclude_channels: ["junction_log1p", "junction_has_support"]
+    # `train_annotation: mane` describes the GENE UNIVERSE and the ignore-mask only.
+    # M3's positive labels are not an annotation at all: they are the coordinate-keyed
+    # novel pool (data/mane/GRCh38/m3_labels/positives_pooled.parquet), with annotated
+    # sites masked out of the loss. Evaluated by per-gene precision@k on independent
+    # truth (D1 long-read / D2 disease anchors), never against the training annotation.
+    train_annotation: "mane"
+    train_build: "GRCh38"
+    base_scores: "data/mane/GRCh38/openspliceai_eval/precomputed"
+    eval_protocol: "novel_precision_at_k"
     notes: "Novel-site ranker. NOT promoted: scored by per-gene precision@k on anti-circular truth, not PR-AUC, so it does not belong in the base-vs-meta dashboard. Best novel-site ranker in the system — the only meta model beating raw base on independent novel truth (D1 P@5 0.335 vs 0.277; D2 R@20 0.79 vs 0.51). Consumed by the Novel Site Explorer (/novel)."
 
 # External genomic tracks (conservation, epigenetic, etc.)

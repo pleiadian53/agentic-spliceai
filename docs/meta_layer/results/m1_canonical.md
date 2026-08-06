@@ -49,20 +49,35 @@ the multimodal channels. Version `m1s_v4_cleanannot`. Trained per
 [Workflow Stage 4](../../workflows/meta_layer/04_training_m1s.md), evaluated per
 [Stage 6](../../workflows/meta_layer/06_evaluation.md).
 
-**Headline (SpliceAI holdout, MANE):**
+**Headline (SpliceAI holdout, MANE):** 5,459 genes, 365 M positions.
 
 | | Base (OpenSpliceAI) | M1-S (v4) |
 |-|---------------------|-----------|
 | Macro PR-AUC | 0.9986 | **0.9998** |
 | Donor / acceptor PR-AUC | — | 0.99969 / 0.99974 |
-| At F1-optimal: recall / FP / FN | — | **0.997 / 346 / 279** |
+| Its own F1-optimal threshold | 0.40 | 0.99 |
+| Recall / precision there | 0.952 / 0.946 | **0.974 / 0.975** |
+| FP / FN there | 5,900 / 5,134 | **2,700 / 2,748** |
 
 Validation macro PR-AUC was 0.99835 at the best epoch (epoch 8).
 
-!!! warning "Operating point matters"
-    At the naïve argmax threshold the same run reports far more false positives (~25 K) than at the
-    F1-optimal point (346). That is a threshold artifact under extreme class imbalance, not a ranking
-    failure — which is exactly why the headline is PR-AUC and the counts are quoted at F1-optimal.
+Each model is scored at *its own* F1-optimal threshold, because the two score
+distributions differ enough that one shared cutoff misrepresents at least one of them.
+On that footing M1-S wins on all four counts: higher recall, higher precision, 54% fewer
+false positives and 46% fewer false negatives.
+
+!!! warning "These counts were corrected in 2026-08"
+    The sweep that produces them retains every splice site but only 1% of the "neither"
+    positions, so a raw false-positive count off that sample understates the truth by
+    about 100x. An earlier version of this page quoted **FP 346** at an F1-optimal
+    threshold of 0.35. That figure was the subsampled count, and the threshold was itself
+    an artifact of the same inflation: with false positives counted at 1% weight, loosening
+    the threshold looks nearly free, so the apparent optimum slid down to 0.35.
+
+    Recall, TP and FN were never affected, since positives are never subsampled. The
+    correction is applied in `splice_engine/eval/operating_points.py` and cross-checked
+    against the argmax precision the same run measured over all 365 M positions, agreeing
+    to within 4%.
 
 ### Modality contribution (ablation)
 

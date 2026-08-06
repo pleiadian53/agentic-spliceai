@@ -41,14 +41,32 @@ alternative-site protocol ([Stage 6](../../workflows/meta_layer/06_evaluation.md
 | FN reduction vs base | — | **88.2%** |
 
 The base model finds **~17%** of alternative sites; M2-S finds **~90%** — a 5.3× recall gain — while
-holding precision roughly level. On the overall Ensembl test set at the F1-optimal operating point,
-M2-S runs **precision 0.97 / recall 0.94 / F1 0.956**. Validation macro PR-AUC was 0.953 (epoch 6).
+holding precision roughly level. Validation macro PR-AUC was 0.953 (epoch 6).
+
+On the **overall** Ensembl test set, each model scored at its own F1-optimal threshold:
+
+| | Base (OpenSpliceAI) | M2-S (v4) |
+|-|---------------------|-----------|
+| Its own F1-optimal threshold | 0.25 | 0.99 |
+| Precision / recall | 0.832 / 0.654 | **0.866 / 0.797** |
+| Macro F1 | 0.733 | **0.830** |
+| FP / FN | 24,100 / 63,239 | **22,600 / 37,089** |
+
+M2-S is ahead on precision as well as recall, so the alternative-site gain is not bought
+by loosening the operating point. The thresholds differ by 4x, which is why quoting either
+model at the other's cutoff is misleading.
 
 !!! warning "Alternative-site recovery is a discovery-mode tradeoff"
     Going from 17% to 90% recall necessarily admits more positives. At a fixed argmax threshold the
-    overall false-positive *count* rises sharply — the model is deliberately operating in a
-    high-recall discovery regime. Judge it by PR-AUC and by precision/recall at the F1-optimal point
-    (above), not by argmax FP counts.
+    overall false-positive *count* rises sharply (13,163 for base against 1,006,208 for M2-S), because
+    argmax sits near 0.5 and M2-S is calibrated to operate near 0.99. Judge it by PR-AUC and by
+    precision/recall at each model's own F1-optimal point (above), not by argmax FP counts.
+
+!!! note "Corrected 2026-08"
+    An earlier version quoted **precision 0.97 / recall 0.94 / F1 0.956 at threshold 0.65** here.
+    Those came from a sweep whose negatives are 1%-subsampled, which inflates precision and pulls the
+    apparent optimum down. See the [M1-S page](m1_canonical.md) for the mechanism. Recall-side numbers
+    (the 17% → 90% headline, the FN reduction) were never affected.
 
 **Cross-annotation check (GENCODE).** The same effect holds on GENCODE ∖ MANE: M2-S reaches PR-AUC
 **0.907**, and even M1-S v2 improves GENCODE-alt to **0.728** vs base 0.637 (+0.091) with false
