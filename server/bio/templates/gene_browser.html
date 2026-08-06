@@ -34,6 +34,10 @@
             </select>
         </div>
         <div>
+            <label for="annotation-select" style="display:block; font-size:0.8rem; font-weight:600; color:#666; margin-bottom:0.25rem;">ANNOTATION</label>
+            <select id="annotation-select" style="min-width: 190px;" title="Which gene annotation to browse. Defaults to the one the selected model was built against."></select>
+        </div>
+        <div>
             <label for="chrom-select" style="display:block; font-size:0.8rem; font-weight:600; color:#666; margin-bottom:0.25rem;">CHROMOSOME</label>
             <select id="chrom-select" style="min-width: 120px;">
                 <option value="">All</option>
@@ -41,7 +45,7 @@
         </div>
         <div style="flex: 1; min-width: 200px;">
             <label for="search-input" style="display:block; font-size:0.8rem; font-weight:600; color:#666; margin-bottom:0.25rem;">SEARCH</label>
-            <input type="search" id="search-input" placeholder="Gene name or ID (e.g. BRCA1, TP53)" style="width: 100%;">
+            <input type="search" id="search-input" placeholder="Name, synonym or description (e.g. BRCA1, TDP-43, &quot;TAR DNA binding&quot;)" style="width: 100%;">
         </div>
         <div>
             <label for="per-page-select" style="display:block; font-size:0.8rem; font-weight:600; color:#666; margin-bottom:0.25rem;">PER PAGE</label>
@@ -54,6 +58,14 @@
         </div>
     </div>
 </div>
+
+<!-- Build-mismatch notice: browsing an annotation on a different genome build
+     than the selected model. Coordinates are not comparable, so the genome
+     view (which predicts with the model) would be meaningless. Warn rather
+     than silently reconcile. -->
+<div id="build-warning" style="display:none; margin-top:0.75rem; padding:0.6rem 0.9rem;
+     border-left:4px solid #f39c12; background:#fff8ec; color:#7a4f00; font-size:0.85rem;
+     border-radius:4px;"></div>
 
 <!-- Stats -->
 <div class="stats-row" id="stats-row">
@@ -119,21 +131,61 @@
 
     // Elements
     const modelSelect = document.getElementById('model-select');
+    const annotationSelect = document.getElementById('annotation-select');
     const chromSelect = document.getElementById('chrom-select');
     const searchInput = document.getElementById('search-input');
     const perPageSelect = document.getElementById('per-page-select');
     const tableBody = document.getElementById('gene-table-body');
     const loading = document.getElementById('loading');
 
+    // The annotation the current model was built against. Selecting it sends no
+    // `annotation` param at all, so the default path is byte-identical to the
+    // pre-selector behaviour.
+    let modelDefaultAnnotation = null;
+
+    function currentAnnotation() {
+        const v = annotationSelect.value;
+        return (!v || v === modelDefaultAnnotation) ? null : v;
+    }
+
+    // `<source>.<build>` -> build
+    function buildOf(key) { return key ? key.split('.').slice(-1)[0] : null; }
+
+    function updateBuildWarning() {
+        const el = document.getElementById('build-warning');
+        const selected = annotationSelect.value;
+        const modelBuild = buildOf(modelDefaultAnnotation);
+        const annBuild = buildOf(selected);
+        if (selected && modelBuild && annBuild && modelBuild !== annBuild) {
+            el.innerHTML = `<strong>Different genome build.</strong> You are browsing `
+                + `<strong>${annBuild}</strong> coordinates while <strong>${modelSelect.value}</strong> `
+                + `predicts on <strong>${modelBuild}</strong>. Gene positions here are not comparable `
+                + `to the genome view, so prediction links are disabled for this annotation.`;
+            el.style.display = 'block';
+            return true;
+        }
+        el.style.display = 'none';
+        return false;
+    }
+
     // Init
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadAnnotations();
         loadChromosomes();
         loadStats();
         loadGenes();
     });
 
     // Event listeners
-    modelSelect.addEventListener('change', () => {
+    modelSelect.addEventListener('change', async () => {
+        currentPage = 1;
+        await loadAnnotations();   // model change resets the annotation to its own
+        loadChromosomes();
+        loadStats();
+        loadGenes();
+    });
+
+    annotationSelect.addEventListener('change', () => {
         currentPage = 1;
         loadChromosomes();
         loadStats();
@@ -158,11 +210,36 @@
         }, 300);
     });
 
+    // Load the annotation dropdown, defaulting to the model's own
+    async function loadAnnotations() {
+        const model = modelSelect.value;
+        try {
+            const resp = await fetch(`/api/annotations?model=${encodeURIComponent(model)}`);
+            const data = await resp.json();
+            modelDefaultAnnotation = data.model_default;
+
+            annotationSelect.innerHTML = '';
+            data.annotations.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.key;
+                opt.textContent = a.is_model_default ? `${a.name} — model default` : a.name;
+                opt.title = a.notes || '';
+                if (a.is_model_default) opt.selected = true;
+                annotationSelect.appendChild(opt);
+            });
+        } catch (e) {
+            console.error('Failed to load annotations:', e);
+        }
+    }
+
     // Load chromosomes for dropdown
     async function loadChromosomes() {
         const model = modelSelect.value;
+        const annotation = currentAnnotation();
         try {
-            const resp = await fetch(`/api/genes/chromosomes?model=${encodeURIComponent(model)}`);
+            const qs = `model=${encodeURIComponent(model)}`
+                + (annotation ? `&annotation=${encodeURIComponent(annotation)}` : '');
+            const resp = await fetch(`/api/genes/chromosomes?${qs}`);
             const chroms = await resp.json();
 
             chromSelect.innerHTML = '<option value="">All</option>';
@@ -180,8 +257,11 @@
     // Load stats
     async function loadStats() {
         const model = modelSelect.value;
+        const annotation = currentAnnotation();
         try {
-            const resp = await fetch(`/api/genes/stats?model=${encodeURIComponent(model)}`);
+            const qs = `model=${encodeURIComponent(model)}`
+                + (annotation ? `&annotation=${encodeURIComponent(annotation)}` : '');
+            const resp = await fetch(`/api/genes/stats?${qs}`);
             const stats = await resp.json();
 
             document.getElementById('stat-total').textContent = stats.total_genes.toLocaleString();
@@ -208,6 +288,8 @@
         });
         if (chr) params.set('chr', chr);
         if (search) params.set('search', search);
+        const annotation = currentAnnotation();
+        if (annotation) params.set('annotation', annotation);
 
         try {
             const resp = await fetch(`/api/genes?${params}`);
@@ -232,12 +314,15 @@
             return;
         }
 
+        const buildMismatch = updateBuildWarning();
         tableBody.innerHTML = genes.map(g => {
             const desc = g.description || '';
             const descShort = desc.length > 40 ? desc.substring(0, 40) + '...' : desc;
             return `
             <tr>
-                <td><a href="/genome/${encodeURIComponent(g.gene_name)}?model=${modelSelect.value}" style="color:#1e3a5f; font-weight:600; text-decoration:none;">${escapeHtml(g.gene_name)}</a></td>
+                <td>${buildMismatch
+                    ? `<span style="color:#7a4f00;" title="Different genome build than the selected model — prediction would use incomparable coordinates.">${escapeHtml(g.gene_name)}</span>`
+                    : `<a href="/genome/${encodeURIComponent(g.gene_name)}?model=${modelSelect.value}" style="color:#1e3a5f; font-weight:600; text-decoration:none;">${escapeHtml(g.gene_name)}</a>`}</td>
                 <td class="mono text-muted">${escapeHtml(g.gene_id)}</td>
                 <td class="desc-cell" title="${escapeHtml(desc)}">${escapeHtml(descShort) || '<span class="text-muted">&mdash;</span>'}</td>
                 <td>${escapeHtml(g.chrom)}</td>

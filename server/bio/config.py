@@ -22,6 +22,58 @@ PORT = 8005
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
 
+# ── Annotation registry (Gene Browser) ────────────────────────────────────────
+# Browsing genes needs an annotation, not a model. The model dropdown still sets
+# the DEFAULT annotation (that is how we record which dataset trained which base
+# model), but the browser may look at any annotation registered here.
+#
+# Key is `<source>.<build>`, matching `get_model_resources(m).annotation_source`
+# + `.build` so a model resolves to its own annotation with no lookup table.
+# Entries whose GTF is absent are filtered out at request time — the menu must
+# only offer what the system can actually load.
+ANNOTATIONS: dict[str, dict] = {
+    "mane.GRCh38": {
+        "name": "MANE (GRCh38)",
+        "source": "mane",
+        "build": "GRCh38",
+        "gtf": PROJECT_ROOT / "data/mane/GRCh38/MANE.GRCh38.v1.3.refseq_genomic.gtf",
+        "sites": PROJECT_ROOT / "data/mane/GRCh38/splice_sites_track.parquet",
+        "notes": "Canonical one-transcript-per-gene set. Trains M1-S/M3-S; OpenSpliceAI's annotation.",
+    },
+    "ensembl.GRCh38": {
+        "name": "Ensembl 112 (GRCh38)",
+        "source": "ensembl",
+        "build": "GRCh38",
+        "gtf": PROJECT_ROOT / "data/ensembl/Homo_sapiens.GRCh38.112.gtf",
+        "sites": PROJECT_ROOT / "data/ensembl/GRCh38/splice_sites_track.parquet",
+        "notes": "All transcripts. Trains M2-S; Ensembl \\ MANE is the alternative-site delta set.",
+    },
+    "gencode.GRCh38": {
+        "name": "GENCODE v47 (GRCh38)",
+        "source": "gencode",
+        "build": "GRCh38",
+        "gtf": PROJECT_ROOT / "data/gencode/GRCh38/gencode.v47.annotation.gtf",
+        "sites": PROJECT_ROOT / "data/gencode/GRCh38/splice_sites_track.parquet",
+        "notes": "Near-superset of Ensembl (+136,858 splice sites), mostly outside protein-coding genes.",
+    },
+    "ensembl.GRCh37": {
+        "name": "Ensembl 87 (GRCh37)",
+        "source": "ensembl",
+        "build": "GRCh37",
+        "gtf": PROJECT_ROOT / "data/ensembl/GRCh37/Homo_sapiens.GRCh37.87.gtf",
+        "sites": None,
+        "notes": "Legacy build, for the SpliceAI base model. Not comparable to GRCh38 coordinates.",
+    },
+}
+
+DEFAULT_ANNOTATION = "mane.GRCh38"
+
+# Base model preselected in the UI. Not merely cosmetic: openspliceai is the
+# GRCh38/MANE model every promoted meta model refines, so it is the only choice
+# where the meta overlay and the Novel Site Explorer are immediately meaningful.
+# Falls back to the first servable model if this one is unavailable.
+DEFAULT_MODEL = "openspliceai"
+
 # Prediction cache (LRU): max number of (gene, model) entries to keep in memory.
 # Each entry is ~1-10 MB depending on gene length.  50 entries ≈ 50-500 MB worst case.
 MAX_CACHED_PREDICTIONS = 50
