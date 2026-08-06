@@ -33,6 +33,10 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from agentic_spliceai.splice_engine.features.dense_feature_extractor import (
+    ChannelExtractionError,
+)
+
 logger = logging.getLogger(__name__)
 
 # build_splice_labels: 0=none, 1=acceptor, 2=donor
@@ -443,16 +447,27 @@ def _assert_channels_live(
     channel_names: List[str],
     sample: int = 64,
 ) -> None:
-    """Raise if any declared multimodal channel is all-zero across the cache.
+    """Raise if a declared multimodal channel is all-zero across the *whole* cache.
 
-    Guards against the "dead channel" failure mode — e.g. an RBP/eCLIP channel
-    zero-filled because a pre-fix resolver couldn't find its parquet, then baked
-    into a `.npz` cache and silently reused (resume path). A channel that is
-    identically zero in every sampled gene is treated as dead and aborts the run,
-    so no use-case script trains or infers on a modality it never actually saw.
-    Excluded channels are not in ``channel_names``, so legitimately-omitted
-    modalities (e.g. RBP on GRCh37) are not flagged. Disable via
-    ``build_gene_cache(check_live_channels=False)`` only for deliberate edge cases.
+    Guards against an unwired **data source** — e.g. an RBP/eCLIP channel
+    zero-filled because a resolver couldn't find its parquet, then baked into a
+    `.npz` and silently reused on the resume path. Excluded channels are not in
+    ``channel_names``, so legitimately-omitted modalities (RBP on GRCh37) are not
+    flagged. Disable via ``build_gene_cache(check_live_channels=False)`` only for
+    deliberate edge cases.
+
+    .. important::
+       **This cannot detect a per-gene failure.** Evidence is pooled with ``|=``
+       across sampled genes, so a channel is reported dead only when it is zero
+       in *every* one. Seven healthy genes plus one whose fetch failed reads as
+       healthy, and the bad gene survives — including on resume. That is by
+       design: a gene with no eCLIP peaks legitimately has ``rbp_n_bound``
+       all-zero, so a per-gene rule here would false-alarm constantly.
+
+       Per-gene integrity is enforced upstream instead: a channel query that
+       raises now propagates as
+       :class:`~agentic_spliceai.splice_engine.features.dense_feature_extractor.ChannelExtractionError`
+       and ``build_gene_cache`` skips writing that gene rather than caching zeros.
     """
     if not index or not channel_names:
         return
@@ -635,6 +650,7 @@ def build_gene_cache(
     n_done = len(index)
     n_total = len(gene_ids)
     sub_batch_size = 200  # gc.collect() after every N genes per chromosome
+    failed_genes: List[Tuple[str, List[str]]] = []  # (gene_id, failed channels)
 
     for chrom, chrom_gene_ids in chrom_to_genes.items():
         _log_mem(f"{chrom} start ({len(chrom_gene_ids)} genes)")
@@ -695,8 +711,17 @@ def build_gene_cache(
             if base_scores is None or base_scores.shape[0] != gene_len:
                 base_scores = np.full((gene_len, 3), 1.0 / 3, dtype=np.float32)
 
-            # Dense multimodal features
-            mm_features = feature_extractor.extract_window(chrom, start, end)
+            # Dense multimodal features. A channel that *errored* must not be
+            # written: once in the .npz it is indistinguishable from a channel
+            # that legitimately measured zero, and the resume path would reuse
+            # it forever. Skip the gene instead, leaving it to be retried.
+            try:
+                mm_features = feature_extractor.extract_window(chrom, start, end)
+            except ChannelExtractionError as e:
+                logger.warning("Skipping %s — %s", gid, e)
+                failed_genes.append((gid, list(e.channels)))
+                npz_path.unlink(missing_ok=True)
+                continue
 
             # Save to disk (weights only present for m3)
             save_arrays = dict(
@@ -738,6 +763,24 @@ def build_gene_cache(
         _log_mem(f"{chrom} done")
 
     logger.info("Gene cache complete: %d genes in %s", len(index), cache_dir)
+    if failed_genes:
+        # Loud and itemised: these genes have NO cache entry, so a downstream
+        # consumer will 404 rather than read zeros. That is the intended
+        # trade — a missing gene is recoverable, a silently wrong one is not.
+        by_channel: Dict[str, int] = {}
+        for _gid, chans in failed_genes:
+            for c in chans:
+                by_channel[c] = by_channel.get(c, 0) + 1
+        logger.error(
+            "%d gene(s) SKIPPED on channel-extraction failure (not cached): %s. "
+            "Affected channels: %s. Re-run to retry; if this persists, the data "
+            "source is unreachable (see features/track_cache.py for the "
+            "conservation bigWigs).",
+            len(failed_genes),
+            ", ".join(g for g, _ in failed_genes[:10])
+            + (f" … +{len(failed_genes) - 10} more" if len(failed_genes) > 10 else ""),
+            ", ".join(f"{c} ({n})" for c, n in sorted(by_channel.items())),
+        )
     if check_live_channels:
         _assert_channels_live(index, feature_extractor.channel_names)
     return index

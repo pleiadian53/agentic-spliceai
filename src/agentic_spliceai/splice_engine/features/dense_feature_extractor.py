@@ -94,6 +94,36 @@ class DenseFeatureConfig:
     bigwig_cache_dir: Optional[Path] = None
     junction_parquet: Optional[Path] = None
     eclip_parquet: Optional[Path] = None
+    strict_channels: bool = True
+    """Raise :class:`ChannelExtractionError` when a channel query fails.
+
+    A failed query used to be zero-filled and logged as a warning, which makes
+    "the fetch errored" indistinguishable downstream from "this region really
+    measured zero" — so a transient network failure could be written into a
+    ``.npz`` and reused indefinitely. Callers that genuinely want partial
+    features (exploration, a plot) can set this False to restore the old
+    graceful-degradation behaviour.
+    """
+
+
+class ChannelExtractionError(RuntimeError):
+    """One or more feature channels could not be queried for a region.
+
+    Carries the failing channel names and the region so a caller can retry or
+    skip that gene rather than caching zeros.
+    """
+
+    def __init__(self, channels, chrom: str, start: int, end: int, errors=None):
+        self.channels = list(channels)
+        self.region = (chrom, start, end)
+        self.errors = dict(errors or {})
+        detail = "; ".join(f"{c}: {self.errors[c]}" for c in self.channels if c in self.errors)
+        super().__init__(
+            f"Channel(s) {self.channels} failed for {chrom}:{start}-{end}"
+            + (f" — {detail}" if detail else "")
+            + ". Refusing to emit zero-filled features; a zero channel is "
+              "indistinguishable from real signal once cached."
+        )
 
 
 def _resolve_default_bigwig_cache() -> Optional[Path]:
@@ -217,6 +247,7 @@ class DenseFeatureExtractor:
         """
         L = end - start
         out = np.zeros((L, self.num_channels), dtype=np.float32)
+        failed: dict = {}
 
         for ch_name in self._channels:
             idx = self._channel_idx[ch_name]
@@ -240,8 +271,13 @@ class DenseFeatureExtractor:
                 elif ch_name == "rbp_n_bound":
                     out[:, idx] = self._query_rbp(chrom, start, end)
             except Exception as e:
+                # Record rather than swallow. Zero-filling here is what let a
+                # DNS failure reach a cached .npz as two silently dead channels.
+                failed[ch_name] = e
                 logger.warning("Channel %s failed for %s:%d-%d: %s", ch_name, chrom, start, end, e)
-                # Leave as zeros (graceful degradation)
+
+        if failed and self.config.strict_channels:
+            raise ChannelExtractionError(failed.keys(), chrom, start, end, failed)
 
         return out
 
