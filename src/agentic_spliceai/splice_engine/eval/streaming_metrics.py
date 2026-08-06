@@ -337,7 +337,24 @@ class _ModelAccumulator:
         For each threshold, compute precision, recall, F1, TP, FP, FN
         using the accumulated splice-site probabilities.
 
-        The default argmax decision (threshold=0) is included for reference.
+        **Precision is prevalence-corrected.** The accumulators keep every
+        splice site but only ``neither_subsample_rate`` of the "neither"
+        positions, so a raw count of false positives over the retained rows
+        understates the true count by ``1 / rate`` (a factor of 100 at the
+        default 0.01). Left uncorrected, precision is inflated at every
+        threshold, and it is inflated *most* where the model fires most, which
+        drags the F1-optimal threshold far below its true value: an M2-S sweep
+        that reads optimal at 0.65 uncorrected is optimal at 0.99 once the
+        negatives are weighted back. That number is an operating point people
+        act on, so it has to be right.
+
+        The two negative populations are weighted separately. For the donor
+        sweep, acceptor positions are retained in full and count exactly, while
+        "neither" positions are subsampled and count ``1 / rate`` each. ``TP``,
+        ``FN`` and recall are unaffected: all positives are always retained.
+
+        Each row carries ``fp_observed`` (the uncorrected count) alongside the
+        corrected ``fp`` so the correction stays auditable.
 
         Parameters
         ----------
@@ -349,7 +366,7 @@ class _ModelAccumulator:
         dict
             Keys: ``"donor"``, ``"acceptor"``.  Each value is a list of dicts
             with keys: ``threshold``, ``precision``, ``recall``, ``f1``,
-            ``tp``, ``fp``, ``fn``.
+            ``tp``, ``fp``, ``fp_observed``, ``fn``.
         """
         if thresholds is None:
             thresholds = [
@@ -357,6 +374,11 @@ class _ModelAccumulator:
                 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7,
                 0.75, 0.8, 0.85, 0.9, 0.95, 0.99,
             ]
+
+        # Weight each retained "neither" row by how many it stands for.
+        rate = self.neither_subsample_rate
+        neither_weight = (1.0 / rate) if rate > 0 else 1.0
+        is_neither = np.array(self._neither_labels, dtype=bool)
 
         results = {}
         for name, probs_list, labels_list in [
@@ -368,15 +390,24 @@ class _ModelAccumulator:
                 continue
 
             probs_arr = np.array(probs_list)
-            labels_arr = np.array(labels_list)
+            labels_arr = np.array(labels_list, dtype=bool)
+
+            # Negatives for this class, split by their sampling rate.
+            neg = ~labels_arr
+            neg_subsampled = neg & is_neither      # stands for 1/rate positions
+            neg_exact = neg & ~is_neither          # the other splice class, fully retained
 
             sweep = []
             for t in thresholds:
-                preds = (probs_arr >= t).astype(int)
+                preds = probs_arr >= t
                 tp = int((preds & labels_arr).sum())
-                fp = int((preds & ~labels_arr.astype(bool)).sum())
-                fn = int((~preds.astype(bool) & labels_arr).sum())
-                prec = tp / max(tp + fp, 1)
+                fn = int((~preds & labels_arr).sum())
+                fp_observed = int((preds & neg).sum())
+                fp = (
+                    float((preds & neg_exact).sum())
+                    + float((preds & neg_subsampled).sum()) * neither_weight
+                )
+                prec = tp / max(tp + fp, 1.0)
                 rec = tp / max(tp + fn, 1)
                 f1 = 2 * prec * rec / max(prec + rec, 1e-8)
                 sweep.append({
@@ -384,7 +415,7 @@ class _ModelAccumulator:
                     "precision": round(prec, 4),
                     "recall": round(rec, 4),
                     "f1": round(f1, 4),
-                    "tp": tp, "fp": fp, "fn": fn,
+                    "tp": tp, "fp": int(round(fp)), "fp_observed": fp_observed, "fn": fn,
                 })
             results[name] = sweep
 
@@ -497,8 +528,15 @@ class StreamingEvaluator:
 
         Returns dict with ``meta`` and ``base`` keys, each containing
         per-class threshold sweep results from :meth:`_ModelAccumulator.sweep_thresholds`.
+
+        Also returns ``prevalence_corrected: True`` and the
+        ``neither_subsample_rate`` the correction used. Sweeps written before
+        that correction existed carry neither key, which is how consumers tell
+        a corrected sweep from a legacy one.
         """
         return {
+            "prevalence_corrected": True,
+            "neither_subsample_rate": self._meta.neither_subsample_rate,
             "meta": self._meta.sweep_thresholds(thresholds),
             "base": self._base.sweep_thresholds(thresholds),
         }
