@@ -178,6 +178,10 @@ def main() -> int:
                         help="Trained M1-S dir (config.pt + best.pt)")
     parser.add_argument("--bigwig-cache", type=Path, default=None,
                         help="Local bigWig cache dir (avoids slow remote streaming)")
+    parser.add_argument("--download-tracks", action="store_true",
+                        help="Download missing conservation bigWigs (~15.8 GB) without prompting")
+    parser.add_argument("--no-download-tracks", action="store_true",
+                        help="Never download; stream conservation from UCSC (the old behaviour)")
     parser.add_argument("--max-retries", type=int, default=3,
                         help="Rebuild attempts for genes with failed-stream channels")
     parser.add_argument("--no-verify", action="store_true",
@@ -197,6 +201,9 @@ def main() -> int:
     from agentic_spliceai.splice_engine.features.dense_feature_extractor import (
         DenseFeatureExtractor,
         DenseFeatureConfig,
+    )
+    from agentic_spliceai.splice_engine.features.track_cache import (
+        ensure_conservation_tracks,
     )
     from agentic_spliceai.splice_engine.meta_layer.data.sequence_level_dataset import (
         build_gene_cache,
@@ -240,11 +247,27 @@ def main() -> int:
     # dense channels and rebuild any degraded gene (deleting its .npz first,
     # since the builder would otherwise skip it).  Directly de-risks the plan's
     # #1 risk: "bigWig streaming slow/flaky".
+    # Conservation is the only modality fetched over the network at extraction
+    # time, and a failed fetch is zero-filled rather than raised — which writes a
+    # cache with two dead channels. Resolve it before building, not after.
+    bigwig_cache = args.bigwig_cache
+    if not args.no_download_tracks:
+        resolved_cache = ensure_conservation_tracks(
+            build="GRCh38",
+            cache_dir=bigwig_cache,
+            download=True if args.download_tracks else "ask",
+        )
+        if resolved_cache is not None:
+            bigwig_cache = resolved_cache
+            print(f"  Conservation tracks: local cache at {resolved_cache}")
+        else:
+            print("  Conservation tracks: streaming from UCSC (no local cache)")
+
     print(f"\n  Building dense feature cache (9 channels)...")
     t0 = time.time()
     pending = list(resolved)
     for attempt in range(1, args.max_retries + 1):
-        feat_config = DenseFeatureConfig(build="GRCh38", bigwig_cache_dir=args.bigwig_cache)
+        feat_config = DenseFeatureConfig(build="GRCh38", bigwig_cache_dir=bigwig_cache)
         extractor = DenseFeatureExtractor(feat_config)
         build_gene_cache(
             pending, splice_sites_df, fasta_path,
