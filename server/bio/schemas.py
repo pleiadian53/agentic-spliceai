@@ -8,6 +8,7 @@ class GeneRecord(BaseModel):
     gene_id: str
     gene_name: str
     description: str = ''
+    aliases: str = ''          # comma-joined gene synonyms, e.g. "ALS10,TDP-43"
     chrom: str
     strand: str
     start: int
@@ -81,6 +82,11 @@ class GenomeResponse(BaseModel):
     # (the exact OpenSpliceAI scores the meta layer refines), and these carry the
     # meta layer's prediction at the same positions — for a base-vs-meta overlay.
     meta_model: Optional[str] = None
+    # A base model and the meta model refined from it have very different score
+    # distributions, so one shared cutoff scores at least one of them at the wrong
+    # operating point. Held-out F1-optima differ by more than 3x. Defaults to
+    # ``threshold`` when the caller does not ask for a separate one.
+    meta_threshold: Optional[float] = None
     meta_donor_prob: Optional[List[float]] = None
     meta_acceptor_prob: Optional[List[float]] = None
     meta_markers: Optional[List[SpliceSiteMarker]] = None

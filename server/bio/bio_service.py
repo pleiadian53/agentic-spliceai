@@ -37,7 +37,11 @@ from . import config
 from . import m3_inference
 from . import meta_metrics
 from .base_inference import is_servable, predict_gene as base_predict_gene
-from .gene_cache import get_genes, get_gene_stats, get_chromosomes
+from .gene_cache import (
+    get_genes, get_gene_stats, get_chromosomes,
+    get_genes_for_annotation, available_annotations, annotation_for_model,
+)
+from .annotation_tracks import gene_annotation_tracks
 from .model_cache import is_cached as is_model_cached
 from .meta_inference import build_overlay_predictions
 from .schemas import (
@@ -64,6 +68,27 @@ def servable_models() -> list[str]:
     convention someone has to remember.
     """
     return [name for name in list_available_models() if is_servable(name)]
+
+
+def default_model(models: list[str]) -> str | None:
+    """The base model to preselect: ``config.DEFAULT_MODEL`` when servable.
+
+    Previously this was ``models[0]``, i.e. whatever the registry happened to
+    list first (spliceai, a GRCh37 model), so the UI opened on a build that none
+    of the meta models can be overlaid on.
+    """
+    if not models:
+        return None
+    return config.DEFAULT_MODEL if config.DEFAULT_MODEL in models else models[0]
+
+
+def models_for_template() -> tuple[list[str], str | None]:
+    """Servable models with the default first, plus that default."""
+    models = servable_models()
+    chosen = default_model(models)
+    if chosen:
+        models = [chosen] + [m for m in models if m != chosen]
+    return models, chosen
 
 
 @asynccontextmanager
@@ -123,11 +148,11 @@ app.include_router(ingest_api.router)
 @app.get("/", response_class=HTMLResponse)
 async def gene_browser_page(request: Request):
     """Gene browser page."""
-    models = servable_models()
+    models, chosen = models_for_template()
     return templates.TemplateResponse("gene_browser.html", {
         "request": request,
         "models": models,
-        "default_model": models[0] if models else None,
+        "default_model": chosen,
     })
 
 
@@ -153,11 +178,44 @@ async def get_models():
 # API Routes — Genes
 # =========================
 
+def _genes_for(model: str, annotation: str | None):
+    """Gene table for an explicit annotation, else the model's own.
+
+    Omitting *annotation* reproduces the pre-selector behaviour exactly, which
+    is what keeps the model->dataset mapping the default rather than a setting
+    the user has to know about.
+    """
+    if annotation:
+        return get_genes_for_annotation(annotation)
+    return get_genes(model)
+
+
+@app.get("/api/annotations")
+async def list_annotations(
+    model: str | None = Query(None, description="Mark this model's default annotation"),
+):
+    """Annotations the Gene Browser can load, with the model's default flagged."""
+    default = None
+    if model and model in servable_models():
+        try:
+            default = annotation_for_model(model)
+        except Exception:
+            default = None
+    items = available_annotations()
+    for it in items:
+        it["is_model_default"] = it["key"] == default
+    return {"annotations": items, "model_default": default}
+
+
 @app.get("/api/genes", response_model=GeneListResponse)
 async def get_gene_list(
     model: str = Query(..., description="Model name"),
     chr: str | None = Query(None, description="Filter by chromosome"),
-    search: str | None = Query(None, description="Search gene name or ID"),
+    annotation: str | None = Query(
+        None,
+        description="Annotation key (e.g. ensembl.GRCh38). Defaults to the model's own.",
+    ),
+    search: str | None = Query(None, description="Search gene name, ID, synonym or description"),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(
         config.DEFAULT_PAGE_SIZE,
@@ -174,19 +232,55 @@ async def get_gene_list(
             genes=[], total=0, page=page, per_page=per_page, total_pages=0
         )
 
-    df = get_genes(model)
+    try:
+        df = _genes_for(model, annotation)
+    except (KeyError, FileNotFoundError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Apply chromosome filter
     if chr:
         df = df.filter(pl.col("chrom") == chr)
 
-    # Apply search filter (case-insensitive on gene_name and gene_id)
+    # Apply search filter (case-insensitive on gene_name, gene_id and description).
+    # Description matters because gene symbols are not what users know a gene by:
+    # the ALS gene TDP-43 is filed as `TARDBP`, findable only via its description
+    # ("TAR DNA binding protein"). Symbol-only search returns the unrelated TDP1/TDP2.
     if search:
         search_lower = search.lower()
-        df = df.filter(
+        match = (
             pl.col("gene_name").str.to_lowercase().str.contains(search_lower, literal=True)
             | pl.col("gene_id").str.to_lowercase().str.contains(search_lower, literal=True)
         )
+        for col in ("description", "aliases"):
+            if col in df.columns:
+                match = match | (
+                    pl.col(col)
+                    .fill_null("")
+                    .str.to_lowercase()
+                    .str.contains(search_lower, literal=True)
+                )
+        df = df.filter(match)
+
+        # Rank by relevance, else a symbol query is buried by its own relatives:
+        # searching "BRCA1" matches BRIP1/BARD1/BABAM1 via their descriptions
+        # ("BRCA1 interacting helicase", "BRCA1 associated RING domain"), and
+        # plain alphabetical order would put BRAP above the exact hit.
+        # An exact *alias* hit ranks just under an exact symbol hit, so searching
+        # "TDP-43" surfaces TARDBP ahead of genes that merely mention it.
+        name_lower = pl.col("gene_name").str.to_lowercase()
+        alias_exact = (
+            pl.col("aliases").fill_null("").str.to_lowercase()
+            .str.split(",").list.contains(search_lower)
+            if "aliases" in df.columns else pl.lit(False)
+        )
+        df = df.with_columns(
+            pl.when(name_lower == search_lower).then(0)
+            .when(alias_exact).then(1)
+            .when(name_lower.str.starts_with(search_lower)).then(2)
+            .when(name_lower.str.contains(search_lower, literal=True)).then(3)
+            .otherwise(4)
+            .alias("_rank")
+        ).sort(["_rank", "gene_name"]).drop("_rank")
 
     total = df.height
     total_pages = max(1, math.ceil(total / per_page))
@@ -212,8 +306,9 @@ async def get_gene_list(
 @app.get("/api/genes/stats", response_model=GeneStatsResponse)
 async def get_genes_stats(
     model: str = Query(..., description="Model name"),
+    annotation: str | None = Query(None, description="Annotation key; defaults to the model's own"),
 ):
-    """Summary statistics for a model's gene set."""
+    """Summary statistics for the browsed gene set."""
     available = servable_models()
     if model not in available:
         return GeneStatsResponse(
@@ -221,19 +316,42 @@ async def get_genes_stats(
             total_genes=0, per_chromosome={},
         )
 
-    stats = get_gene_stats(model)
-    return GeneStatsResponse(**stats)
+    if not annotation:
+        return GeneStatsResponse(**get_gene_stats(model))
+
+    spec = config.ANNOTATIONS.get(annotation)
+    if spec is None:
+        raise HTTPException(status_code=400, detail=f"Unknown annotation: {annotation}")
+    try:
+        df = get_genes_for_annotation(annotation)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    counts = df.group_by("chrom").agg(pl.len().alias("n")).sort("n", descending=True)
+    return GeneStatsResponse(
+        model=model,
+        build=spec["build"],
+        annotation_source=spec["source"],
+        total_genes=df.height,
+        per_chromosome=dict(zip(counts["chrom"].to_list(), counts["n"].to_list())),
+    )
 
 
 @app.get("/api/genes/chromosomes")
 async def get_chromosome_list(
     model: str = Query(..., description="Model name"),
+    annotation: str | None = Query(None, description="Annotation key; defaults to the model's own"),
 ):
-    """Get sorted list of chromosomes for a model."""
+    """Get sorted list of chromosomes for the browsed gene set."""
     available = servable_models()
     if model not in available:
         return []
-    return get_chromosomes(model)
+    if not annotation:
+        return get_chromosomes(model)
+    try:
+        df = get_genes_for_annotation(annotation)
+    except (KeyError, FileNotFoundError):
+        return []
+    return sorted(df["chrom"].unique().to_list())
 
 
 # =========================
@@ -433,7 +551,7 @@ async def novel_sites_candidates(
 @app.get("/genome/{gene_name}", response_class=HTMLResponse)
 async def genome_view_page(request: Request, gene_name: str):
     """Genome view page for a specific gene."""
-    models = servable_models()
+    models, chosen = models_for_template()
     # Show the human-readable `name` ("M1-S (canonical)") in the dropdown while
     # keeping the canonical <variant>.<arch>.<corpus> key as the option value —
     # the key is precise but not what a demo audience should be reading.
@@ -445,7 +563,7 @@ async def genome_view_page(request: Request, gene_name: str):
         "request": request,
         "gene_name": gene_name,
         "models": models,
-        "default_model": models[0] if models else None,
+        "default_model": chosen,
         "meta_models": meta_models,
     })
 
@@ -619,9 +737,14 @@ def _build_overlay_response(
     gene_name: str, base_model_name: str, meta_model_name: str,
     base_pred: dict, meta_pred: dict, annotations_df: pl.DataFrame,
     base_positions_df: pl.DataFrame, meta_positions_df: pl.DataFrame,
-    threshold: float,
+    threshold: float, meta_threshold: float,
 ) -> dict:
-    """Build a base-vs-meta overlay response (shared, peak-preserving downsample)."""
+    """Build a base-vs-meta overlay response (shared, peak-preserving downsample).
+
+    ``threshold`` classifies the base model and ``meta_threshold`` the meta model.
+    They are separate because the two score distributions are: a cutoff that suits
+    one puts the other at the wrong operating point.
+    """
     import numpy as np
     gene_id = next(iter(base_pred))
     bp, mp = base_pred[gene_id], meta_pred[gene_id]
@@ -633,13 +756,13 @@ def _build_overlay_response(
     # Shared downsample indices: peaks in EITHER base or meta + background.
     # The meta layer fires on far more positions than the (sparse) base model,
     # so a 0.01 floor floods the point set; use a higher 0.05 floor and a hard
-    # cap, but ALWAYS keep called sites (prob > threshold in either model) so no
-    # TP/FP peak is dropped from the line.
+    # cap, but ALWAYS keep called sites (called by EITHER model at ITS OWN
+    # threshold) so no TP/FP peak is dropped from the line.
     factor = max(1, n_total // MAX_PLOT_POINTS)
     if factor <= 1:
         idx = list(range(n_total))
     else:
-        called = (bd > threshold) | (ba > threshold) | (md > threshold) | (ma > threshold)
+        called = (bd > threshold) | (ba > threshold) | (md > meta_threshold) | (ma > meta_threshold)
         called_idx = set(np.where(called)[0].tolist())
         peak = (bd > 0.05) | (ba > 0.05) | (md > 0.05) | (ma > 0.05)
         peak_idx = set(np.where(peak)[0].tolist())
@@ -674,7 +797,7 @@ def _build_overlay_response(
         gt_positions=gt_positions, gt_site_types=gt_site_types,
         markers=base_markers, n_tp=b_tp, n_fp=b_fp, n_fn=b_fn,
         downsample_factor=factor, total_positions=n_total,
-        meta_model=meta_model_name,
+        meta_model=meta_model_name, meta_threshold=meta_threshold,
         meta_donor_prob=[float(md[i]) for i in idx],
         meta_acceptor_prob=[float(ma[i]) for i in idx],
         meta_markers=meta_markers, meta_n_tp=m_tp, meta_n_fp=m_fp, meta_n_fn=m_fn,
@@ -682,8 +805,16 @@ def _build_overlay_response(
 
 
 async def _genome_predict_meta(gene_name: str, meta_model_name: str,
-                               threshold: float, loop) -> dict:
-    """Genome prediction with a meta-layer overlay (base vs meta)."""
+                               threshold: float, loop,
+                               meta_threshold: float | None = None) -> dict:
+    """Genome prediction with a meta-layer overlay (base vs meta).
+
+    ``meta_threshold`` defaults to ``threshold``, which is the historical
+    single-cutoff behaviour. Pass it to score each model at its own operating
+    point.
+    """
+    if meta_threshold is None:
+        meta_threshold = threshold
     base_model_name = get_meta_model_config(meta_model_name).get('base_model', 'openspliceai')
     cache_key = (gene_name, meta_model_name)
 
@@ -733,21 +864,148 @@ async def _genome_predict_meta(gene_name: str, meta_model_name: str,
             predictions=base_pred, annotations_df=filtered_annot, threshold=threshold,
             consensus_window=2, collect_tn=False, verbosity=0, return_pr_metrics=False)),
         loop.run_in_executor(None, lambda: evaluate_splice_site_predictions(
-            predictions=meta_pred, annotations_df=filtered_annot, threshold=threshold,
+            predictions=meta_pred, annotations_df=filtered_annot, threshold=meta_threshold,
             consensus_window=2, collect_tn=False, verbosity=0, return_pr_metrics=False)),
     )
     return _build_overlay_response(
         gene_name, base_model_name, meta_model_name, base_pred, meta_pred,
-        filtered_annot, base_eval[1], meta_eval[1], threshold,
+        filtered_annot, base_eval[1], meta_eval[1], threshold, meta_threshold,
     )
+
+
+@app.get("/api/genome/{gene_name}/annotation-tracks")
+async def genome_annotation_tracks(
+    gene_name: str,
+    chrom: str = Query(..., description="Chromosome, with or without the chr prefix"),
+):
+    """Stacked annotation tracks for one gene, plus the Ensembl \\ MANE delta set.
+
+    Separate from ``/predict`` on purpose: this is additive context for the
+    chart, so a missing or unbuilt annotation degrades the tracks without
+    touching the prediction or its counts.
+    """
+    loop = asyncio.get_event_loop()
+    try:
+        return await loop.run_in_executor(
+            None, lambda: gene_annotation_tracks(gene_name, chrom)
+        )
+    except Exception as e:
+        logger.exception(f"Annotation tracks failed for {gene_name}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _counts_at(positions_df) -> tuple[int, int, int]:
+    t = positions_df["pred_type"].to_list() if positions_df.height > 0 else []
+    return t.count("TP"), t.count("FP"), t.count("FN")
+
+
+def _f1(tp: int, fp: int, fn: int) -> float:
+    p = tp / (tp + fp) if tp + fp else 0.0
+    r = tp / (tp + fn) if tp + fn else 0.0
+    return 2 * p * r / (p + r) if p + r else 0.0
+
+
+@app.get("/api/genome/{gene_name}/threshold-sweep")
+async def genome_threshold_sweep(
+    gene_name: str,
+    model: str = Query(..., description="Base model type"),
+    meta: str | None = Query(None, description="Optional meta model to sweep alongside base"),
+    steps: int = Query(19, ge=5, le=99, description="Linear grid points between 0.05 and 0.95"),
+):
+    """F1 vs threshold for this gene, and the F1-optimal point for each model.
+
+    Exists because 0.5 is not a meaningful operating point under this class
+    imbalance, and the right threshold differs per model: base and meta have
+    very different score distributions, so a single shared cutoff flatters
+    whichever one happens to match it.
+
+    **This is a per-gene, post-hoc optimum on the data being displayed**, not a
+    held-out operating point and not the model's published threshold. It is a
+    navigation aid for the slider. The response also carries ``held_out``, the
+    per-model optimum measured across every held-out gene, which is the number
+    to quote.
+
+    Unlike the stored held-out sweep, this one needs no prevalence correction:
+    it scores every position of the gene, with nothing subsampled.
+    """
+    if model not in servable_models():
+        raise HTTPException(status_code=400, detail=f"Unknown model: {model}")
+    if meta:
+        meta = resolve_meta_model_name(meta)
+        if meta not in list_available_meta_models():
+            raise HTTPException(status_code=400, detail=f"Unknown meta model: {meta}")
+
+    loop = asyncio.get_event_loop()
+    # A linear grid stopping at 0.95 cannot locate a meta model's optimum: on the
+    # held-out evaluation both promoted meta models peak at 0.99, and their F1 is
+    # still climbing at 0.95. Reporting the last grid point as "optimal" would be
+    # reporting the edge of the grid. Hence the tail.
+    grid = [round(0.05 + i * (0.90 / (steps - 1)), 4) for i in range(steps)]
+    grid += [0.96, 0.97, 0.98, 0.99, 0.995, 0.999]
+    grid = sorted(set(grid))
+
+    try:
+        if meta:
+            cached = _meta_cache_get((gene_name, meta))
+            if cached is None:
+                await _genome_predict_meta(gene_name, meta, 0.5, loop)
+                cached = _meta_cache_get((gene_name, meta))
+            base_pred, meta_pred, annotations_df = cached
+            preds = {"base": base_pred, "meta": meta_pred}
+        else:
+            cached = _cache_get((gene_name, model))
+            if cached is None:
+                await genome_predict(gene_name, model=model, threshold=0.5, meta=None)
+                cached = _cache_get((gene_name, model))
+            predictions, annotations_df = cached
+            preds = {"base": predictions}
+
+        filtered_annot = filter_annotations_by_transcript(
+            annotations_df, mode="canonical", verbosity=0,
+        )
+
+        def sweep(pred) -> list[dict]:
+            out = []
+            for thr in grid:
+                _e, positions_df, _p = evaluate_splice_site_predictions(
+                    predictions=pred, annotations_df=filtered_annot, threshold=thr,
+                    consensus_window=2, collect_tn=False, verbosity=0,
+                    return_pr_metrics=False,
+                )
+                tp, fp, fn = _counts_at(positions_df)
+                out.append({"threshold": thr, "tp": tp, "fp": fp, "fn": fn,
+                            "f1": round(_f1(tp, fp, fn), 4)})
+            return out
+
+        result = {}
+        for label, pred in preds.items():
+            curve = await loop.run_in_executor(None, lambda p=pred: sweep(p))
+            best = max(curve, key=lambda r: r["f1"])
+            result[label] = {"curve": curve, "best": best}
+
+        return {
+            "gene_name": gene_name, "model": model, "meta_model": meta,
+            "note": "F1-optimal for THIS gene (post-hoc), not a held-out operating point.",
+            "held_out": meta_metrics.held_out_operating_points(meta) if meta else None,
+            **result,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Threshold sweep failed for {gene_name}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/genome/{gene_name}/predict")
 async def genome_predict(
     gene_name: str,
     model: str = Query(..., description="Base model type (e.g., openspliceai)"),
-    threshold: float = Query(0.5, ge=0.0, le=1.0, description="Classification threshold"),
+    threshold: float = Query(0.5, ge=0.0, le=1.0, description="Base-model classification threshold"),
     meta: str | None = Query(None, description="Optional meta model (e.g. m1s.concat_fusion.cleanannot) for a base-vs-meta overlay"),
+    meta_threshold: float | None = Query(
+        None, ge=0.0, le=1.0,
+        description="Meta-model threshold; defaults to `threshold` when omitted",
+    ),
 ):
     """Run on-demand splice site prediction for a single gene.
 
@@ -757,6 +1015,12 @@ async def genome_predict(
     If ``meta`` is given, returns a base-vs-meta overlay instead: the base
     arrays carry the OpenSpliceAI scores the meta layer refines, and the
     ``meta_*`` fields carry the meta layer's prediction at the same positions.
+
+    ``threshold`` and ``meta_threshold`` are separate because the two models
+    score differently: on the held-out evaluation M2-S is F1-optimal at 0.99
+    while its base model peaks at 0.25. Scoring both at one cutoff makes at
+    least one of them look worse than it is. Omitting ``meta_threshold``
+    keeps the single-cutoff behaviour.
     """
     available = servable_models()
     if model not in available:
@@ -772,7 +1036,9 @@ async def genome_predict(
         if meta not in list_available_meta_models():
             raise HTTPException(status_code=400, detail=f"Unknown meta model: {meta}")
         try:
-            return await _genome_predict_meta(gene_name, meta, threshold, loop)
+            return await _genome_predict_meta(
+                gene_name, meta, threshold, loop, meta_threshold=meta_threshold
+            )
         except HTTPException:
             raise
         except Exception as e:
