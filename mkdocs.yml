@@ -183,6 +183,14 @@ nav:
   - Tutorials:
       - Overview: tutorials/README.md
       - Splice Prediction Guide: tutorials/SPLICE_PREDICTION_GUIDE.md
+  - Bio Lab UI:
+      - Overview: bio_lab/README.md
+      - Getting Started: bio_lab/00_getting_started.md
+      - Gene Browser: bio_lab/01_gene_browser.md
+      - Genome View: bio_lab/02_genome_view.md
+      - Novel Site Explorer: bio_lab/03_novel_sites.md
+      - Metrics Dashboard: bio_lab/04_metrics.md
+      - Reading the Numbers: bio_lab/05_reading_the_numbers.md
   - API Reference:
       - Overview: api/README.md
       - Endpoints: api/ENDPOINTS.md

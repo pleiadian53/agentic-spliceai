@@ -56,6 +56,14 @@ M2-S is ahead on precision as well as recall, so the alternative-site gain is no
 by loosening the operating point. The thresholds differ by 4x, which is why quoting either
 model at the other's cutoff is misleading.
 
+!!! note "The Lab UI now uses the same yardstick"
+    Both numbers above are scored on Ensembl, never on MANE — scoring a model built to find
+    non-MANE sites against MANE alone counts every success as an error. Until 2026-08-10 the
+    genome view did exactly that, because it took ground truth from the *base* model's annotation.
+    It now resolves to the overlaid meta model's training annotation and labels every count with the
+    truth set used, so the page and this table agree. See
+    [Reading the numbers](../../bio_lab/05_reading_the_numbers.md#which-yardstick).
+
 !!! warning "Alternative-site recovery is a discovery-mode tradeoff"
     Going from 17% to 90% recall necessarily admits more positives. At a fixed argmax threshold the
     overall false-positive *count* rises sharply (13,163 for base against 1,006,208 for M2-S), because
