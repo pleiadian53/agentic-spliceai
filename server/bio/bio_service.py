@@ -1334,3 +1334,69 @@ async def genome_predict(
     except Exception as e:
         logger.exception(f"Prediction failed for {gene_name}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =========================
+# Dev-only introspection (registered only when config.ENABLE_DEBUG_ENDPOINTS)
+# =========================
+
+def _lru_report(cache: OrderedDict, label: str, fields: tuple[str, ...]) -> dict:
+    """One LRU's occupancy and eviction order.
+
+    Order matters more than membership here. All three caches share a single
+    capacity, so browsing during a session can silently evict a gene that was
+    warmed for it, and the first entry listed is the one that goes next.
+    """
+    # strict=True: a key whose arity disagrees with `fields` means this report
+    # is mislabelling the cache, which is worse than raising.
+    entries = [
+        dict(zip(fields, k, strict=True)) if isinstance(k, tuple) else {fields[0]: k}
+        for k in cache.keys()
+    ]
+    return {
+        "label": label,
+        "size": len(cache),
+        "capacity": config.MAX_CACHED_PREDICTIONS,
+        "next_evicted": entries[0] if entries else None,
+        "entries_oldest_first": entries,
+    }
+
+
+if config.ENABLE_DEBUG_ENDPOINTS:
+
+    @app.get("/api/debug/cache")
+    async def debug_cache() -> dict:
+        """What the server currently holds in memory. **Dev/demo only.**
+
+        Answers "will the next click be fast", which needs two things the logs
+        do not put side by side: whether the *prediction* is cached, and
+        whether the *model* that would produce it is loaded. A cache miss on a
+        loaded model costs a second or two; a miss on an unloaded one costs a
+        model load, which for SpliceAI is five TensorFlow models.
+
+        Returns gene symbols and model names only — no filesystem paths, no
+        request history. Disable with ``BIO_LAB_DEBUG=0``.
+        """
+        from .meta_model_cache import is_cached as is_meta_model_cached
+
+        def safe(fn, name):
+            try:
+                return fn(name)
+            except Exception:                      # a probe must never 500
+                return None
+
+        return {
+            "dev_only": True,
+            "note": ("Internal server state, for demo warm-up checks. "
+                     "Disable with BIO_LAB_DEBUG=0."),
+            "prediction_caches": [
+                _lru_report(_prediction_cache, "base", ("gene", "model")),
+                _lru_report(_meta_prediction_cache, "meta overlay", ("gene", "meta_model")),
+                _lru_report(_m3_cache, "novel candidates (M3)", ("gene",)),
+            ],
+            "models_loaded": {
+                "base": {m: safe(is_model_cached, m) for m in servable_models()},
+                "meta": {m: safe(is_meta_model_cached, m)
+                         for m in list_available_meta_models()},
+            },
+        }

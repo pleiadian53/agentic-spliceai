@@ -1,5 +1,6 @@
 """Configuration and path resolution for AgenticSpliceAI Lab."""
 
+import os
 from pathlib import Path
 
 # Project root (3 levels up from server/bio/config.py)
@@ -17,6 +18,20 @@ CACHE_DIR = PROJECT_ROOT / "output" / "bio_cache"
 # Server settings
 HOST = "0.0.0.0"
 PORT = 8005
+
+# ── Dev-only endpoints ────────────────────────────────────────────────────────
+# `/api/debug/*` exposes internal server state (which genes and models are held
+# in memory). Nothing sensitive — gene symbols are public reference data, and no
+# filesystem paths are returned — but it is server internals, not product
+# surface, so it is registered as a distinct opt-out group rather than blended
+# into the normal API.
+#
+# Defaults ON because the thing it answers ("did my cache warm-up actually
+# stick?") is needed exactly when remembering to set a flag is least likely,
+# i.e. minutes before a live demo. Turn it off with BIO_LAB_DEBUG=0. When off,
+# the route is not registered at all: an unknown path 404s like any other,
+# rather than 403ing and thereby advertising that it exists.
+ENABLE_DEBUG_ENDPOINTS = os.getenv("BIO_LAB_DEBUG", "1").lower() not in ("0", "false", "no")
 
 # Pagination defaults
 DEFAULT_PAGE_SIZE = 50

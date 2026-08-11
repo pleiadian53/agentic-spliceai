@@ -54,6 +54,38 @@ The `threshold` parameter is deliberately absent above: the prediction cache is 
 `(gene, model)` only, because raw per-position probabilities don't depend on the cutoff. Only the
 cheap classification re-runs when you move a slider, so warming at any threshold warms all of them.
 
+### Checking that the warm-up stuck
+
+```bash
+curl -s http://localhost:8005/api/debug/cache | jq
+```
+
+Reports each prediction cache's occupancy against its capacity, its entries **oldest-first**, and
+which models are loaded:
+
+```
+base                   2/50   next_evicted: TP53
+meta overlay           1/50   next_evicted: TARDBP
+novel candidates (M3)  0/50
+models loaded          base: openspliceai   meta: m2s.concat_fusion.cleanannot
+```
+
+Two things this answers that the logs don't:
+
+- **Whether warming survived.** All three caches share one capacity
+  (`config.MAX_CACHED_PREDICTIONS`), so browsing during a session can evict a gene warmed for it.
+  `next_evicted` names the entry that goes first.
+- **Whether the *model* is loaded**, which is the other half of latency. A cache miss on a loaded
+  model costs a second or two; a miss on an unloaded one costs a model load, and for SpliceAI that
+  is five TensorFlow models.
+
+!!! warning "Dev-only"
+    `/api/debug/*` exposes internal server state. It returns gene symbols and model names only, with
+    no filesystem paths and no request history, but it is server internals rather than product
+    surface. It defaults **on**, because the question it answers is needed exactly when remembering
+    a flag is least likely. Disable with `BIO_LAB_DEBUG=0`, which unregisters the route entirely so
+    it 404s indistinguishably from any unknown path.
+
 ## What needs prebuilt data
 
 Three features read artifacts that must exist on disk first. Everything else works out of the box.
