@@ -759,9 +759,24 @@ def filter_annotations_by_transcript(
     Filter annotations to specific transcript(s).
     
     Many genes have multiple transcripts, each contributing splice site
-    annotations. SpliceAI primarily predicts canonical splice sites from the
-    major transcript. Evaluating against ALL transcripts inflates the
-    denominator and deflates recall.
+    annotations. A model trained on a one-transcript-per-gene annotation
+    predicts mainly the canonical sites, so evaluating it against ALL
+    transcripts inflates the denominator and deflates recall.
+
+    .. important::
+       **Match the filter to the model's training annotation, not to a default.**
+       This helper reduces a truth set; it does not make one appropriate. For a
+       MANE-trained base model (OpenSpliceAI, SpliceBERT) `canonical` is close to
+       a no-op, because MANE is already ~one transcript per gene. For a model
+       trained on the Ensembl union — **M2-S, whose entire purpose is the sites
+       MANE omits** — filtering to canonical scores every correct alternative-site
+       call as a false positive. Measured on TARDBP at threshold 0.9, M2-S reads
+       10/19/0 against MANE and **29/0/3** against Ensembl, on identical
+       predictions.
+
+       (The original note here reasoned from SpliceAI specifically. SpliceAI is
+       GRCh37 and rarely used in this project; the GRCh38 base models are the
+       relevant case, and the principle is about the *annotation*, not the model.)
     
     This function filters annotations to reduce evaluation to the most
     relevant splice sites for a given analysis context.
