@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import math
+import sys
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -41,6 +42,7 @@ from .gene_cache import (
     get_genes, get_gene_stats, get_chromosomes,
     get_genes_for_annotation, available_annotations, annotation_for_model,
 )
+from . import annotation_tracks
 from .annotation_tracks import gene_annotation_tracks
 from .model_cache import is_cached as is_model_cached
 from .meta_inference import build_overlay_predictions
@@ -91,6 +93,38 @@ def models_for_template() -> tuple[list[str], str | None]:
     return models, chosen
 
 
+def _log_annotation_bindings() -> None:
+    """Record which annotation version each model resolves to, and flag drift.
+
+    settings.yaml and ``config.ANNOTATIONS`` are independent surfaces over the
+    same files; drift between them does not raise, it just scores predictions
+    against a different annotation than the page names. Printing the binding at
+    boot makes the version visible in any log that accompanies a result, and the
+    cross-registry check runs here so divergence surfaces without anyone
+    remembering to run ``scripts/check_annotation_registry.py``.
+    """
+    for m in servable_models():
+        try:
+            r = get_model_resources(m)
+            truths = annotation_tracks.truth_sets_for_build(r.build)
+            logger.info("  %-22s %s / %s v%s   truth sets: %s",
+                        m, r.build, r.annotation_source, r.release or "(default)",
+                        list(truths) or "none (no track parquet on this build)")
+        except Exception as e:                       # never block startup on a log line
+            logger.warning("  %-22s could not resolve resources: %s", m, e)
+
+    try:
+        sys.path.insert(0, str(config.PROJECT_ROOT / "scripts"))
+        from check_annotation_registry import check_bio_lab_registry
+        problems = check_bio_lab_registry()
+        for p in problems:
+            logger.warning("Annotation registry drift: %s", p)
+        if not problems:
+            logger.info("Annotation registries agree (settings.yaml <-> Bio Lab).")
+    except Exception as e:
+        logger.debug("Annotation registry check skipped: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan."""
@@ -104,6 +138,7 @@ async def lifespan(app: FastAPI):
         hidden = sorted(set(declared) - set(models))
         logger.warning(f"Declared but not servable, hidden from menu: {hidden}")
     logger.info(f"Available models: {models}")
+    _log_annotation_bindings()
 
     yield
 
@@ -559,12 +594,20 @@ async def genome_view_page(request: Request, gene_name: str):
         {"key": key, "label": get_meta_model_config(key).get("name", key)}
         for key in list_available_meta_models()
     ]
+    # Truth sets are per genome build: a GRCh37 model has no GRCh38 track it can
+    # honestly be scored against. Offer only what each model supports rather
+    # than letting the selector present a choice the API will reject.
+    truth_sets = {
+        m: list(annotation_tracks.truth_sets_for_build(get_model_resources(m).build))
+        for m in models
+    }
     return templates.TemplateResponse("genome_view.html", {
         "request": request,
         "gene_name": gene_name,
         "models": models,
         "default_model": chosen,
         "meta_models": meta_models,
+        "truth_sets": truth_sets,
     })
 
 
@@ -598,6 +641,62 @@ def _cache_get(key: tuple[str, str]) -> tuple[dict, pl.DataFrame] | None:
     return None
 
 
+def _rescore_to_truth(
+    gene_name: str,
+    chrom: str,
+    truth: str | None,
+    default_truth: str,
+    gene_start: int,
+    gene_end: int,
+    positions: list,
+    tracks: list[tuple[list, list, float]],
+    build: str = "GRCh38",
+) -> tuple[str, str | None, list[dict] | None, list[int] | None, list[str] | None]:
+    """Re-derive TP/FP/FN for one or more score tracks against an explicit truth set.
+
+    Shared by the base-only and base-vs-meta paths so a switch of ground truth
+    means the same thing on both. ``tracks`` is a list of
+    ``(donor_prob, acceptor_prob, threshold)``; every track is scored under the
+    same rule, keeping a base-vs-meta comparison apples-to-apples.
+
+    Returns ``(truth_used, note, scored, gt_positions, gt_site_types)``. ``scored``
+    is ``None`` — meaning "keep what the caller already computed" — when the
+    request is for the model's own annotation (nothing to redo) or when that
+    annotation's track parquet has not been built.
+    """
+    if not truth or truth == default_truth:
+        return default_truth, None, None, None, None
+
+    sites = annotation_tracks.truth_sites(gene_name, chrom, truth, build)
+    if sites is None:
+        note = f"Track for '{truth}' is not built; showing {default_truth} instead."
+        return default_truth, note, None, None, None
+
+    scored = [
+        annotation_tracks.score_against_truth(
+            positions, donor, acceptor, sites, gene_start, gene_end, thr)
+        for donor, acceptor, thr in tracks
+    ]
+    # Clipped to the scored window, matching what score_against_truth counted.
+    # Another annotation's gene is frequently longer; returning sites the model
+    # was never run over would contradict the TP/FP/FN it sits beside.
+    gt_positions = sorted(p for p in sites['donor'] | sites['acceptor']
+                          if gene_start <= p <= gene_end)
+    gt_site_types = ['donor' if p in sites['donor'] else 'acceptor' for p in gt_positions]
+    return truth, None, scored, gt_positions, gt_site_types
+
+
+def _truth_markers(scored: dict) -> list:
+    """``score_against_truth`` markers as response models.
+
+    Scores are zeroed: the re-derived path counts from the track parquets and
+    has no per-site model score to carry, and the plot reads probabilities from
+    the dense arrays rather than from markers.
+    """
+    return [SpliceSiteMarker(**k, donor_score=0.0, acceptor_score=0.0)
+            for k in scored['markers']]
+
+
 def _build_genome_response(
     gene_name: str,
     model_name: str,
@@ -605,6 +704,7 @@ def _build_genome_response(
     annotations_df: pl.DataFrame,
     positions_df: pl.DataFrame,
     threshold: float,
+    truth: str | None = None,
 ) -> dict:
     """Build genome view JSON response from prediction + evaluation data."""
     gene_id = next(iter(predictions))
@@ -668,6 +768,21 @@ def _build_genome_response(
     n_fp = pred_types.count('FP')
     n_fn = pred_types.count('FN')
 
+    # Re-score against the requested truth set when it is not this model's own
+    # annotation. Without this the Ground truth selector is inert whenever no
+    # meta model is overlaid.
+    _res = get_model_resources(model_name)
+    truth_used, gt_note, scored, re_gt, re_types = _rescore_to_truth(
+        gene_name, str(pred.get('chrom', pred.get('seqname', ''))), truth,
+        _res.annotation_source,
+        pred['gene_start'], pred['gene_end'], ds_positions,
+        [(ds_donor, ds_acceptor, threshold)], build=_res.build,
+    )
+    if scored is not None:
+        markers = _truth_markers(scored[0])
+        n_tp, n_fp, n_fn = scored[0]['n_tp'], scored[0]['n_fp'], scored[0]['n_fn']
+        gt_positions, gt_site_types = re_gt, re_types
+
     return GenomeResponse(
         gene_name=pred.get('gene_name', gene_name),
         gene_id=gene_id,
@@ -688,6 +803,8 @@ def _build_genome_response(
         n_fn=n_fn,
         downsample_factor=factor,
         total_positions=n_total,
+        truth=truth_used,
+        truth_note=gt_note,
     ).model_dump()
 
 
@@ -738,6 +855,7 @@ def _build_overlay_response(
     base_pred: dict, meta_pred: dict, annotations_df: pl.DataFrame,
     base_positions_df: pl.DataFrame, meta_positions_df: pl.DataFrame,
     threshold: float, meta_threshold: float,
+    truth: str | None = None,
 ) -> dict:
     """Build a base-vs-meta overlay response (shared, peak-preserving downsample).
 
@@ -786,27 +904,50 @@ def _build_overlay_response(
     gt_positions = gene_annot['position'].to_list() if gene_annot.height > 0 else []
     gt_site_types = gene_annot['splice_type'].to_list() if gene_annot.height > 0 else []
 
+    ds_positions = [positions[i] for i in idx]
+    ds_bd = [float(bd[i]) for i in idx]
+    ds_ba = [float(ba[i]) for i in idx]
+    ds_md = [float(md[i]) for i in idx]
+    ds_ma = [float(ma[i]) for i in idx]
+
+    # Re-score against the resolved truth set when it is not the base model's own
+    # annotation. Both models go through the same rule so the comparison stays
+    # apples-to-apples, each at its own threshold.
+    _res = get_model_resources(base_model_name)
+    truth_used, gt_note, scored, re_gt, re_types = _rescore_to_truth(
+        gene_name, str(bp.get('chrom', '')), truth,
+        _res.annotation_source,
+        bp['gene_start'], bp['gene_end'], ds_positions,
+        [(ds_bd, ds_ba, threshold), (ds_md, ds_ma, meta_threshold)],
+        build=_res.build,
+    )
+    if scored is not None:
+        b, m = scored
+        base_markers, meta_markers = _truth_markers(b), _truth_markers(m)
+        b_tp, b_fp, b_fn = b['n_tp'], b['n_fp'], b['n_fn']
+        m_tp, m_fp, m_fn = m['n_tp'], m['n_fp'], m['n_fn']
+        gt_positions, gt_site_types = re_gt, re_types
+
     return GenomeResponse(
         gene_name=bp.get('gene_name', gene_name), gene_id=gene_id,
         chrom=bp.get('chrom', bp.get('seqname')), strand=bp['strand'],
         gene_start=bp['gene_start'], gene_end=bp['gene_end'],
         model=base_model_name, threshold=threshold,
-        positions=[positions[i] for i in idx],
-        donor_prob=[float(bd[i]) for i in idx],
-        acceptor_prob=[float(ba[i]) for i in idx],
+        positions=ds_positions, donor_prob=ds_bd, acceptor_prob=ds_ba,
         gt_positions=gt_positions, gt_site_types=gt_site_types,
         markers=base_markers, n_tp=b_tp, n_fp=b_fp, n_fn=b_fn,
         downsample_factor=factor, total_positions=n_total,
         meta_model=meta_model_name, meta_threshold=meta_threshold,
-        meta_donor_prob=[float(md[i]) for i in idx],
-        meta_acceptor_prob=[float(ma[i]) for i in idx],
+        meta_donor_prob=ds_md, meta_acceptor_prob=ds_ma,
         meta_markers=meta_markers, meta_n_tp=m_tp, meta_n_fp=m_fp, meta_n_fn=m_fn,
+        truth=truth_used, truth_note=gt_note,
     ).model_dump()
 
 
 async def _genome_predict_meta(gene_name: str, meta_model_name: str,
                                threshold: float, loop,
-                               meta_threshold: float | None = None) -> dict:
+                               meta_threshold: float | None = None,
+                               truth: str | None = None) -> dict:
     """Genome prediction with a meta-layer overlay (base vs meta).
 
     ``meta_threshold`` defaults to ``threshold``, which is the historical
@@ -870,6 +1011,7 @@ async def _genome_predict_meta(gene_name: str, meta_model_name: str,
     return _build_overlay_response(
         gene_name, base_model_name, meta_model_name, base_pred, meta_pred,
         filtered_annot, base_eval[1], meta_eval[1], threshold, meta_threshold,
+        truth=truth,
     )
 
 
@@ -892,6 +1034,41 @@ async def genome_annotation_tracks(
     except Exception as e:
         logger.exception(f"Annotation tracks failed for {gene_name}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def resolve_truth(model: str, meta: str | None, requested: str | None) -> str:
+    """Which annotation TP/FP/FN is scored against.
+
+    Auto-resolves to the **meta model's training annotation** when one is
+    overlaid. The genome view historically took its truth from the base model's
+    resources, which was right when the page served base models only — but it
+    means M2-S, built to find sites MANE omits, was scored on MANE, where every
+    such site it found counted as a false positive. Measured on TARDBP at 0.9:
+    10/19/0 against MANE becomes **29/0/3** against Ensembl, on identical
+    predictions.
+
+    Validated against the tracks available **on the model's own genome build**.
+    Reconciling builds here would be worse than refusing: the coordinates are
+    simply different numbers, so a cross-build score reads as a confident zero
+    rather than as an error.
+    """
+    res = get_model_resources(model)
+    build = res.build
+    offered = annotation_tracks.truth_sets_for_build(build)
+    if requested:
+        if requested not in offered:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Truth set '{requested}' is not available for {model} "
+                       f"({build}). Expected one of {list(offered)}.",
+            )
+        return requested
+    if meta:
+        spec = get_meta_model_config(meta)
+        train_annot = spec.get("train_annotation")
+        if train_annot in offered:
+            return train_annot
+    return res.annotation_source
 
 
 def _counts_at(positions_df) -> tuple[int, int, int]:
@@ -987,6 +1164,12 @@ async def genome_threshold_sweep(
             "gene_name": gene_name, "model": model, "meta_model": meta,
             "note": "F1-optimal for THIS gene (post-hoc), not a held-out operating point.",
             "held_out": meta_metrics.held_out_operating_points(meta) if meta else None,
+            # The per-gene sweep scores against the BASE model's annotation with
+            # the canonical-transcript filter — MANE for openspliceai. Named in
+            # the response so the panel can say so: an F1 computed on MANE alone
+            # structurally penalises M2-S, which exists to find sites MANE omits.
+            "eval_annotation": get_model_resources(model).annotation_source,
+            "eval_scope": "canonical transcript only",
             **result,
         }
     except HTTPException:
@@ -1005,6 +1188,14 @@ async def genome_predict(
     meta_threshold: float | None = Query(
         None, ge=0.0, le=1.0,
         description="Meta-model threshold; defaults to `threshold` when omitted",
+    ),
+    truth: str | None = Query(
+        None,
+        description=(
+            "Ground-truth annotation for TP/FP/FN: mane | ensembl | gencode. "
+            "Omit for auto — the meta model's training annotation when one is "
+            "overlaid, else the base model's."
+        ),
     ),
 ):
     """Run on-demand splice site prediction for a single gene.
@@ -1037,13 +1228,18 @@ async def genome_predict(
             raise HTTPException(status_code=400, detail=f"Unknown meta model: {meta}")
         try:
             return await _genome_predict_meta(
-                gene_name, meta, threshold, loop, meta_threshold=meta_threshold
+                gene_name, meta, threshold, loop, meta_threshold=meta_threshold,
+                truth=resolve_truth(model, meta, truth),
             )
         except HTTPException:
             raise
         except Exception as e:
             logger.exception(f"Meta prediction failed for {gene_name}/{meta}")
             raise HTTPException(status_code=500, detail=str(e))
+
+    # Validate on the base-only path too — an unknown key must not fall through
+    # to the default and report a yardstick the caller never asked for.
+    truth = resolve_truth(model, None, truth)
 
     cache_key = (gene_name, model)
 
@@ -1130,6 +1326,7 @@ async def genome_predict(
         # 6. Build response
         return _build_genome_response(
             gene_name, model, predictions, filtered_annot, positions_df, threshold,
+            truth=truth,
         )
 
     except HTTPException:

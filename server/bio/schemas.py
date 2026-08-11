@@ -87,6 +87,12 @@ class GenomeResponse(BaseModel):
     # operating point. Held-out F1-optima differ by more than 3x. Defaults to
     # ``threshold`` when the caller does not ask for a separate one.
     meta_threshold: Optional[float] = None
+    # Which annotation TP/FP/FN was scored against, and any fallback notice.
+    # Named in the payload because the same predictions produce very different
+    # counts under different truth sets, and an unlabelled count invites the
+    # reader to assume it answers the question they have.
+    truth: Optional[str] = None
+    truth_note: Optional[str] = None
     meta_donor_prob: Optional[List[float]] = None
     meta_acceptor_prob: Optional[List[float]] = None
     meta_markers: Optional[List[SpliceSiteMarker]] = None

@@ -210,6 +210,17 @@
         <input type="range" id="meta-threshold-range" min="0" max="1" step="0.01" value="0.5" disabled>
         <span class="threshold-display" id="meta-threshold-display">0.50</span>
     </div>
+    <!-- Which annotation TP/FP/FN is scored against. "Auto" follows the meta
+         model's training annotation, so M2-S is scored on Ensembl rather than
+         on MANE, where every alternative site it correctly finds would count
+         as a false positive. -->
+    <div class="control-group">
+        <label for="truth-select">Ground truth</label>
+        <select id="truth-select"
+                title="Which annotation counts as truth. Auto uses the overlaid meta model's training annotation.">
+            <option value="">Auto (model's own)</option>
+        </select>
+    </div>
     <div class="control-group">
         <label for="optimal-btn">Operating point</label>
         <button class="btn" id="optimal-btn" onclick="findOptimalThreshold()"
@@ -371,7 +382,37 @@ if (metaThresholdRange) {
     });
 }
 
-document.getElementById('model-select').addEventListener('change', () => scheduleRerun(0));
+// Truth sets are per genome build, so the offered options follow the model.
+// Scoring a GRCh37 model against a GRCh38 track is not a worse number, it is a
+// meaningless one: SpliceAI on TP53 against GRCh38 MANE reports 0 TP / 21 FP,
+// because the two builds put the gene at different coordinates entirely.
+const TRUTH_SETS = {{ truth_sets | tojson }};
+const TRUTH_LABELS = {
+    mane: 'MANE (canonical)',
+    ensembl: 'Ensembl (all)',
+    gencode: 'GENCODE (all)',
+};
+
+function updateTruthOptions() {
+    const sel = document.getElementById('truth-select');
+    const allowed = TRUTH_SETS[document.getElementById('model-select').value] || [];
+    const previous = sel.value;
+    sel.innerHTML = '<option value="">Auto (model\'s own)</option>';
+    for (const key of allowed) {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = TRUTH_LABELS[key] || key;
+        sel.appendChild(opt);
+    }
+    // Keep the user's choice across a model switch when it still applies.
+    sel.value = allowed.includes(previous) ? previous : '';
+}
+
+document.getElementById('truth-select').addEventListener('change', () => scheduleRerun(0));
+document.getElementById('model-select').addEventListener('change', () => {
+    updateTruthOptions();
+    scheduleRerun(0);
+});
 const metaSelectEl = document.getElementById('meta-select');
 if (metaSelectEl) {
     metaSelectEl.addEventListener('change', () => { updateMetaThresholdVisibility(); scheduleRerun(0); });
@@ -490,7 +531,21 @@ async function findOptimalThreshold() {
             + ` &rarr; F1 ${r.f1.toFixed(3)} (TP ${r.tp} / FP ${r.fp} / FN ${r.fn})`
             + btnFor(label, r.threshold);
 
-        let html = `<div style="font-weight:600; margin-bottom:0.25rem;">This gene (post-hoc)</div>`;
+        // Name the truth set on every block. "F1-optimal" with no yardstick
+        // named reads as the answer to whatever question the viewer has.
+        const truth = (ann, scope) =>
+            `<span style="color:#8a5000; background:#fdf0e3; padding:0.05rem 0.4rem;`
+            + ` border-radius:3px; font-size:0.78rem; margin-left:0.4rem;">`
+            + `scored vs ${ann || 'the model\'s annotation'}${scope ? ` · ${scope}` : ''}</span>`;
+
+        let html = `<div style="font-weight:600; margin-bottom:0.25rem;">This gene (post-hoc)`
+                 + truth(d.eval_annotation, d.eval_scope) + `</div>`;
+        if (d.meta) {
+            html += `<div style="color:#8a5000; font-size:0.8rem; margin-bottom:0.35rem;">`
+                  + `⚠ This yardstick excludes alternative sites, so a model built to find them `
+                  + `(M2-S) is penalised for every one it detects. The delta-set number is the `
+                  + `<strong>Alt sites</strong> badge above, not this F1.</div>`;
+        }
         html += row('Base', d.base.best);
         if (d.meta) html += `<br>${row('Meta', d.meta.best)}`;
         html += `<div style="color:#5a7ea6; margin-top:0.3rem;">${d.note}</div>`;
@@ -509,7 +564,8 @@ async function findOptimalThreshold() {
                      + btnFor(label, m.threshold);
             };
             html += `<div style="font-weight:600; margin:0.55rem 0 0.25rem;">`
-                  + `Held-out evaluation (all test genes)</div>`;
+                  + `Held-out evaluation${ho.n_genes ? ` (${ho.n_genes.toLocaleString()} test genes)` : ' (all test genes)'}`
+                  + truth(ho.eval_annotation, ho.eval_scope) + `</div>`;
             html += hrow('Base', ho.models.base);
             if (ho.models.meta) html += `<br>${hrow('Meta', ho.models.meta)}`;
             html += `<div style="color:#5a7ea6; margin-top:0.3rem;">${ho.note}`
@@ -569,6 +625,8 @@ async function runPrediction() {
         if (meta) url += `&meta=${encodeURIComponent(meta)}`;
         const mt = metaThresholdValue();
         if (meta && mt !== null) url += `&meta_threshold=${mt}`;
+        const truthSel = document.getElementById('truth-select').value;
+        if (truthSel) url += `&truth=${encodeURIComponent(truthSel)}`;
         const resp = await fetch(url);
 
         if (!resp.ok) {
@@ -628,9 +686,17 @@ function renderGeneInfo(data) {
     chips.innerHTML = chipsHtml;
 
     const summary = document.getElementById('class-summary');
+    // Identical predictions score very differently under different truth sets
+    // (TARDBP meta at 0.9: 10/19/0 vs MANE, 29/0/3 vs Ensembl), so the yardstick
+    // sits next to the counts rather than being left to inference.
+    const truthTag = data.truth
+        ? `<span style="background:#eef4fb;color:#1e3a5f;padding:0.15rem 0.5rem;`
+          + `border-radius:4px;font-size:0.78rem;margin-right:0.6rem;"`
+          + ` title="Ground truth for these TP/FP/FN counts.">vs ${data.truth}</span>`
+        : '';
     const baseTag = data.meta_model
         ? `<span style="font-weight:600;margin-right:6px;">Base${splitThr ? ` @${data.threshold}` : ''}:</span>` : '';
-    let summaryHtml = `${baseTag}
+    let summaryHtml = `${truthTag}${baseTag}
         <span class="class-badge tp"><span class="dot"></span>TP: ${data.n_tp}</span>
         <span class="class-badge fp"><span class="dot"></span>FP: ${data.n_fp}</span>
         <span class="class-badge fn"><span class="dot"></span>FN: ${data.n_fn}</span>`;
@@ -694,6 +760,10 @@ function renderGeneInfo(data) {
         summaryHtml += altHtml;
     }
 
+    if (data.truth_note) {
+        summaryHtml += `<div style="color:#7a4f00;font-size:0.78rem;margin-top:0.3rem;">`
+                     + `${data.truth_note}</div>`;
+    }
     summary.innerHTML = summaryHtml;
 
     // Downsample notice
@@ -1000,6 +1070,9 @@ function renderTracks(data) {
 }
 
 // --- Init ---
-document.addEventListener('DOMContentLoaded', runPrediction);
+document.addEventListener('DOMContentLoaded', () => {
+    updateTruthOptions();
+    runPrediction();
+});
 </script>
 {% endblock %}

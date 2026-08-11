@@ -98,6 +98,90 @@ def _as_track(key: str, label: str, df: Optional[pl.DataFrame], note: str = "") 
             "donor": donor, "acceptor": acceptor, "available": True, "note": note}
 
 
+#: Truth sets the genome view can score against. ``delta`` is intentionally
+#: absent: TP/FP/FN is undefined against a *subset* of truth, because a call
+#: away from the subset may be a perfectly correct canonical call. Measured on
+#: TARDBP at 0.9, scoring the base model on the delta reports 9 "false
+#: positives" that are all correct MANE calls. The delta is reported as
+#: **recall** instead (the alt-sites badge).
+TRUTH_SETS = ("mane", "ensembl", "gencode")
+
+
+def truth_sets_for_build(build: str) -> tuple:
+    """Truth sets with a built track parquet on ``build``.
+
+    Scoring across builds is silently catastrophic rather than merely wrong:
+    SpliceAI (GRCh37) on TP53 against the GRCh38 MANE track reports 0/21/0,
+    because the GRCh37 gene span shares no coordinates with the GRCh38 gene, so
+    every call falls outside every truth site. Callers offer only what this
+    returns.
+    """
+    have = set(available_track_sources())
+    return tuple(t for t in TRUTH_SETS if f"{t}.{build}" in have)
+
+
+def truth_sites(gene_name: str, chrom: str, truth: str,
+                build: str = "GRCh38") -> Optional[dict]:
+    """Donor/acceptor positions for one gene under one annotation.
+
+    ``truth`` is a bare source name (``mane`` / ``ensembl`` / ``gencode``),
+    resolved against ``build`` to a track parquet. Returns ``None`` when that
+    source/build combination has no track — never a different build's track.
+    """
+    key = f"{truth}.{build}"
+    df = _gene_sites(key, gene_name, chrom)
+    if df is None:
+        return None
+    return {
+        "donor": set(df.filter(pl.col("splice_type") == "donor")["position"].to_list()),
+        "acceptor": set(df.filter(pl.col("splice_type") == "acceptor")["position"].to_list()),
+    }
+
+
+def score_against_truth(
+    positions: list, donor_prob: list, acceptor_prob: list,
+    truth: dict, gene_start: int, gene_end: int, threshold: float,
+) -> dict:
+    """TP/FP/FN for one model against an explicit truth set.
+
+    Re-derived here rather than routed through ``evaluate_splice_site_predictions``
+    because that function takes its annotations from the *base model's* resources,
+    and ``prepare_splice_site_annotations(annotation_source="ensembl")`` resolves
+    genes through MANE-shaped ids — it returns 10 sites for TARDBP where the
+    Ensembl track has 40. Scoring against a silently truncated truth set is worse
+    than not offering the option.
+
+    Conventions, chosen to match the offline evaluator:
+
+    - **Exact position** match, no tolerance window.
+    - **Type-specific**: a donor call on an acceptor truth site is a false
+      positive, not a hit.
+    - Restricted to ``[gene_start, gene_end]``. Truth sites outside the scored
+      window are excluded from the denominator entirely — another annotation's
+      gene is frequently longer, and counting undetectable sites as misses
+      understates every model equally.
+    """
+    idx = {p: i for i, p in enumerate(positions)}
+    in_win = lambda p: gene_start <= p <= gene_end          # noqa: E731
+    tp = fp = fn = 0
+    markers = []
+    for stype, probs in (("donor", donor_prob), ("acceptor", acceptor_prob)):
+        want = {p for p in truth[stype] if in_win(p)}
+        for p in want:
+            i = idx.get(p)
+            if i is not None and probs[i] > threshold:
+                tp += 1
+                markers.append({"position": p, "site_type": stype, "pred_type": "TP"})
+            else:
+                fn += 1
+                markers.append({"position": p, "site_type": stype, "pred_type": "FN"})
+        for p, i in idx.items():
+            if probs[i] > threshold and p not in want:
+                fp += 1
+                markers.append({"position": p, "site_type": stype, "pred_type": "FP"})
+    return {"n_tp": tp, "n_fp": fp, "n_fn": fn, "n_truth": tp + fn, "markers": markers}
+
+
 def gene_annotation_tracks(gene_name: str, chrom: str) -> dict:
     """Annotation tracks for one gene, including the derived delta sets.
 

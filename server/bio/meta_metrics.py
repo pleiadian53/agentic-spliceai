@@ -268,7 +268,18 @@ def held_out_operating_points(meta_model_name: str) -> dict[str, Any] | None:
     if not path.exists():
         return None
     try:
-        return operating_points(json.loads(path.read_text()))
+        raw = json.loads(path.read_text())
+        op = operating_points(raw)
+        if op is not None:
+            # Carry the truth set forward. A page that says "F1-optimal" without
+            # naming what it was scored against invites the reader to assume it
+            # answers the question they care about. For M2-S in particular the
+            # sweep lives in the ALL-sites eval, not the alternative-site eval
+            # (which writes no sweep), so it is not the delta-set number.
+            op["eval_annotation"] = raw.get("annotation_source")
+            op["eval_scope"] = "all annotated sites"
+            op["n_genes"] = raw.get("n_genes")
+        return op
     except (json.JSONDecodeError, OSError, KeyError) as e:
         logger.warning("operating points: could not read %s (%s)", path, e)
         return None
