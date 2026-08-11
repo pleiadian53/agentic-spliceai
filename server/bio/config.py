@@ -31,39 +31,63 @@ MAX_PAGE_SIZE = 200
 # + `.build` so a model resolves to its own annotation with no lookup table.
 # Entries whose GTF is absent are filtered out at request time — the menu must
 # only offer what the system can actually load.
+#
+# `release` is the single place a version is written per entry. The display name
+# and the GTF filename are both DERIVED from it, so a label can no longer claim
+# one version while the path loads another. `scripts/check_annotation_registry.py`
+# then checks these paths against what the core registry (settings.yaml) resolves
+# for the same `<source>.<build>`, since the two are independent config surfaces.
+
+#: Per-source GTF filename template and how the version reads in prose.
+#: Templates mirror `builds.<key>.gtf` in settings.yaml; the check script is what
+#: keeps the two honest.
+_ANNOTATION_FORMATS = {
+    "mane":    {"gtf": "MANE.{build}.v{release}.refseq_genomic.gtf", "label": "MANE v{release}"},
+    "ensembl": {"gtf": "Homo_sapiens.{build}.{release}.gtf",         "label": "Ensembl {release}"},
+    "gencode": {"gtf": "gencode.v{release}.annotation.gtf",          "label": "GENCODE v{release}"},
+}
+
+
+def _annotation(source: str, build: str, release: str, gtf_dir: str,
+                sites: str | None, notes: str) -> dict:
+    """One annotation registry entry, with name and GTF derived from `release`."""
+    fmt = _ANNOTATION_FORMATS[source]
+    return {
+        "name": f"{fmt['label'].format(release=release)} ({build})",
+        "source": source,
+        "build": build,
+        "release": release,
+        "gtf": PROJECT_ROOT / gtf_dir / fmt["gtf"].format(build=build, release=release),
+        "sites": PROJECT_ROOT / sites if sites else None,
+        "notes": notes,
+    }
+
+
 ANNOTATIONS: dict[str, dict] = {
-    "mane.GRCh38": {
-        "name": "MANE (GRCh38)",
-        "source": "mane",
-        "build": "GRCh38",
-        "gtf": PROJECT_ROOT / "data/mane/GRCh38/MANE.GRCh38.v1.3.refseq_genomic.gtf",
-        "sites": PROJECT_ROOT / "data/mane/GRCh38/splice_sites_track.parquet",
-        "notes": "Canonical one-transcript-per-gene set. Trains M1-S/M3-S; OpenSpliceAI's annotation.",
-    },
-    "ensembl.GRCh38": {
-        "name": "Ensembl 112 (GRCh38)",
-        "source": "ensembl",
-        "build": "GRCh38",
-        "gtf": PROJECT_ROOT / "data/ensembl/Homo_sapiens.GRCh38.112.gtf",
-        "sites": PROJECT_ROOT / "data/ensembl/GRCh38/splice_sites_track.parquet",
-        "notes": "All transcripts. Trains M2-S; Ensembl \\ MANE is the alternative-site delta set.",
-    },
-    "gencode.GRCh38": {
-        "name": "GENCODE v47 (GRCh38)",
-        "source": "gencode",
-        "build": "GRCh38",
-        "gtf": PROJECT_ROOT / "data/gencode/GRCh38/gencode.v47.annotation.gtf",
-        "sites": PROJECT_ROOT / "data/gencode/GRCh38/splice_sites_track.parquet",
-        "notes": "Near-superset of Ensembl (+136,858 splice sites), mostly outside protein-coding genes.",
-    },
-    "ensembl.GRCh37": {
-        "name": "Ensembl 87 (GRCh37)",
-        "source": "ensembl",
-        "build": "GRCh37",
-        "gtf": PROJECT_ROOT / "data/ensembl/GRCh37/Homo_sapiens.GRCh37.87.gtf",
-        "sites": None,
-        "notes": "Legacy build, for the SpliceAI base model. Not comparable to GRCh38 coordinates.",
-    },
+    "mane.GRCh38": _annotation(
+        "mane", "GRCh38", "1.3", "data/mane/GRCh38",
+        "data/mane/GRCh38/splice_sites_track.parquet",
+        "Canonical one-transcript-per-gene set. Trains M1-S/M3-S; OpenSpliceAI's annotation.",
+    ),
+    # Note the flat directory: this GTF sits at data/ensembl/, not data/ensembl/GRCh38/.
+    # The core registry finds it because it searches <source>/<build>/ then <source>/.
+    "ensembl.GRCh38": _annotation(
+        "ensembl", "GRCh38", "112", "data/ensembl",
+        "data/ensembl/GRCh38/splice_sites_track.parquet",
+        "All transcripts. Trains M2-S; Ensembl \\ MANE is the alternative-site delta set.",
+    ),
+    "gencode.GRCh38": _annotation(
+        "gencode", "GRCh38", "47", "data/gencode/GRCh38",
+        "data/gencode/GRCh38/splice_sites_track.parquet",
+        "Near-superset of Ensembl (+136,858 splice sites), mostly outside protein-coding genes.",
+    ),
+    # `sites=None` is load-bearing: with no track parquet, this annotation cannot
+    # serve as a ground truth, which is what keeps the genome view from offering
+    # SpliceAI a GRCh38 yardstick. See annotation_tracks.truth_sets_for_build.
+    "ensembl.GRCh37": _annotation(
+        "ensembl", "GRCh37", "87", "data/ensembl/GRCh37", None,
+        "Legacy build, for the SpliceAI base model. Not comparable to GRCh38 coordinates.",
+    ),
 }
 
 DEFAULT_ANNOTATION = "mane.GRCh38"

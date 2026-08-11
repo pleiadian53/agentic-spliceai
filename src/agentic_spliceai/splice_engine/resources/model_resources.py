@@ -29,6 +29,31 @@ from .registry import Registry, get_genomic_registry
 from ..config.genomic_config import load_config
 
 
+def registry_build_key(build: str, annotation_source: str) -> str:
+    """Registry build key for a (build, annotation_source) pair.
+
+    A genomic build alone does not identify an annotation: GRCh38 carries
+    Ensembl, MANE and GENCODE, which are different files with different
+    splice-site sets. The registry disambiguates with a suffixed key
+    (``GRCh38_MANE``, ``GRCh38_GENCODE``), so the *pair* is what maps to a key.
+
+    Derived from the configured ``builds`` rather than hardcoded, so registering
+    a new source is a settings.yaml edit. Falls back to the bare build when no
+    suffixed key exists, which is correct for Ensembl: it is the registry's
+    default source on both builds and has no suffixed key.
+
+    Examples
+    --------
+    >>> registry_build_key('GRCh38', 'mane')
+    'GRCh38_MANE'
+    >>> registry_build_key('GRCh37', 'ensembl')
+    'GRCh37'
+    """
+    cfg = load_config()
+    candidate = f"{build}_{annotation_source.upper()}"
+    return candidate if candidate in (cfg.builds or {}) else build
+
+
 @dataclass
 class ModelResources:
     """Resources for a specific base model.
@@ -70,11 +95,12 @@ class ModelResources:
         >>> registry = resources.get_registry()
         >>> gtf_path = registry.get_gtf_path()
         """
-        # Handle special cases (e.g., MANE needs GRCh38_MANE build key)
-        if self.build == 'GRCh38' and self.annotation_source == 'mane':
-            return get_genomic_registry(build='GRCh38_MANE', release=self.release or '1.3')
-        else:
-            return get_genomic_registry(build=self.build, release=self.release)
+        return get_genomic_registry(build=self.build_key, release=self.release)
+
+    @property
+    def build_key(self) -> str:
+        """Registry build key for this model's (build, annotation_source) pair."""
+        return registry_build_key(self.build, self.annotation_source)
     
     def get_annotations_dir(self, create: bool = True) -> Path:
         """Get the directory for storing build-specific annotations.
