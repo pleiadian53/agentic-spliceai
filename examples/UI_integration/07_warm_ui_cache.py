@@ -157,9 +157,32 @@ def _fmt_cryptic(label: str, sites: list, scores: list, threshold: float) -> str
     return f"    {label:<30s} {hit}/{len(sites)}   {detail}"
 
 
+def _arrow(before: int | None, after: int, after_w: int = 3) -> str:
+    """``26→5`` when there is a base value to move from, else the value alone.
+
+    The arrow is the point of the whole report: it shows what the meta layer
+    *changed*, on one line. Absolute counts on two separate rows make the reader
+    do the subtraction, which is where a demo audience loses the thread.
+
+    Both branches are ``4 + after_w`` wide and put the value in the same column,
+    so a base row and the meta rows under it line up.
+    """
+    if before is None:
+        return f"{'':>4}{after:<{after_w}}"
+    return f"{before:>3}→{after:<{after_w}}"
+
+
 def _fmt_row(label: str, tp: int, n: int, fp: int, fn: int, extra: str = "",
-             secs: float | None = None) -> str:
-    row = f"    {label:<30s} TP {tp:>3}/{n:<3}  FP {fp:>4}  FN {fn:>3}{extra}"
+             secs: float | None = None,
+             base_fp: int | None = None, base_fn: int | None = None) -> str:
+    """One model's row within a truth-set block.
+
+    ``base_fp``/``base_fn`` turn the FP and FN columns into base→meta deltas.
+    They are passed only for meta rows; the base row prints plain counts, since
+    it is the thing being moved from.
+    """
+    row = (f"    {label:<30s} TP {tp:>3}/{n:<3}  "
+           f"FP {_arrow(base_fp, fp)}  FN {_arrow(base_fn, fn)}{extra}")
     if secs is not None:
         row = f"{row}   ({secs:4.1f}s)"
     return row.rstrip()
@@ -319,8 +342,12 @@ def main() -> int:
                     hit = len(_sites(d["meta_markers"], "FP") & alt)
                     if hit:
                         extra = f"  ({hit}/{d['meta_n_fp']} FP are alt sites)"
+                # base_* come from THIS block's base row, so the arrow always
+                # compares against the same truth set. Comparing across blocks
+                # is the misreading the grouping exists to prevent.
                 print(_fmt_row(mm, d["meta_n_tp"], n, d["meta_n_fp"], d["meta_n_fn"], extra,
-                               elapsed.get((truth, mm))))
+                               elapsed.get((truth, mm)),
+                               base_fp=b["n_fp"], base_fn=b["n_fn"]))
 
                 if example is None and has_alt:
                     example = {
