@@ -77,6 +77,12 @@ Positives are dominated by **SpliceVault** (~153.8K cryptic events observed acro
 GRCh38-native, 100% GT/AG) plus a small **GTEx-novel** survivor set; both are junction-derived and
 annotation-clean. Disease anchors (TDP-43 / SF3B1 / ENCODE-KD) are held out of training entirely.
 
+!!! warning "The anchor *pool* spans three mechanisms; the D2 *eval set* does not"
+    Those three sources describe the 6,351-site pool. What survives the held-out chromosome filter to
+    become D2 is **171 SF3B1 + 2 ENCODE-KD + 0 TDP-43**, and **171 of the 173 are acceptors**. D2 is
+    in practice an SF3B1 benchmark. See [§6](#6-anti-circular-evaluation-the-core-contribution) for
+    what that means when reading the number.
+
 ---
 
 ## 4. Recognizer formulation (M3-S)
@@ -133,6 +139,19 @@ Ensembl" is how the positives were defined. M3's evaluation methodology is the p
 **Independent truth.** Score against evidence the model never trained on — **D1** (ENCODE long-read
 novel junctions; independent of the SpliceVault short-read signal) and **D2** (held-out disease anchors).
 D1 splits into `D1_hiconf` (≥ 2 biosamples) for a stricter variant.
+
+**What D2 actually asks.** D2 is 171 SF3B1 anchors, 2 ENCODE-KD, and no TDP-43 (§3). That matters
+beyond provenance, because the mechanism sets the *shape* of the task. SF3B1 is a spliceosome
+component: its mutations shift branch-point selection, so the cryptic acceptor sits a few
+nucleotides from the canonical one. Measured against the annotation, every SF3B1 anchor is within
+**50 nt** of an annotated site of the same type, median **17 nt**. A TDP-43 cryptic exon is a
+different object, a repressed cassette **hundreds to tens of thousands of nt** deep inside an intron
+(the three curated ALS sites sit at 419, 431 and 19,980 nt).
+
+So D2 measures *"can the model rank a near-competitor of a known acceptor?"*, which is a real and
+useful question, and **not** *"can it find a cryptic exon in the middle of an intron?"* Quote the D2
+number as evidence for the first. The second is unmeasured: the curated TDP-43 sites lie on training
+chromosomes and so cannot enter a held-out eval at all.
 
 **Held-out chromosomes.** The eval universe is the SpliceAI test set (chr 1, 3, 5, 7, 9), held out for
 M1-S / M2-S / M3-v1 alike — so the comparison is clean without further site-set surgery. (Note the

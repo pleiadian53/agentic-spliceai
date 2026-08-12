@@ -26,7 +26,10 @@ annotated/training sites subtracted out:
 
 - **D1** — ENCODE long-read novel junctions (131,820 sites across 9,394 gene×type units).
 - **D1_hiconf** — the subset seen in ≥ 2 biosamples (53,956 sites).
-- **D2** — held-out disease anchors (171 sites).
+- **D2** — held-out disease anchors (171 sites). **In practice an SF3B1 benchmark**: 171 SF3B1
+  anchors, 2 ENCODE-KD, 0 TDP-43, and 171 of the 173 are acceptors. Every SF3B1 anchor sits within
+  50 nt of an annotated site of the same type (median 17 nt), because SF3B1 mutations shift
+  branch-point selection rather than activating a distant cryptic exon.
 
 Universe: 4,956 truth-containing genes on the held-out chromosomes (1, 3, 5, 7, 9). The metric is
 **per-gene precision@k / recall@k** — a *within-gene* ranking metric (can this model rank the real novel
@@ -56,7 +59,11 @@ sites per gene. On the anti-circular D1 truth, it is the only meta model that im
 
 - On **D1_hiconf**, M3-v1 reaches P@5 0.254 and **R@20 0.485** — recovering ~49% of high-confidence
   novel sites in the top-20 per gene.
-- On **D2** disease anchors, M3-v1 **R@20 0.791** (79%) vs base 0.506; R@5 0.515 vs 0.294.
+- On **D2** disease anchors, M3-v1 **R@20 0.791** (79%) vs base 0.506; R@5 0.515 vs 0.294. Read this
+  as an **SF3B1** result (see the D2 note above), not as a general disease-cryptic claim: the model
+  is ranking cryptic acceptors a median 17 nt from a canonical one. Performance on
+  TDP-43-style cryptic exons, which sit deep inside introns, is **not measured by D2** and remains
+  open.
 
 Note two things. First, **M1-S and M2-S actually underperform the base model here** — canonical/alternative
 refiners are the wrong tool for novel sites. Second, the **multimodal contribution is small**: M3-v1 beats
