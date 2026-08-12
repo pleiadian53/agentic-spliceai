@@ -25,14 +25,14 @@ What it does
 
 Usage
 -----
-    # Default: BRCA1 + ALS showcase genes, build + verify with M1-S
-    python 12_build_showcase_feature_cache.py
+    # Default: BRCA1, TP53 + ALS showcase genes, build + verify with M1-S
+    python examples/UI_integration/02_build_showcase_feature_cache.py
 
-    # Specific genes only, no verification (just warm the cache)
-    python 12_build_showcase_feature_cache.py --genes BRCA1 TP53 --no-verify
+    # Specific genes only, no verification (just build the cache)
+    python examples/UI_integration/02_build_showcase_feature_cache.py --genes SERPINA1 --no-verify
 
     # Point at a local bigWig cache to avoid slow remote streaming
-    python 12_build_showcase_feature_cache.py --bigwig-cache data/cache/bigwig
+    python examples/UI_integration/02_build_showcase_feature_cache.py --bigwig-cache data/cache/bigwig
 """
 
 from __future__ import annotations
@@ -53,9 +53,13 @@ setup_example_environment()
 
 log = logging.getLogger(__name__)
 
-# Default showcase set: BRCA1 (familiar cancer gene) + ALS panel.  All are
-# in MANE GRCh38 and have precomputed OpenSpliceAI base scores.
-DEFAULT_GENES = ["BRCA1", "STMN2", "UNC13A", "SOD1", "TARDBP", "FUS", "C9orf72"]
+# Default showcase set: BRCA1 (familiar cancer gene), TP53, + ALS panel.  All
+# are in MANE GRCh38 and have precomputed OpenSpliceAI base scores.
+#
+# Keep in sync with 07_warm_ui_cache.py's DEFAULT_GENES.  That script warms the
+# server's in-memory caches by hitting the meta overlay, which reads the .npz
+# THIS script writes — so a gene listed there and not here 404s on a fresh setup.
+DEFAULT_GENES = ["BRCA1", "TP53", "STMN2", "UNC13A", "SOD1", "TARDBP", "FUS", "C9orf72"]
 
 DEFAULT_MODEL_DIR = Path("output/meta_layer/m1s_v4_cleanannot")
 DEFAULT_CACHE_DIR = Path("output/meta_layer/ui_cache/gene_cache")
@@ -165,13 +169,28 @@ def report_gene(
     return summary
 
 
+def _names(values: List[str]) -> List[str]:
+    """Flatten a repeated argument that may also be comma-separated.
+
+    ``--genes TP53 SOD1`` and ``--genes TP53,SOD1`` both work. Without this the
+    comma form is accepted silently as a single name and fails much later as
+    "Gene TP53,SOD1 not found in MANE annotations", which reads like a bad gene
+    rather than a bad separator. Mirrors ``_names`` in 07_warm_ui_cache.py.
+    """
+    out: List[str] = []
+    for v in values:
+        out.extend(part.strip() for part in v.split(",") if part.strip())
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Phase A: build dense feature cache for UI showcase genes + verify M1-S",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--genes", nargs="+", default=DEFAULT_GENES,
-                        help="Gene symbols or IDs (default: BRCA1 + ALS panel)")
+                        help="Space- or comma-separated gene symbols or IDs "
+                             "(default: BRCA1, TP53 + ALS panel)")
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR,
                         help="Flat dense-feature cache dir (one .npz per gene)")
     parser.add_argument("--model-dir", type=Path, default=DEFAULT_MODEL_DIR,
@@ -188,6 +207,7 @@ def main() -> int:
                         help="Build the cache only; skip M1-S inference")
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
+    args.genes = _names(args.genes)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
