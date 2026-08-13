@@ -233,6 +233,12 @@
             <input type="search" id="gene-input" placeholder="e.g. TARDBP" style="width:130px;"
                    title="Jump to another gene, keeping the current base model.">
             <button class="btn" onclick="gotoGene()">Go</button>
+            <!-- Carries the current gene across instead of making the user
+                 re-find it in the explorer's picker. Only meaningful for
+                 held-out genes, which the explorer says for itself. -->
+            <a href="/novel/{{ gene_name }}" style="font-size:0.82rem; color:#3572a5;"
+               title="Rank this gene's unannotated positions with M3 (held-out chromosomes only).">
+               Novel sites &rarr;</a>
         </div>
     </div>
 </div>

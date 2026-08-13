@@ -64,7 +64,22 @@
     <div class="controls">
         <div class="control-group">
             <label for="gene-select">Gene</label>
-            <select id="gene-select"><option>Loading…</option></select>
+            <!-- The placeholder MUST carry value="": with no value attribute a
+                 <select>'s value is the option's text, which is truthy, so the
+                 first renderGeneOptions() read "Loading…" as the current
+                 selection, failed to match it, and fell back to the first gene
+                 in the universe. That silently discarded the gene in the URL. -->
+            <select id="gene-select"><option value="">Loading…</option></select>
+        </div>
+        <div class="control-group">
+            <label for="gene-input">Go to gene</label>
+            <div style="display:flex; gap:0.35rem;">
+                <input type="search" id="gene-input" list="gene-datalist" style="width:130px;"
+                       placeholder="e.g. TARDBP"
+                       title="Jump straight to a gene instead of scrolling the picker.">
+                <datalist id="gene-datalist"></datalist>
+                <button class="btn" onclick="jumpToGene()">Go</button>
+            </div>
         </div>
         <div class="control-group">
             <label for="anchor-filter">Filter</label>
@@ -145,7 +160,54 @@
             console.error('gene list failed', e);
         }
         renderGeneOptions();
+        document.getElementById('gene-datalist').innerHTML = allGenes.map(g =>
+            `<option value="${g.gene_name}">chr${g.chrom}${g.strand}${g.has_disease_anchor ? ' ★' : ''}</option>`
+        ).join('');
         document.getElementById('anchor-filter').addEventListener('change', renderGeneOptions);
+        // Picking a gene is the whole point of the picker; making it also require
+        // a Rank click was a step nobody wants.
+        document.getElementById('gene-select').addEventListener('change', loadCandidates);
+        document.getElementById('gene-input').addEventListener('keydown', e => {
+            if (e.key === 'Enter') jumpToGene();
+        });
+        // A URL naming a gene outside the universe (anything on a training
+        // chromosome) used to fall through to the first gene alphabetically and
+        // rewrite the address bar, so the page looked like it ignored the
+        // request. Say why instead of substituting a different gene.
+        if (INITIAL_GENE && !allGenes.some(g => g.gene_name.toUpperCase() === INITIAL_GENE.toUpperCase())) {
+            setState('error', outOfUniverseMessage(INITIAL_GENE));
+            return;
+        }
+        loadCandidates();
+    }
+
+    function outOfUniverseMessage(name) {
+        return `'${name}' is not in the Novel Site Explorer universe. That universe is the `
+             + `${allGenes.length.toLocaleString()} genes on the held-out test chromosomes `
+             + `(1, 3, 5, 7, 9) that M3 never trained on. Genes on training chromosomes are `
+             + `excluded so nothing here can be a memorised site.`;
+    }
+
+    // Resolve a typed gene against the universe before navigating, so an
+    // out-of-universe name explains itself here rather than as an API 404. The
+    // universe is a deliberate restriction (held-out chromosomes only), so this
+    // is a routine outcome, not an error to be surprised by.
+    function jumpToGene() {
+        const input = document.getElementById('gene-input');
+        const q = input.value.trim();
+        if (!q) return;
+        const hit = allGenes.find(g => g.gene_name.toUpperCase() === q.toUpperCase());
+        if (!hit) {
+            setState('error', outOfUniverseMessage(q));
+            return;
+        }
+        // A gene without an anchor is invisible under the anchor filter, so
+        // widen the filter rather than jumping to a selection that isn't shown.
+        const filter = document.getElementById('anchor-filter');
+        if (filter.value === 'anchor' && !hit.has_disease_anchor) filter.value = 'all';
+        renderGeneOptions();
+        document.getElementById('gene-select').value = hit.gene_name;
+        input.value = '';
         loadCandidates();
     }
 
