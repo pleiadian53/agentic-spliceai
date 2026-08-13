@@ -229,7 +229,7 @@
     <button class="btn btn-primary" id="run-btn" onclick="runPrediction()">Run Prediction</button>
     <div class="control-group" style="margin-left:auto;">
         <label for="gene-input">Go to gene</label>
-        <div style="display:flex; gap:0.35rem;">
+        <div style="display:flex; gap:0.35rem; align-items:center;">
             <input type="search" id="gene-input" placeholder="e.g. TARDBP" style="width:130px;"
                    title="Jump to another gene, keeping the current base model.">
             <button class="btn" onclick="gotoGene()">Go</button>
@@ -727,11 +727,17 @@ function renderGeneInfo(data) {
         const thr = parseFloat(data.threshold);
         const metaThr = data.meta_threshold != null ? parseFloat(data.meta_threshold) : thr;
 
-        // The denominator must be sites that COULD be detected. Prediction runs
-        // over the gene's span in the *model's* annotation (MANE), and Ensembl
-        // genes are frequently longer — TARDBP is 18,184 bp in Ensembl vs 12,838
-        // in MANE, putting 8 of its 30 alt sites outside the scored window
-        // entirely. Counting those as misses would understate every model.
+        // The denominator is sites this page actually scored. Prediction runs
+        // over the gene's span in the *base* model's annotation (MANE), and
+        // Ensembl genes are frequently longer: TARDBP is 18,184 bp in Ensembl vs
+        // 12,838 in MANE, putting 8 of its 30 alt sites outside the window.
+        //
+        // Those 8 are UNMEASURED, not missed. No prediction exists at those
+        // positions, so scoring a model there would record a failure where no
+        // measurement happened. This is not a statement about M2-S's scope: the
+        // offline eval (09_evaluate_alternative_sites.py) runs on Ensembl spans
+        // with Ensembl-span base scores and does score all 30. The truncation is
+        // a serving limitation of this page, tracked in the UI backlog.
         const inWin = p => p >= data.gene_start && p <= data.gene_end;
         const dIn = alt.donor.filter(inWin), aIn = alt.acceptor.filter(inWin);
         const nIn = dIn.length + aIn.length;
@@ -755,7 +761,13 @@ function renderGeneInfo(data) {
         }
         altHtml += ` <span style="color:#888;font-size:0.8rem;">`
             + `detected at threshold ${splitThr ? `${data.threshold} / ${data.meta_threshold}` : data.threshold}`
-            + (nOut ? `; ${nOut} of ${alt.n} lie outside the ${data.chrom} MANE gene span and cannot be scored` : '')
+            + (nOut ? `; <span title="Prediction runs over the base model's `
+                + `${data.chrom} MANE gene span, and the Ensembl gene is longer. No prediction `
+                + `exists at those positions, so they are unmeasured here rather than missed. `
+                + `This is a limitation of the genome view, not of the model: the offline `
+                + `alternative-site evaluation runs on Ensembl spans and scores all ${alt.n}." `
+                + `style="border-bottom:1px dotted #aaa;cursor:help;">${nOut} of ${alt.n} fall `
+                + `outside the scored window</span>, unmeasured rather than missed` : '')
             + `. Recall on the delta set, not TP/FP/FN.</span>`;
         summaryHtml += altHtml;
     }

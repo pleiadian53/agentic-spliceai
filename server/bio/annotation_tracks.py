@@ -157,9 +157,12 @@ def score_against_truth(
     - **Type-specific**: a donor call on an acceptor truth site is a false
       positive, not a hit.
     - Restricted to ``[gene_start, gene_end]``. Truth sites outside the scored
-      window are excluded from the denominator entirely — another annotation's
-      gene is frequently longer, and counting undetectable sites as misses
-      understates every model equally.
+      window are excluded from the denominator entirely, because no prediction
+      exists there: they are unmeasured, not missed. Another annotation's gene is
+      frequently longer than the base model's, so a wider truth set routinely has
+      sites beyond the window. The exclusion is not a judgement about a model's
+      scope, and it is not a property of the offline evaluation, which runs on
+      the eval annotation's own spans. See ``dev/planning/UI_layer/BACKLOG.md``.
     """
     idx = {p: i for i, p in enumerate(positions)}
     in_win = lambda p: gene_start <= p <= gene_end          # noqa: E731
