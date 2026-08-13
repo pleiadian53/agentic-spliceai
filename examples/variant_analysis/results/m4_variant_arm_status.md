@@ -84,6 +84,31 @@ The **+21 pt M2-vs-M1 gap** is the real signal here: the alternative-site model 
 of splicing change far better. Note the metric is lenient by construction — `intron_retention` matches
 any of five predicted labels, while `exon_skipping` matches only itself.
 
+!!! warning "Two corrections pending on the concordance row (2026-08-12) — do not quote it as final"
+    **1. An annotation bug it was computed under, now fixed.**
+    `GeneStructure.donor_positions()` / `acceptor_positions()` sorted exons by *genomic*
+    start and dropped the terminal one, which is transcript order only on the plus strand.
+    Every minus-strand gene therefore had exactly one donor and one acceptor wrong (MYBPC3
+    33/34, BRCA1 21/22, ABCC4 29/30), and those lists feed the consequence classifier.
+    A controlled A/B (same day, same device, multimodal off, only the fix toggled) gives
+    **M1-S +2.06 pts, M2-S +1.37 pts**, with zero delta scores moved and **every flip on the
+    minus strand** — exactly what the mechanism predicts. See
+    `meta_layer/BACKLOG.md` §10.
+
+    **2. The configuration was never recorded, and it is not what it looks like.**
+    These runs used **multimodal features ON**: `run_benchmark(use_multimodal=False)` is only
+    the *function* default, while `main()` passes `not args.no_multimodal` (CLI default
+    **True**) and the pod orchestrator supplies `--bigwig-cache` without `--no-multimodal`.
+    Re-running locally with them **off** moves `meta_max_delta` by a median of 0.04–0.06 on
+    202–235 of 434 rows while leaving `base_max_delta` alone (median 1.4e-5), and **inverts
+    this table's ordering**: M1-S 50.7% → 80.3%, M2-S 72.1% → 68.9%.
+
+    So the +21 pt M2-over-M1 gap below may be **conditional on the multimodal channels**,
+    which would sit oddly beside §3's conclusion that they are dead weight for variants.
+    Neither correction can be applied by arithmetic; both need a re-run under the published
+    configuration. `benchmark_metrics.json` should record the multimodal setting alongside
+    `checkpoint` — that omission is why this took a full diagnosis rather than one glance.
+
 ---
 
 ## 3. Why the meta layer can't help Δ-ranking — the locus-cancellation result

@@ -91,21 +91,32 @@ class GeneStructure:
         """Total CDS length in bp."""
         return sum(r.end - r.start for r in self.cds_regions)
 
+    def _exons_in_transcript_order(self) -> List[ExonInfo]:
+        """Exons ordered 5'->3' **along the transcript**, not along the genome.
+
+        Which exon lacks a donor (the last) and which lacks an acceptor (the
+        first) are transcript-order facts, so genomic order answers them
+        backwards on the minus strand.
+        """
+        return sorted(self.exons, key=lambda e: e.start, reverse=self.strand == "-")
+
     def donor_positions(self) -> List[int]:
-        """Genomic positions of all annotated donor sites."""
+        """Genomic positions of all annotated donor sites.
+
+        Every exon but the transcript's **last** has a donor at its 3' end.
+        """
         if len(self.exons) < 2:
             return []
-        # Donors at 3' end of all exons except the last
-        sorted_exons = sorted(self.exons, key=lambda e: e.start)
-        return [e.donor_pos for e in sorted_exons[:-1]]
+        return [e.donor_pos for e in self._exons_in_transcript_order()[:-1]]
 
     def acceptor_positions(self) -> List[int]:
-        """Genomic positions of all annotated acceptor sites."""
+        """Genomic positions of all annotated acceptor sites.
+
+        Every exon but the transcript's **first** has an acceptor at its 5' end.
+        """
         if len(self.exons) < 2:
             return []
-        # Acceptors at 5' start of all exons except the first
-        sorted_exons = sorted(self.exons, key=lambda e: e.start)
-        return [e.acceptor_pos for e in sorted_exons[1:]]
+        return [e.acceptor_pos for e in self._exons_in_transcript_order()[1:]]
 
     def find_nearest_exon(self, position: int) -> Optional[ExonInfo]:
         """Find the exon whose boundary is nearest to the given position."""
