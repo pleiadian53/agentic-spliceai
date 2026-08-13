@@ -37,6 +37,7 @@ from agentic_spliceai.splice_engine.base_layer.prediction.evaluation import (
 from . import config
 from . import m3_inference
 from . import meta_metrics
+from . import variant_inference
 from .base_inference import is_servable, predict_gene as base_predict_gene
 from .gene_cache import (
     get_genes, get_gene_stats, get_chromosomes,
@@ -577,6 +578,109 @@ async def novel_sites_candidates(
         kept[i - 1] = c
 
     return {**full, "candidates": kept, "top_k": top_k, "min_prob": min_prob}
+
+
+# =========================
+# Page Routes — Variant Effect
+# =========================
+
+#: Worked examples for the variant page. Two groups, and the split is the point.
+#:
+#: `canonical` are invariant-dinucleotide disruptions from
+#: examples/variant_analysis/test_variants.yaml, where every model agrees. They
+#: are here so a reader can calibrate on an easy case first.
+#:
+#: `rescued` are the harder ones: RNA-seq-validated MutSpliceDB variants that
+#: the base model scores below 0.1 while M2-S recovers. Measured 2026-08-12 from
+#: examples/variant_analysis/results/mutsplicedb_analysis_v4_resolver_mane_fixed
+#: (base misses 12 of 434; M2-S recovers 10, M1-S 4). Alleles are transcript
+#: orientation, matching the HGVS, and the runner resolves them against the FASTA.
+VARIANT_EXAMPLES = [
+    {"group": "Canonical splice-site disruption", "gene": "PSMD2", "chrom": "chr3",
+     "pos": 184300445, "ref": "G", "alt": "A", "strand": "+",
+     "note": "G of the invariant GT donor. Every model fires."},
+    {"group": "Canonical splice-site disruption", "gene": "MYBPC3", "chrom": "chr11",
+     "pos": 47333193, "ref": "C", "alt": "A", "strand": "-",
+     "note": "Minus-strand donor. Checks the strand handling end to end."},
+    {"group": "Canonical splice-site disruption", "gene": "CFTR", "chrom": "chr7",
+     "pos": 117480148, "ref": "G", "alt": "A", "strand": "+",
+     "note": "Cystic fibrosis donor."},
+    {"group": "Base model misses, M2-S recovers", "gene": "CDKN2C", "chrom": "chr1",
+     "pos": 50970498, "ref": "G", "alt": "T", "strand": "+",
+     "hgvs": "NM_001262.2:c.129+1G>T",
+     "note": "Invariant donor +1, yet the base model scores it 0.011. Select M2-S."},
+    {"group": "Base model misses, M2-S recovers", "gene": "ARID1A", "chrom": "chr1",
+     "pos": 26775575, "ref": "A", "alt": "T", "strand": "+",
+     "hgvs": "NM_006015.6:c.4994-2A>T",
+     "note": "Invariant acceptor -2; base 0.084. M1-S misses it too, only M2-S recovers."},
+    {"group": "Base model misses, M2-S recovers", "gene": "KLF3", "chrom": "chr4",
+     "pos": 38689884, "ref": "G", "alt": "A", "strand": "+",
+     "hgvs": "NM_016531.6:c.695+5G>A",
+     "note": "Intron +5, outside the invariant dinucleotide; base 0.040."},
+    {"group": "Base model misses, M2-S recovers", "gene": "DNMT3A", "chrom": "chr2",
+     "pos": 25243899, "ref": "A", "alt": "T", "strand": "-",
+     "hgvs": "NM_022552.5:c.1935A>T",
+     "note": "Exonic, not a splice-site position at all; base 0.058. The two models "
+             "disagree on the kind of change here, which is the interesting part."},
+]
+
+
+@app.get("/variant", response_class=HTMLResponse)
+async def variant_effect_page(request: Request):
+    """Variant Effect page: ref vs alt delta scoring for a single nucleotide change."""
+    meta_models = [
+        {"key": key, "label": get_meta_model_config(key).get("name", key)}
+        for key in list_available_meta_models()
+    ]
+    return templates.TemplateResponse("variant_effect.html", {
+        "request": request,
+        "meta_models": meta_models,
+        "default_meta": meta_models[0]["key"] if meta_models else "",
+        "examples": VARIANT_EXAMPLES,
+    })
+
+
+@app.get("/api/variant/score")
+async def variant_score(
+    chrom: str = Query(..., description="Chromosome, with or without the chr prefix"),
+    pos: int = Query(..., ge=1, description="1-based variant position"),
+    ref: str = Query(..., min_length=1, max_length=1, description="Reference allele"),
+    alt: str = Query(..., min_length=1, max_length=1, description="Alternate allele"),
+    strand: str = Query("+", pattern="^[+-]$"),
+    gene: str | None = Query(None, description="Gene symbol, for display only"),
+    meta: str | None = Query(None, description="Meta model key; defaults to the first"),
+):
+    """Ref-vs-alt delta scores for one SNV, from the base model and a meta model.
+
+    Single nucleotide changes only. Indels would need a different alignment
+    between the ref and alt coordinate frames, and the delta convention this
+    serves (position-wise ``alt - ref``) does not survive an insertion.
+    """
+    if ref.upper() == alt.upper():
+        raise HTTPException(status_code=400, detail="ref and alt are identical")
+    for allele, name in ((ref, "ref"), (alt, "alt")):
+        if allele.upper() not in {"A", "C", "G", "T"}:
+            raise HTTPException(status_code=400, detail=f"{name} allele must be A/C/G/T")
+
+    available = list_available_meta_models()
+    if not available:
+        raise HTTPException(status_code=404, detail="No meta models are configured")
+    meta_model = meta or available[0]
+    if meta_model not in available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown meta model '{meta_model}'. Expected one of {available}.",
+        )
+
+    try:
+        return await variant_inference.score_variant(
+            chrom, pos, ref, alt, strand, gene, meta_model,
+        )
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.exception("Variant scoring failed for %s:%d %s>%s", chrom, pos, ref, alt)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # =========================
@@ -1393,6 +1497,7 @@ if config.ENABLE_DEBUG_ENDPOINTS:
                 _lru_report(_prediction_cache, "base", ("gene", "model")),
                 _lru_report(_meta_prediction_cache, "meta overlay", ("gene", "meta_model")),
                 _lru_report(_m3_cache, "novel candidates (M3)", ("gene",)),
+                {"label": "variant effect", **variant_inference.cache_stats()},
             ],
             "models_loaded": {
                 "base": {m: safe(is_model_cached, m) for m in servable_models()},

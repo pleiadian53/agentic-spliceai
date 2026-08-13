@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Variant Effect — AgenticSpliceAI Lab{% endblock %}
+{% block nav_variant %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    .controls { display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-end; }
+    .control-group { display:flex; flex-direction:column; gap:0.25rem; }
+    .control-group label { font-size:0.72rem; font-weight:600; letter-spacing:0.04em;
+                           text-transform:uppercase; color:#5a7ea6; }
+    .control-group input, .control-group select {
+        padding:0.4rem 0.5rem; border:1px solid #cfd9e4; border-radius:4px;
+        font-size:0.9rem; font-family:inherit;
+    }
+    .ds-grid { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:0.75rem; }
+    .ds-card { border:1px solid #e3e9f0; border-radius:6px; padding:0.6rem 0.75rem; }
+    .ds-card .name { font-size:0.72rem; font-weight:700; color:#5a7ea6; letter-spacing:0.04em; }
+    .ds-card .val  { font-size:1.35rem; font-weight:700; font-variant-numeric:tabular-nums; }
+    .ds-card .where{ font-size:0.75rem; color:#888; }
+    .ds-card.top   { border-color:#3572a5; background:#f2f7fc; }
+    .verdict { font-size:1.05rem; font-weight:600; margin:0.15rem 0 0.35rem; }
+    .pill { display:inline-block; padding:0.12rem 0.5rem; border-radius:10px;
+            font-size:0.78rem; font-weight:600; }
+    .pill.donor    { background:#e8f0f8; color:#28598a; }
+    .pill.acceptor { background:#fdeceb; color:#a4302a; }
+    .pill.none     { background:#eef1f4; color:#67707a; }
+    .ex-group { font-size:0.72rem; font-weight:700; color:#5a7ea6; text-transform:uppercase;
+                letter-spacing:0.04em; margin:0.6rem 0 0.3rem; }
+    .ex { display:inline-block; margin:0 0.35rem 0.35rem 0; padding:0.3rem 0.6rem;
+          border:1px solid #cfd9e4; border-radius:14px; background:#fff; cursor:pointer;
+          font-size:0.82rem; }
+    .ex:hover { border-color:#3572a5; background:#f2f7fc; }
+    .caveat { border-left:3px solid #d8a200; background:#fffdf5; padding:0.7rem 0.9rem;
+              border-radius:4px; font-size:0.86rem; line-height:1.5; }
+    table.cmp { width:100%; border-collapse:collapse; font-size:0.88rem; }
+    table.cmp th, table.cmp td { padding:0.35rem 0.55rem; border-bottom:1px solid #eef1f4;
+                                 text-align:right; }
+    table.cmp th:first-child, table.cmp td:first-child { text-align:left; }
+    table.cmp th { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.04em;
+                   color:#5a7ea6; }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="page-header">
+    <h1>Variant Effect</h1>
+    <p>What <em>kind</em> of splicing change a single nucleotide causes, base model vs meta</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="controls">
+        <div class="control-group">
+            <label for="chrom">Chrom</label>
+            <input id="chrom" style="width:78px;" value="chr3">
+        </div>
+        <div class="control-group">
+            <label for="pos">Position</label>
+            <input id="pos" type="number" style="width:120px;" value="184300445">
+        </div>
+        <div class="control-group">
+            <label for="ref">Ref</label>
+            <input id="ref" style="width:48px; text-transform:uppercase;" value="G">
+        </div>
+        <div class="control-group">
+            <label for="alt">Alt</label>
+            <input id="alt" style="width:48px; text-transform:uppercase;" value="A">
+        </div>
+        <div class="control-group">
+            <label for="gene">Gene</label>
+            <input id="gene" style="width:100px;" value="PSMD2">
+        </div>
+        <div class="control-group">
+            <label for="strand">Strand</label>
+            <select id="strand"><option value="+">+</option><option value="-">−</option></select>
+        </div>
+        <div class="control-group">
+            <label for="meta-select">Meta model</label>
+            <select id="meta-select">
+                {% for mm in meta_models %}
+                <option value="{{ mm.key }}" title="{{ mm.key }}"
+                        {% if mm.key == default_meta %}selected{% endif %}>{{ mm.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button class="btn btn-primary" id="run-btn" onclick="scoreVariant()">Score Variant</button>
+    </div>
+
+    {% for group in examples | map(attribute='group') | unique %}
+    <div class="ex-group">{{ group }}</div>
+    {# Values ride on data-* attributes, read by one delegated listener. An inline
+       onclick with `| tojson` renders `onclick="fillExample("chr3", ...)"` — the
+       attribute terminates at that first inner quote, so the handler never fires
+       and the chip is silently inert. tojson escapes < > & ' for HTML, but not ". #}
+    {% for ex in examples if ex.group == group %}
+    <span class="ex" title="{{ ex.note }}"
+          data-chrom="{{ ex.chrom }}" data-pos="{{ ex.pos }}"
+          data-ref="{{ ex.ref }}" data-alt="{{ ex.alt }}"
+          data-gene="{{ ex.gene }}" data-strand="{{ ex.strand }}">
+        {{ ex.gene }} {{ ex.hgvs if ex.hgvs else ex.chrom + ':' + ex.pos|string }}
+    </span>
+    {% endfor %}
+    {% endfor %}
+
+    <div style="margin-top:0.7rem; font-size:0.82rem; color:#5a7ea6;">
+        Single nucleotide changes only. Multimodal channels are <strong>off</strong>, so any gene
+        works without a warmed feature cache: for an SNV those channels are identical between ref
+        and alt and carry no variant-specific information.
+        <strong>The published benchmarks quoted below ran with them on</strong>, and that is not
+        cosmetic: switching them off leaves the base model's deltas alone (median change 1.4e-5)
+        but moves the meta model's by 0.04&ndash;0.06. Read this page as a qualitative explorer,
+        not as a reproduction of those runs.
+    </div>
+</div>
+
+<div id="loading-panel" class="card" style="display:none;">
+    <div class="spinner"></div> <span>Scoring ref and alt…</span>
+</div>
+<div id="error-panel" class="card" style="display:none; border-left:3px solid #c62828;">
+    <strong>Could not score this variant</strong>
+    <div id="error-msg" style="margin-top:0.4rem; font-size:0.9rem; color:#666;"></div>
+</div>
+
+<div id="results" style="display:none;">
+    <div class="card">
+        <h2 style="margin-bottom:0.4rem;">What kind of change</h2>
+        <div id="verdict-block"></div>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-bottom:0.15rem;">Delta scores</h2>
+        <p class="text-muted" style="font-size:0.85rem; margin-top:0;">
+            SpliceAI convention, within ±<span id="radius">50</span> bp of the variant.
+            Gains are positions the variant makes <em>more</em> splice-like; losses, less.
+            The highlighted card is the largest effect.
+        </p>
+        <div id="ds-meta"></div>
+        <div id="ds-base" style="margin-top:1rem;"></div>
+    </div>
+
+    <div class="card">
+        <h2>Where the change is</h2>
+        <div id="delta-plot" style="height:360px;"></div>
+        <p class="text-muted" style="font-size:0.85rem;">
+            Dashed line marks the variant. Only positions with |Δ| &gt; 0.01 are drawn.
+        </p>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-bottom:0.4rem;">Top events</h2>
+        <table class="cmp" id="events-table"></table>
+    </div>
+
+    <div class="caveat">
+        <strong>How to read this.</strong> The delta says <em>whether and what kind</em>, never
+        <em>how much</em>: a Δ of 0.9 does not distinguish 10% of transcripts from 90%.
+        It is also <strong>not a pathogenicity score</strong>. On ClinVar the meta layer ties the
+        base model (ROC-AUC 0.751 vs 0.754), because ~89% of pathogenic ClinVar variants act by
+        non-splicing mechanisms. Where the meta layer does win is consequence type: on the 434
+        RNA-seq-validated MutSpliceDB variants, M2-S agrees with the observed effect
+        <strong>72.1%</strong> of the time vs M1-S 50.7%, and it recovers <strong>10 of the 12</strong>
+        that the base model scores below 0.1 (M1-S recovers 4).
+        <br><br>
+        Scores are <strong>not comparable across models at a fixed cutoff</strong>. At |Δ| &gt; 0.8
+        the base model flags 76.5% of validated variants and M2-S only 48.2%, which is calibration,
+        not blindness. Compare each model against its own scale.
+    </div>
+
+    <div class="card">
+        <h2 style="margin-bottom:0.15rem;">Where the meta layer is worse: placing the site</h2>
+        <p class="text-muted" style="font-size:0.85rem; margin-top:0;">
+            Naming the change and <em>locating</em> it are different skills, and they come apart
+            here. Measured over 409 MutSpliceDB variants whose disrupted site is derivable from
+            the HGVS offset and the MANE annotation: does the model's largest loss land on that
+            site? Stratified by how far the site is from the variant, because most splice-site
+            variants sit right on top of it and that case is easy for everyone.
+        </p>
+        <table class="cmp">
+            <tr><th>Largest loss lands on the site (±2 bp)</th><th>Base</th><th>M1-S</th><th>M2-S</th></tr>
+            <tr><td>Variant on the site (≤2 bp), n=367</td>
+                <td><strong>0.995</strong></td><td>0.989</td><td>0.962</td></tr>
+            <tr><td>Site 3–10 bp away, n=34</td>
+                <td><strong>0.882</strong></td><td>0.647</td><td>0.529</td></tr>
+            <tr><td>Site &gt;10 bp away, n=8</td>
+                <td>0.000</td><td>0.000</td><td>0.000</td></tr>
+            <tr><td>Donor vs acceptor called correctly, n=409</td>
+                <td><strong>0.978</strong></td><td>0.961</td><td>0.929</td></tr>
+        </table>
+        <p class="text-muted" style="font-size:0.85rem;">
+            Two things to take from this. The base model is better at <em>placing</em> the site
+            everywhere, and the gap widens from 3 points on the easy stratum to 35 on the harder
+            one. And <strong>no model localises a site more than 10 bp from the variant</strong>,
+            0 of 8. That last row is small, but it is the regime a genuine cryptic-site prediction
+            would live in.
+            <br>
+            Run:
+            <code>examples/variant_analysis/05_variant_positional_accuracy.py</code>.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{# Plotly is loaded once in base.html; a second copy here would shadow it. #}
+<script>
+    const DONOR_COLOR = '#3572a5';
+    const ACCEPTOR_COLOR = '#e74c3c';
+
+    // Delegated so the chips carry no inline JS: see the comment beside them.
+    document.addEventListener('click', e => {
+        const chip = e.target.closest('.ex');
+        if (!chip) return;
+        for (const f of ['chrom', 'pos', 'ref', 'alt', 'gene', 'strand']) {
+            document.getElementById(f).value = chip.dataset[f];
+        }
+        scoreVariant();
+    });
+
+    function setState(state, msg) {
+        document.getElementById('loading-panel').style.display = state === 'loading' ? 'block' : 'none';
+        document.getElementById('error-panel').style.display = state === 'error' ? 'block' : 'none';
+        document.getElementById('results').style.display = state === 'done' ? 'block' : 'none';
+        document.getElementById('run-btn').disabled = state === 'loading';
+        if (state === 'error') document.getElementById('error-msg').textContent = msg || '';
+    }
+
+    async function scoreVariant() {
+        const q = new URLSearchParams({
+            chrom: document.getElementById('chrom').value.trim(),
+            pos: document.getElementById('pos').value,
+            ref: document.getElementById('ref').value.trim().toUpperCase(),
+            alt: document.getElementById('alt').value.trim().toUpperCase(),
+            strand: document.getElementById('strand').value,
+            gene: document.getElementById('gene').value.trim(),
+            meta: document.getElementById('meta-select').value,
+        });
+        setState('loading');
+        try {
+            const resp = await fetch(`/api/variant/score?${q}`);
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
+                throw new Error(err.detail || `HTTP ${resp.status}`);
+            }
+            render(await resp.json());
+            setState('done');
+        } catch (e) {
+            setState('error', e.message);
+        }
+    }
+
+    // The headline is the *type* of change, because that is the claim the
+    // measured numbers support. Magnitude is shown but not led with.
+    function verdict(d) {
+        const m = d.meta.summary.max, b = d.base.summary.max;
+        const LABEL = {
+            DS_DG: ['donor', 'a new donor site'],
+            DS_DL: ['donor', 'loss of a donor site'],
+            DS_AG: ['acceptor', 'a new acceptor site'],
+            DS_AL: ['acceptor', 'loss of an acceptor site'],
+        };
+        const [kind, phrase] = LABEL[m.metric] || ['none', 'no clear effect'];
+        const agree = m.metric === b.metric;
+        const weak = m.score < 0.1;
+        return `
+            <div class="verdict">
+                ${weak ? 'No confident splicing change'
+                       : `Predicted: <span class="pill ${kind}">${phrase}</span>`}
+                ${weak ? '' : ` at ${d.chrom}:${m.position.toLocaleString()}
+                                <span class="text-muted" style="font-weight:400;">
+                                (${m.offset >= 0 ? '+' : ''}${m.offset} bp from the variant)</span>`}
+            </div>
+            <div style="font-size:0.88rem; color:#555;">
+                ${d.meta_model.split('.')[0].toUpperCase()} |Δ| ${m.score.toFixed(3)};
+                base model's largest effect is
+                <strong>${b.metric}</strong> ${b.score.toFixed(3)}.
+                ${agree ? 'Both models name the same kind of change.'
+                        : '<strong>The two models disagree on the kind of change</strong>, which is '
+                          + 'the case worth looking at the plot for.'}
+            </div>`;
+    }
+
+    function dsGrid(title, summary) {
+        const order = ['DS_DG', 'DS_DL', 'DS_AG', 'DS_AL'];
+        const LONG = { DS_DG: 'donor gain', DS_DL: 'donor loss',
+                       DS_AG: 'acceptor gain', DS_AL: 'acceptor loss' };
+        const cards = order.map(k => {
+            const s = summary[k];
+            const top = k === summary.max.metric && s.score >= 0.1;
+            return `<div class="ds-card ${top ? 'top' : ''}">
+                        <div class="name">${k} · ${LONG[k]}</div>
+                        <div class="val">${s.score.toFixed(3)}</div>
+                        <div class="where">${s.offset >= 0 ? '+' : ''}${s.offset} bp</div>
+                    </div>`;
+        }).join('');
+        return `<div style="font-weight:600; margin-bottom:0.4rem;">${title}</div>
+                <div class="ds-grid">${cards}</div>`;
+    }
+
+    function render(d) {
+        document.getElementById('radius').textContent = d.scoring_radius;
+        document.getElementById('verdict-block').innerHTML = verdict(d);
+        const metaLabel = document.getElementById('meta-select')
+            .selectedOptions[0].textContent;
+        document.getElementById('ds-meta').innerHTML = dsGrid(metaLabel, d.meta.summary);
+        document.getElementById('ds-base').innerHTML = dsGrid('Base model', d.base.summary);
+
+        const rows = d.events.map(e => `
+            <tr><td>${e.event_type.replace('_', ' ')}</td>
+                <td>${e.position.toLocaleString()}</td>
+                <td>${e.offset >= 0 ? '+' : ''}${e.offset}</td>
+                <td>${e.delta >= 0 ? '+' : ''}${e.delta.toFixed(4)}</td></tr>`).join('');
+        document.getElementById('events-table').innerHTML =
+            `<tr><th>Event</th><th>Position</th><th>Offset</th><th>Δ</th></tr>${rows}`
+            + (d.n_events > d.events.length
+                ? `<tr><td colspan="4" class="text-muted" style="text-align:left;">
+                     ${(d.n_events - d.events.length).toLocaleString()} more above the
+                     0.1 event threshold, not shown.</td></tr>` : '');
+
+        plot(d);
+    }
+
+    function plot(d) {
+        const traces = [];
+        // Meta drawn solid and base dashed, on one axis: the comparison the page
+        // exists for is "same shape or different shape", which stacked panels hide.
+        for (const [who, t, dash] of [['Meta', d.meta.track, 'solid'],
+                                      ['Base', d.base.track, 'dot']]) {
+            traces.push({
+                x: t.positions, y: t.donor, name: `${who} donor`, mode: 'lines',
+                line: { color: DONOR_COLOR, width: who === 'Meta' ? 2 : 1.4, dash },
+            });
+            traces.push({
+                x: t.positions, y: t.acceptor, name: `${who} acceptor`, mode: 'lines',
+                line: { color: ACCEPTOR_COLOR, width: who === 'Meta' ? 2 : 1.4, dash },
+            });
+        }
+        Plotly.newPlot('delta-plot', traces, {
+            margin: { l: 55, r: 20, t: 10, b: 45 },
+            xaxis: { title: `${d.chrom} position`, zeroline: false },
+            yaxis: { title: 'Δ (alt − ref)', zeroline: true, zerolinecolor: '#ccc' },
+            shapes: [{
+                type: 'line', x0: d.position, x1: d.position, yref: 'paper', y0: 0, y1: 1,
+                line: { color: '#888', width: 1, dash: 'dash' },
+            }],
+            legend: { orientation: 'h', y: -0.22 },
+            font: { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
+            plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+        }, { responsive: true, displayModeBar: false });
+    }
+
+    document.addEventListener('DOMContentLoaded', scoreVariant);
+</script>
+{% endblock %}
