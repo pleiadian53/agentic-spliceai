@@ -356,7 +356,15 @@ def mode_eval(args) -> int:
     }
 
     # ── Models ──────────────────────────────────────────────────────────
-    models = _load_models(DEFAULT_MODELS, device)
+    specs = DEFAULT_MODELS
+    if getattr(args, "models", None):
+        want = {m.strip() for m in args.models.split(",") if m.strip()}
+        specs = [s for s in DEFAULT_MODELS if s[0] in want]
+        unknown = want - {s[0] for s in specs}
+        if unknown:
+            print(f"ERROR: --models names not in DEFAULT_MODELS: {sorted(unknown)}")
+            return 1
+    models = _load_models(specs, device)
     if not models:
         print("ERROR: no models loaded")
         return 1
@@ -491,7 +499,11 @@ def main() -> int:
                    default=True)
     p.add_argument("--device", default="cpu",
                    help="eval/build-cache device (default cpu for local eval; "
-                        "pass cuda on the pod)")
+                        "pass cuda on the pod, or mps on Apple Silicon)")
+    p.add_argument("--models", type=str, default=None,
+                   help="eval only: comma-separated subset of DEFAULT_MODELS display "
+                        "names to score (default: all with a local checkpoint). "
+                        "e.g. --models base,M3-v1,M3-anchor")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
