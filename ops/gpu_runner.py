@@ -215,6 +215,17 @@ def build_setup_lines(infra: InfraConfig) -> list[str]:
     so repeat provisions are fast.
     """
     setup_lines = ["set -e"]
+    # RunPod pods in some regions (seen repeatedly in CA-MTL-1) come up with
+    # /etc/resolv.conf pointing at a dead Docker embedded resolver (127.0.0.11),
+    # so pip cannot resolve pypi and every install fails with "Name or service
+    # not known". Repair DNS if — and only if — name resolution is broken.
+    setup_lines.append(
+        'getent hosts pypi.org >/dev/null 2>&1 || '
+        'printf "nameserver 8.8.8.8\\nnameserver 1.1.1.1\\n" > /etc/resolv.conf'
+    )
+    # The stock CUDA/PyTorch image's Python is PEP-668 externally-managed; the pod
+    # is a disposable single-purpose worker, so allow pip to install into it.
+    setup_lines.append("export PIP_BREAK_SYSTEM_PACKAGES=1")
     if infra.use_volume:
         pip_cache = f"{infra.volume_mount}/pip-cache"
         setup_lines.append(f"export PIP_CACHE_DIR={pip_cache}")
