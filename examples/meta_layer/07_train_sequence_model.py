@@ -418,6 +418,39 @@ def main() -> int:
             "noise was the ceiling. Mutually informative with --confirmed-weight."
         ),
     )
+    parser.add_argument(
+        "--disease-anchors", choices=["off", "mask", "positivize"], default="off",
+        help=(
+            "M3 only: fold is_novel disease anchors (data/mane/GRCh38/m3_labels/"
+            "disease_anchors.parquet) into training. 'mask' = correctness fix "
+            "(anchors -> 255, never class-2 negatives). 'positivize' = learn the "
+            "--anchor-positivize-sources as up-weighted positives; the rest masked "
+            "so they stay honest eval probes. Default off (baseline M3-v1). "
+            "Test-chrom anchors are never rasterized (training builds train-chrom "
+            "genes only), so D1/D2 eval stays anti-circular."
+        ),
+    )
+    parser.add_argument(
+        "--anchor-weight", type=float, default=5.0,
+        help="M3 only: per-position loss weight for positivized disease anchors. Default 5.0. "
+             "Ignored if --anchor-budget-frac is set.",
+    )
+    parser.add_argument(
+        "--anchor-budget-frac", type=float, default=None,
+        help="M3 only: target fraction (0-1) of positive-loss mass the positivized "
+             "disease anchors should occupy. Overrides --anchor-weight by deriving the "
+             "per-anchor weight from the live positive-mass sum. The durable policy knob "
+             "(a fixed influence budget, not a raw multiplier). E.g. 0.05 for ~5%.",
+    )
+    parser.add_argument(
+        "--anchor-positivize-sources", type=str,
+        default="sf3b1_cryptic,encode_kd_cryptic",
+        help=(
+            "M3 only: comma-separated disease_anchors 'source' values to positivize "
+            "when --disease-anchors=positivize. Others (e.g. tdp43_cryptic) are "
+            "masked. Default: sf3b1_cryptic,encode_kd_cryptic."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -581,6 +614,36 @@ def main() -> int:
             print(
                 f"  M3 positives: {n_all:,} ({n_conf:,} long-read-confirmed); "
                 f"annotation mask: {len(m3_annotation_mask_df):,}"
+            )
+
+        # ── Fold disease anchors (SF3B1 / ENCODE-KD / TDP-43 cryptic sites) ──
+        # Open, curated set; policy per --disease-anchors. Test-chrom anchors are
+        # never rasterized (only train-chrom genes are cached), so D2 stays clean.
+        if args.disease_anchors != "off":
+            from agentic_spliceai.splice_engine.meta_layer.data.labels import (
+                fold_disease_anchors,
+            )
+            anchors_path = m3_dir / "disease_anchors.parquet"
+            if not anchors_path.exists():
+                print(f"ERROR: --disease-anchors set but {anchors_path} not found")
+                return 1
+            src_list = [s.strip() for s in args.anchor_positivize_sources.split(",") if s.strip()]
+            m3_positives_df, m3_annotation_mask_df, anch_stats = fold_disease_anchors(
+                m3_positives_df, m3_annotation_mask_df,
+                pd.read_parquet(anchors_path),
+                mode=args.disease_anchors, weight=args.anchor_weight,
+                budget_frac=args.anchor_budget_frac,
+                positivize_sources=src_list, confirmed_weight=args.confirmed_weight,
+            )
+            _bud = anch_stats.get("achieved_budget_frac")
+            print(
+                f"  Disease anchors [{args.disease_anchors}]: "
+                f"+{anch_stats.get('n_positivized', 0):,} positivized "
+                f"(w={anch_stats.get('weight', args.anchor_weight):.3g}"
+                + (f", budget={_bud:.1%}" if _bud is not None else "")
+                + f", {anch_stats.get('by_source_positivized', {})}), "
+                f"+{anch_stats.get('n_masked', 0):,} masked "
+                f"({anch_stats.get('by_source_masked', {})})"
             )
 
     # Load gene annotations for coordinates

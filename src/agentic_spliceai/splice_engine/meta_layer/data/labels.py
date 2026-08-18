@@ -26,7 +26,7 @@ gene window by interval overlap (``position - gene_start``), not by gene id.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple
 import warnings
 
 import numpy as np
@@ -157,6 +157,9 @@ def build_m3_labels(
         Novel positives for THIS chromosome. Required columns:
         ``position, splice_type`` (donor/acceptor). Optional
         ``longread_confirmed`` (bool) — True → ``confirmed_weight`` (else 1.0).
+        Optional ``weight`` (float) — explicit per-position loss weight; when
+        present it takes precedence over the ``longread_confirmed`` shortcut
+        (used by :func:`fold_disease_anchors` to up-weight disease anchors).
     annotation_mask_df:
         Annotated splice sites for THIS chromosome (the loss-ignore mask).
         Required column: ``position`` (``splice_type`` ignored — any annotated
@@ -199,6 +202,8 @@ def build_m3_labels(
     sub = positives_df[in_win]
     rel_all = sub["position"].to_numpy(dtype=np.int64) - gene_start
     stype = sub["splice_type"].to_numpy()
+    has_weight = "weight" in sub.columns
+    w_all = sub["weight"].to_numpy(dtype=np.float32) if has_weight else None
     has_conf = "longread_confirmed" in sub.columns
     conf_all = (
         sub["longread_confirmed"].to_numpy(dtype=bool) if has_conf else None
@@ -210,9 +215,159 @@ def build_m3_labels(
             continue
         rel = rel_all[m]
         labels[rel] = lab
-        if has_conf:
+        if has_weight:
+            # Explicit per-position weight (e.g. up-weighted disease anchors);
+            # takes precedence over the longread_confirmed shortcut.
+            weights[rel] = w_all[m]
+        elif has_conf:
             conf = conf_all[m]
             if conf.any():
                 weights[rel[conf]] = float(confirmed_weight)
 
     return labels, weights
+
+
+def fold_disease_anchors(
+    positives_df: "pd.DataFrame",
+    annotation_mask_df: "pd.DataFrame",
+    anchors_df: "pd.DataFrame",
+    *,
+    mode: str = "positivize",
+    weight: float = 5.0,
+    budget_frac: Optional[float] = None,
+    positivize_sources: Sequence[str] = ("sf3b1_cryptic", "encode_kd_cryptic"),
+    confirmed_weight: float = 2.0,
+) -> "Tuple[pd.DataFrame, pd.DataFrame, dict]":
+    """Fold ``is_novel`` disease anchors into the M3 training label frames.
+
+    The recognizer's positives are SpliceVault/GTEx sites; disease anchors
+    (SF3B1 / ENCODE-KD / TDP-43 cryptic sites) are a separate, curated,
+    open-growing set. Two policies:
+
+    - ``mode="mask"`` — every novel anchor is added to the annotation mask (255).
+      The correctness fix: an anchor is a real splice site, so it must never sit
+      in the loss as a class-2 negative. Nothing is learned from it.
+    - ``mode="positivize"`` — anchors whose ``source`` is in ``positivize_sources``
+      become positives (donor/acceptor by ``splice_type``), up-weighted ``weight``;
+      every *other* anchor (e.g. ``tdp43_cryptic``) is masked so it stays an honest
+      held-out probe.
+
+    Anti-circularity is the caller's responsibility and is handled by gene
+    selection: training builds caches only for train-chromosome genes, so
+    test-chromosome anchors placed in ``positives_df`` are simply never
+    rasterized. The same call therefore serves the held-out CV config (test
+    chroms evaluated, never trained) and a future served config (all chroms
+    positivized). Only ``is_novel`` anchors are used — anchors coinciding with an
+    annotated site are already in the mask.
+
+    Parameters
+    ----------
+    positives_df, annotation_mask_df:
+        The M3 label frames (``positives_pooled`` / ``annotation_mask``), bare
+        chrom, columns as loaded from disk. Returned copies are extended.
+    anchors_df:
+        ``disease_anchors.parquet`` with ``chrom, position, strand, splice_type,
+        source, is_novel``.
+    mode, weight, positivize_sources, confirmed_weight:
+        See above. ``confirmed_weight`` is used to make the existing positives'
+        ``longread_confirmed`` up-weight explicit so one ``weight`` column drives
+        :func:`build_m3_labels` for both sources.
+    budget_frac:
+        If set (in ``(0, 1)``), the per-anchor weight is *derived* so the
+        positivized anchors occupy this fraction of total positive-loss mass,
+        overriding ``weight``. This is the durable policy knob: a fixed influence
+        budget rather than a raw multiplier. ``stats["achieved_budget_frac"]``
+        reports the realized fraction. (A flat ``weight`` of 5x, for reference,
+        is only ~1.2% of positive mass at the current corpus size.)
+
+    Returns
+    -------
+    (positives_df, annotation_mask_df, stats)
+        Extended frames plus a ``stats`` dict with the fold counts.
+    """
+    import pandas as pd
+
+    if mode not in ("mask", "positivize"):
+        raise ValueError(f"mode must be 'mask' or 'positivize', got {mode!r}")
+
+    key = ["chrom", "position", "strand", "splice_type"]
+    anch = anchors_df
+    if "is_novel" in anch.columns:
+        anch = anch[anch["is_novel"]]
+    anch = anch.copy()
+    anch["chrom"] = anch["chrom"].astype(str).str.replace(r"^chr", "", regex=True)
+
+    stats: dict = {"mode": mode, "n_novel_anchors": int(len(anch))}
+
+    if mode == "mask":
+        annotation_mask_df = pd.concat(
+            [annotation_mask_df, anch[key]], ignore_index=True
+        )
+        stats.update(n_positivized=0, n_masked=int(len(anch)))
+        return positives_df, annotation_mask_df, stats
+
+    # positivize
+    pos_sources = set(positivize_sources)
+    if "source" in anch.columns:
+        is_pos = anch["source"].isin(pos_sources)
+    else:
+        is_pos = pd.Series(False, index=anch.index)
+    anchor_pos = anch[is_pos]
+    anchor_mask = anch[~is_pos]
+
+    # Make the existing positives' weight explicit so build_m3_labels reads one
+    # uniform ``weight`` column across SpliceVault positives and anchors.
+    positives_df = positives_df.copy()
+    if "weight" not in positives_df.columns:
+        if "longread_confirmed" in positives_df.columns:
+            base_w = np.where(
+                positives_df["longread_confirmed"].to_numpy(dtype=bool),
+                float(confirmed_weight), 1.0,
+            ).astype(np.float32)
+        else:
+            base_w = np.ones(len(positives_df), dtype=np.float32)
+        positives_df["weight"] = base_w
+
+    # Per-anchor weight: either an explicit multiplier (``weight``) or one derived
+    # from a target ``budget_frac`` (the fraction of total positive-loss mass the
+    # anchors should occupy). The budget form is the durable policy — it makes the
+    # anchors' influence invariant to how many there are and to the corpus size.
+    # See dev/planning/meta_layer/M3S/BACKLOG.md B1/B2.
+    base_mass = float(positives_df["weight"].sum())
+    n_anchor = int(len(anchor_pos))
+    eff_weight = float(weight)
+    if budget_frac is not None:
+        if not (0.0 < budget_frac < 1.0):
+            raise ValueError(f"budget_frac must be in (0, 1), got {budget_frac}")
+        if n_anchor > 0:
+            eff_weight = (budget_frac / (1.0 - budget_frac)) * base_mass / n_anchor
+
+    add_pos = anchor_pos[key].copy()
+    add_pos["longread_confirmed"] = False
+    add_pos["weight"] = np.float32(eff_weight)
+    positives_df = pd.concat([positives_df, add_pos], ignore_index=True)
+    annotation_mask_df = pd.concat(
+        [annotation_mask_df, anchor_mask[key]], ignore_index=True
+    )
+
+    anchor_mass = n_anchor * eff_weight
+    stats.update(
+        n_positivized=int(len(add_pos)),
+        n_masked=int(len(anchor_mask)),
+        weight=float(eff_weight),
+        budget_frac=(float(budget_frac) if budget_frac is not None else None),
+        achieved_budget_frac=(
+            float(anchor_mass / (base_mass + anchor_mass))
+            if (base_mass + anchor_mass) > 0 else 0.0
+        ),
+        positivize_sources=sorted(pos_sources),
+        by_source_positivized=(
+            anchor_pos["source"].value_counts().to_dict()
+            if "source" in anchor_pos.columns else {}
+        ),
+        by_source_masked=(
+            anchor_mask["source"].value_counts().to_dict()
+            if "source" in anchor_mask.columns else {}
+        ),
+    )
+    return positives_df, annotation_mask_df, stats

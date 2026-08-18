@@ -73,6 +73,9 @@ DEFAULT_MODELS = [
     ("M3-v1-mm0",  "output/meta_layer/m3_v1",             "m3_zero"),
     # Tier 1: confirmed-only retrain (skipped automatically until the dir exists locally)
     ("M3-v1.1",    "output/meta_layer/m3s_v1_1_confirmed", "m3"),
+    # Disease-anchor fold: SF3B1/ENCODE-KD positivized (w=5), TDP-43 masked.
+    # Tests SF3B1 transfer on D2, anti-circular by chromosome. Skipped until built.
+    ("M3-anchor",  "output/meta_layer/m3s_anchorpos",      "m3"),
 ]
 
 KS = (5, 10, 20)
