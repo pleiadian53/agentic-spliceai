@@ -116,9 +116,12 @@ bio = [
     #   gffutils — utils.hgvs_resolver (GTF-backed transcript lookup)
     #   mappy    — data.homology (minimap2 alignment for paralog detection,
     #              which every leakage-clean eval split runs)
+    #   h5py     — meta_layer.data.shard_packing (HDF5 sharded training cache,
+    #              the --use-shards path used by M-series pod training)
     "pyfaidx>=0.7",
     "gffutils>=0.12",
     "mappy>=2.24",
+    "h5py>=3.0",
 ]
 
 # Conservation / epigenetic track access (bigWig format)
