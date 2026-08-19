@@ -48,6 +48,74 @@ dense feature cache (bigWig streaming for ~12K train genes) — this is why M3-S
 
 ---
 
+## Folding disease anchors into training (opt-in)
+
+M3-v1 has a quiet failure mode. The curated disease cryptic sites in `disease_anchors.parquet`
+([Stage 9, Step 2](09_m3_label_curation.md#step-2-disease-anchors-held-out-d2)) are held out of the
+positive pool, so at train time they fall through to class 2 ("neither"), which teaches the recognizer
+they are *not* splice sites (the opposite of what they are). An opt-in path fixes this by folding the
+`is_novel` subset of the anchors into training instead. Default `off` reproduces M3-v1 exactly.
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `--disease-anchors {off,mask,positivize}` | `off` | `off` = M3-v1; `mask` = add anchors to the annotation mask (`255`, a correctness fix that learns nothing); `positivize` = the selected sources become up-weighted positives, the rest masked |
+| `--anchor-weight FLOAT` | `5.0` | raw per-anchor loss weight; **ignored** when `--anchor-budget-frac` is set |
+| `--anchor-budget-frac FLOAT` | *(unset)* | target fraction (0–1) of total positive-loss mass the positivized anchors should occupy; derives the per-anchor weight from the live positive-mass sum (the durable policy knob) |
+| `--anchor-positivize-sources STR` | `sf3b1_cryptic,encode_kd_cryptic` | which `source` values become positives; the rest (`tdp43_cryptic`, the STMN2/UNC13A ALS panel) stay masked so they remain honest held-out probes |
+
+```bash
+python examples/meta_layer/07_train_sequence_model.py \
+    --mode m3 --device cuda \
+    --use-shards --epochs 50 --patience 10 --samples-per-epoch 100000 \
+    --remove-paralogs --bigwig-cache /runpod-volume/bigwig_cache \
+    --disease-anchors positivize --anchor-budget-frac 0.05 \
+    --output-dir output/meta_layer/m3s_anchorpos
+```
+
+`fold_disease_anchors()` (in `splice_engine/meta_layer/data/labels.py`) applies the policy, and
+`build_m3_labels()` honours an optional per-row `weight` column. `ops_train_m3_pod.sh` runs
+`--disease-anchors positivize --anchor-budget-frac 0.05` by default.
+
+!!! note "Anti-circularity is by construction, not by flag"
+    Training builds dense caches only for **train-chromosome** genes, so an anchor that lands on a
+    held-out (test-chromosome) gene is simply never rasterized even when it is placed in the positive
+    class. The held-out D2 truth stays held out; positivizing anchors cannot leak into the
+    [anti-circular eval](11_m3_evaluation.md). Keeping `tdp43_cryptic` masked (not positivized) also
+    leaves the ALS panel as an untouched cross-mechanism probe.
+
+### Governing the anchor weight
+
+Do **not** tune a raw multiplier. The right question is not "what number" but "what fraction of the
+training signal should curated disease biology occupy?" A flat `--anchor-weight 5` works out to only
+~1.2% of positive-loss mass at the current corpus (560 anchors against ~232K positive mass); a
+policy-consistent **5% budget** derives a per-anchor weight of ~21.8×, and **10%** ≈ 46×. That is
+exactly what `--anchor-budget-frac` sets: the budget, not the multiplier.
+
+The durable weighting scheme (only the budget scalar is implemented so far; the rest is design):
+
+```
+weight_i = budget × mechanism_allocation_i × evidence_tier_i × [optional site_quality_i]
+```
+
+| Component | What it is | How it is set |
+|-----------|-----------|---------------|
+| `budget` | one scalar, the target positive-loss share (5%, cap 15%) | **set by judgment**, never learned |
+| `mechanism_allocation` | `sqrt(n)` or a hard per-mechanism cap, so data volume ≠ importance | parameter-free |
+| `evidence_tier` | A = 1.0 / B ≈ 0.6 / C ≈ 0.2 / D = 0 (mask-only) | **measured** from long-read confirmation rate by tier as the anchor set grows (estimated from provenance, not backprop) |
+| `site_quality` | optional per-site reliability | dropped initially (belongs as a model feature, not a static label weight) |
+
+!!! warning "Set values, learn facts"
+    Learn parameters about the **world** (how reliable each evidence tier is); *set* parameters about
+    **values** (how much disease biology may shape the model). Optimizing the budget against the eval
+    would just restore mechanism domination and blow the budget. At 563 anchors across 3 mechanisms and
+    4 tiers, priors beat fitting.
+
+The GPU-pod bootstrap now self-heals (it repairs a dead resolver's DNS and sets
+`PIP_BREAK_SYSTEM_PACKAGES`), so a fresh CA-MTL-1 pod's `pip install` no longer fails; see the
+[GPU Pods runbook](08_gpu_pods.md) (`ops/gpu_runner.py` `build_setup_lines`).
+
+---
+
 ## M3-R — the candidate refiner (local)
 
 M3-R is the reframe: base model proposes candidates, an XGBoost classifier reranks each *real cryptic vs
@@ -81,6 +149,7 @@ held-out AUC plus **SHAP-by-modality** and a **leave-one-modality-out** ablation
 | You want… | Run |
 |-----------|-----|
 | The best novel-site ranker (research deliverable) | **M3-S** `m3_v1` (pod) |
+| To fold curated disease anchors in as positives (SF3B1 / ENCODE-KD) | **M3-S** `--disease-anchors positivize --anchor-budget-frac 0.05` (pod) → `m3s_anchorpos` |
 | A cheap, local test of "does multimodal discriminate real cryptic sites?" | **M3-R** `14 --diagnostic-only` |
 | To reproduce the Tier 1 label experiment | M3-S `--confirmed-only` (pod) |
 

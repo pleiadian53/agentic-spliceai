@@ -6,11 +6,15 @@ This is the discovery frontier and the hardest of the four tasks. Because a nove
 annotation label, **junction support is used as the training label and removed from the input
 channels** (mm_channels = 7) to avoid target leakage.
 
-**Bottom line — a two-part milestone:**
+**Bottom line — a three-part milestone:**
 
-- **M3-S (M3-v1)** is the **best novel-site ranker** in the system — the only meta model that beats the
-  raw base model on independent novel-site truth.
-- **M3-R**, the newer candidate refiner, is an **honest negative**: it trains to a strong AUC (0.90) but
+- **M3-S (M3-v1)** is the **best general novel-site ranker** in the system — the only meta model that
+  beats the raw base model on independent novel-site truth.
+- **M3-anchor** folds curated disease anchors into training at a governed budget. It **improves held-out
+  SF3B1 disease-cryptic ranking (D2 R@20 0.79 → 0.86) with no cost to general recall (D1)** — the first
+  meta result to move the disease-cryptic needle, though cross-mechanism transfer to the ALS sites stays
+  weak.
+- **M3-R**, the candidate refiner, is an **honest negative**: it trains to a strong AUC (0.90) but
   **ties the base model** on the anti-circular test. Understanding *why* produced the most useful
   finding of the M3 line — genome-averaged multimodal evidence carries **locus-level, not
   position-level**, signal.
@@ -102,6 +106,72 @@ remaining leverage away from labels and framing and toward **position-level feat
 
 ---
 
+## M3-anchor — folding disease anchors in (the disease-cryptic win)
+
+Tier 1 and M3-R point the leverage for *general* novel sites away from labels. This section shows a
+targeted exception for the *disease-specific* metric. The question: does adding the curated **disease
+anchors** as training positives help? M3-v1 lacks them entirely (SpliceVault/GTEx come from healthy
+tissue), and until recently they were worse than absent: they fell through to class-2 "neither",
+teaching the recognizer that real SF3B1 / ENCODE-KD / TDP-43 cryptic sites are *not* splice sites.
+**M3-anchor** folds them in properly (checkpoint `output/meta_layer/m3s_anchorpos`; see the
+[training workflow](../../workflows/meta_layer/10_training_m3.md)):
+
+- **Positivize** the SF3B1 and ENCODE-KD anchors (`07 --disease-anchors positivize`), **mask** the
+  TDP-43 (STMN2/UNC13A) anchors so they stay honest held-out probes.
+- **Governed by a budget, not a multiplier.** The anchors occupy a fixed **5% of positive-loss mass**
+  (`--anchor-budget-frac 0.05`), which derives a per-anchor weight of 21.8×. A flat 5× would have been
+  only ~1.2% of the signal, too quiet to register; the budget framing is what let the anchors count.
+- **Anti-circular by chromosome:** only train-chromosome genes are cached, so the 171 held-out SF3B1
+  anchors (= D2, on chr 1/3/5/7/9) are never trained on.
+
+### It improves disease-cryptic ranking without costing general recall
+
+**D1 (general novel sites) holds** — folding anchors in did not trade away breadth:
+
+| Model | D1 P@5 | D1 P@20 | D1 R@20 |
+|-------|--------|---------|---------|
+| base | 0.277 | 0.160 | 0.315 |
+| M3-v1 | 0.335 | 0.202 | 0.367 |
+| M3-anchor | 0.333 | 0.200 | 0.364 |
+
+**D2 (held-out SF3B1 disease anchors) improves across every metric:**
+
+| Model | D2 P@5 | D2 R@5 | D2 R@10 | D2 R@20 |
+|-------|--------|--------|---------|---------|
+| base | 0.061 | 0.294 | 0.393 | 0.506 |
+| M3-v1 | 0.108 | 0.515 | 0.693 | 0.791 |
+| **M3-anchor** | **0.120** | **0.571** | **0.755** | **0.859** |
+
+Held-out SF3B1 R@20 rises **0.791 → 0.859 (+6.8 pts)** and R@5 **0.515 → 0.571**, on a disjoint
+chromosome set from the training anchors. The recognizer genuinely learned a transferable SF3B1
+cryptic-acceptor pattern.
+
+### Cross-mechanism transfer to the ALS sites is mixed
+
+The TDP-43 anchors were masked (never trained), so STMN2/UNC13A test whether SF3B1-learning transfers to
+a *different* mechanism. Within-gene rank of each cryptic site among its gene's novel candidates:
+
+| Cryptic site | base | M3-v1 | M3-anchor |
+|--------------|------|-------|-----------|
+| STMN2 acceptor | #1 | #4 | **#2** |
+| UNC13A donor | #143 | #260 | **#187** |
+| UNC13A acceptor | #1312 | #660 | #872 |
+
+Two of three improve, one regresses. SF3B1-learning helps the ALS sites only partially and unreliably,
+consistent with SF3B1 (branch-point 3′SS shift) and TDP-43 (deep-intronic de-repression) being different
+biology.
+
+### Verdict
+
+A real, honest positive, *within-mechanism*. The budgeted anchor fold lifts held-out SF3B1 ranking with
+no D1 cost, validating both the disease-anchor approach and the budget-governance framing (the flat-5×
+version would have been inaudible). Cross-mechanism transfer to the weak, perturbation-gated regime
+(UNC13A) is weak, which is [M4](#m4-perturbation-induced-in-progress)'s job rather than SF3B1 transfer.
+**Not yet promoted:** a single chromosome split, so a chromosome-fold CV would tighten the estimate
+before M3-anchor replaces M3-v1.
+
+---
+
 ## M3-R — the candidate-refiner milestone
 
 M3-R reframes discovery as **candidate refinement**: let the base model propose candidate sites, then
@@ -182,8 +252,12 @@ that requires perturbation-paired training labels. No evaluated results yet; tra
 
 ## Takeaways
 
-- **M3-v1 is the best novel-site ranker** — the only meta model to beat raw base on independent novel
-  truth (D1 P@5 0.335 vs 0.277; D2 R@20 0.79 vs 0.51).
+- **M3-v1 is the best general novel-site ranker** — the only meta model to beat raw base on independent
+  novel truth (D1 P@5 0.335 vs 0.277; D2 R@20 0.79 vs 0.51).
+- **M3-anchor moves the disease-cryptic metric:** folding SF3B1/KD anchors in at a governed 5% budget
+  lifts held-out SF3B1 D2 R@20 to 0.86 with no D1 regression — but the win is within-mechanism, and
+  transfer to the perturbation-gated ALS regime (UNC13A) stays weak (that is M4's job). The budget
+  framing was load-bearing: a flat 5× (~1.2% of positive mass) would have been inaudible.
 - **M3-R is an instructive negative:** strong training AUC (0.90, 56% non-base SHAP) but no anti-circular
   gain, because its edge is between-gene while discovery is within-gene.
 - The reusable lesson for the whole meta layer: **genome-averaged multimodal tracks are locus-level

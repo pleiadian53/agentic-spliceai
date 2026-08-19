@@ -54,10 +54,23 @@ python examples/meta_layer/13_evaluate_m3_novel.py --mode eval \
     --cache-dir output/meta_layer/m3_eval_d1/gene_cache
 ```
 
-`--mode eval` scores **base / M1-S / M2-S / M3-v1 / M3-v1-mm0 / M3-v1.1** on the *same* candidate set, so
-every number is meta-vs-base on identical genes. It **fails fast** if base scores are missing (they would
-silently become a uniform prior and invalidate the eval) and loads each checkpoint via the config-type
-dispatcher `load_meta_model` (not the `concat_fusion`-hardcoded path in `08`/`09`).
+`--mode eval` scores **base / M1-S / M2-S / M3-v1 / M3-v1-mm0 / M3-v1.1 / M3-anchor** on the *same*
+candidate set, so every number is meta-vs-base on identical genes. It **fails fast** if base scores are
+missing (they would silently become a uniform prior and invalidate the eval) and loads each checkpoint
+via the config-type dispatcher `load_meta_model` (not the `concat_fusion`-hardcoded path in `08`/`09`).
+
+Two flags keep the comparison tractable:
+
+- `--models base,M3-v1,M3-anchor` scores a **subset** of `DEFAULT_MODELS`. Scoring every
+  locally-present checkpoint over the 4,956-gene universe is ~15 h of CPU inference; a three-model
+  subset is minutes.
+- `--device mps` runs forward inference on the Apple-Silicon GPU, ~13× faster than CPU (~65 min for the
+  three-model comparison versus ~15 h on CPU).
+
+!!! note "The BatchNorm MPS warning is benign"
+    On `--device mps` PyTorch warns about BatchNorm; that warning is autograd/training-only. Forward-only
+    inference reproduces the published CPU M3-v1 numbers *exactly*, which doubles as a built-in
+    reproducibility check.
 
 ## M3-R — refiner eval
 
@@ -90,6 +103,65 @@ The full tables and the within-vs-between-gene decomposition that explains Tier 
     annotation. And when a model's global AUC and its per-gene precision@k disagree, decompose into
     within-gene vs between-gene — that decomposition is what turned M3-R from a mystery into a precise,
     reusable lesson (genome-averaged multimodal tracks are locus-level, not position-level).
+
+---
+
+## Evaluating the disease-anchor fold (M3-anchor)
+
+`M3-anchor` is M3 trained with the budgeted disease-anchor fold
+([Stage 10](10_training_m3.md#folding-disease-anchors-into-training-opt-in)):
+`output/meta_layer/m3s_anchorpos` (best epoch 20, 5% budget), registered in `DEFAULT_MODELS` as
+`M3-anchor`. The question this stage answers is whether folding curated SF3B1 / ENCODE-KD cryptic sites
+in as positives helps the held-out disease truth **without** costing general novel recall.
+
+```bash
+python examples/meta_layer/13_evaluate_m3_novel.py --mode eval \
+    --cache-dir output/meta_layer/m3_eval_d1/gene_cache \
+    --output-dir output/meta_layer/m3_eval_d1 \
+    --models base,M3-v1,M3-anchor --device mps
+```
+
+**D1, ENCODE long-read novel (general recall):**
+
+| Model | P@5 | R@20 |
+|-------|-----|------|
+| base | 0.277 | 0.315 |
+| M3-v1 | 0.335 | 0.367 |
+| M3-anchor | 0.333 | 0.364 |
+
+General novel recall **holds** (no regression): the fold does not trade away the D1 gain.
+
+**D2, held-out SF3B1 disease anchors (anti-circular by chromosome):**
+
+| Model | P@5 | R@5 | R@20 |
+|-------|-----|-----|------|
+| base | 0.061 | 0.294 | 0.506 |
+| M3-v1 | 0.108 | 0.515 | 0.791 |
+| M3-anchor | **0.120** | **0.571** | **0.859** |
+
+M3-anchor **improves across the board** on the mechanism it was fed (R@20 +6.8 pts, R@5 +5.6 pts over
+M3-v1), and does so anti-circularly: the scored SF3B1 anchors sit on held-out chromosomes the fold
+never trained.
+
+**STMN2 / UNC13A within-gene rank** (TDP-43, kept masked and untrained; a cross-mechanism transfer
+probe):
+
+| Site | M3-v1 rank | M3-anchor rank |
+|------|-----------|----------------|
+| STMN2 acceptor | #4 | **#2** |
+| UNC13A donor | #260 | **#187** |
+| UNC13A acceptor | #660 | #872 |
+
+(of ~55K / ~87K novel candidates.) Because `tdp43_cryptic` is kept *masked*, the ALS panel is a genuine
+cross-mechanism probe (SF3B1-learning was never shown these sites). The result is **mixed** (2 of 3
+improved): transfer to the ALS regime is only partial.
+
+!!! note "What the anchor fold does, and does not, do"
+    The budgeted fold works **within-mechanism** (SF3B1) without hurting general recall (D1).
+    Cross-mechanism transfer to the weak, perturbation-gated **TDP-43** regime is weak, which is
+    **M4's** domain (conditional, regulator-driven), not M3's. `M3-anchor` is **not yet promoted**: this
+    is a single split and the decision is pending. Full write-up:
+    [results/m3_novel.md](../../meta_layer/results/m3_novel.md).
 
 ---
 

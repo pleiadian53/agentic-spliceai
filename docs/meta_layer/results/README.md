@@ -24,6 +24,7 @@ Current, promoted models. All splice tasks are severely class-imbalanced, so the
 | [M1-S](m1_canonical.md#m1-s-sequence-model-current) | Canonical, sequence CNN | SpliceAI holdout (MANE) | macro PR-AUC **0.9998** | 0.9986 → 0.9998 |
 | [M2-S](m2_alternative.md#current-results-v4) | Alternative sites (Ensembl ∖ MANE) | Eval-Ensembl-Alt | alt-site PR-AUC **0.990**, recall ~**90%** | 0.911 → 0.990, FN −88% |
 | [M3-S (v1)](m3_novel.md#m3-s-m3-v1-the-novel-site-ranker) | Novel sites (junction-supported) | anti-circular D1 / D2 | D1 P@5 **0.335**, D2 R@20 **0.79** | beats base (0.277 / 0.51) |
+| [M3-anchor](m3_novel.md#m3-anchor-folding-disease-anchors-in-the-disease-cryptic-win) | Novel + disease anchors (budgeted fold) | anti-circular D1 / D2 | D2 R@20 **0.86** (SF3B1), D1 held | D2 0.79 → 0.86 over M3-v1 |
 | [M3-R](m3_novel.md#m3-r-the-candidate-refiner-milestone) | Candidate refiner (rerank) | anti-circular D1 / D2 | **ties base** (honest negative) | within-gene flat |
 | M4 | Perturbation-induced | — | *in progress* | — |
 
@@ -72,8 +73,9 @@ sequence model, `-P` = position-level. Full convention in
 | M1-P | full-genome | Reference baseline |
 | M1-S | `m1s_v4_cleanannot` | **Promoted (canonical)** |
 | M2-S | `m2s_v4_cleanannot` | **Promoted (alternative)** |
-| M3-S | `m3_v1` | Best novel-site ranker (research) |
+| M3-S | `m3_v1` | Best general novel-site ranker (research) |
 | M3-S v1.1 | `m3s_v1_1_confirmed` | Tier 1 confirmed-only retrain — marginally worse than v1 (label noise was *not* the ceiling) |
+| M3-anchor | `m3s_anchorpos` | Disease-anchor fold (5% budget) — improves held-out SF3B1 (D2 R@20 0.86) with no D1 cost; not yet promoted (single chromosome split) |
 | M3-R | `m3r_candidate_refiner` | Honest negative — not promoted; global-AUC triage repurposable |
 | M4 | — | In progress (perturbation-paired labels needed) |
 
