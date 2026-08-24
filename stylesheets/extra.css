@@ -1,0 +1,43 @@
+/* Custom styles for documentation */
+
+/* Make math expressions stand out slightly */
+.arithmatex {
+  font-size: 1.05em;
+}
+
+/* Improve code block appearance */
+.highlight {
+  margin: 1em 0;
+}
+
+/* Better spacing for admonitions */
+.admonition {
+  margin: 1.5em 0;
+}
+
+/* Improve table appearance */
+table {
+  width: 100%;
+  margin: 1.5em 0;
+}
+
+/* Better footnote styling */
+.footnote {
+  font-size: 0.9em;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Mermaid diagram centering */
+.mermaid {
+  text-align: center;
+  margin: 2em 0;
+}
+
+/* Badge styling */
+.badge {
+  display: inline-block;
+  padding: 0.25em 0.5em;
+  border-radius: 3px;
+  font-size: 0.85em;
+  font-weight: 600;
+}
