@@ -74,13 +74,13 @@ methodology (portable across projects).
 ### Phase 4: Feature Engineering & Multimodal Evidence — COMPLETE
 
 - Modality protocol with auto-registration (FeaturePipeline)
-- 9 modalities with 100 feature columns:
+- 9 active modalities, 106 feature columns (114 with foundation-model embeddings):
   - base_scores (43), annotation (3), sequence (3), genomic (4)
-  - conservation (9), epigenetic (12), junction (12), rbp_eclip (8), chrom_access (6)
+  - conservation (9), epigenetic (12), junction (12), rbp_eclip (8), chrom_access (12)
 - Genome-scale FeatureWorkflow with `--augment` for incremental modality addition
 - YAML-driven config system with 4 profiles
 - Position alignment verification (`features/verification.py`)
-- **Deliverable**: 9-modality feature pipeline -- 100 feature columns
+- **Deliverable**: 9-modality feature pipeline, 106 feature columns (the models consume the 100-column numeric subset)
 - **Verified**: Full-genome feature generation across 17 chromosomes
 - **See**: `examples/features/docs/` for per-modality tutorials
 

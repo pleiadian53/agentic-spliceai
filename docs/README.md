@@ -45,7 +45,7 @@ Central documentation hub for **Agentic-SpliceAI**, an open-source framework for
 
 | Document | Description |
 | --- | --- |
-| [multimodal_feature_engineering/feature_catalog.md](multimodal_feature_engineering/feature_catalog.md) | Complete multimodal feature reference (9 active modalities, ~116 columns) |
+| [multimodal_feature_engineering/feature_catalog.md](multimodal_feature_engineering/feature_catalog.md) | Complete multimodal feature reference (9 active modalities, 106 feature columns, 114 with foundation-model embeddings) |
 | [Epigenetic marks tutorial](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/docs/epigenetic_marks/epigenetic-marks-tutorial.md) | H3K36me3/H3K4me3 ChIP-seq modality |
 | [RBP eCLIP tutorial](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/docs/rbp_eclip/rbp-eclip-tutorial.md) | ENCODE RBP binding modality |
 | [Chromatin accessibility tutorial](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/features/docs/chromatin_accessibility/chromatin-accessibility-tutorial.md) | ENCODE ATAC-seq modality |

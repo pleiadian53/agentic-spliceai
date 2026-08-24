@@ -110,7 +110,7 @@ graph TB
 
 ## Feature Engineering
 
-The multimodal pipeline fuses 9 data modalities into 100 feature columns per genomic position via a YAML-driven workflow:
+The multimodal pipeline fuses 9 active modalities into a 106-column feature catalog per genomic position via a YAML-driven workflow (the models consume the 100-column numeric subset):
 
 | Modality | Columns | Source |
 |----------|---------|--------|

@@ -17,16 +17,17 @@ modality contributes orthogonal signal, but combining them requires a
 consistent schema, shared coordinate alignment, and memory-bounded
 streaming for genome-scale operation.
 
-This application provides a YAML-configurable, 10-modality feature
-pipeline that produces a single aligned parquet per chromosome —
-consumable by any downstream predictor.
+This application provides a YAML-configurable, multimodal feature pipeline
+(9 active modalities, 10 with foundation-model embeddings) that produces a
+single aligned parquet per chromosome, consumable by any downstream predictor.
 
 ## User-facing functionality
 
-- Generate per-position features from 10 modalities (116 columns total):
-  base scores, annotation, sequence, genomic, conservation, epigenetic,
-  junction, RBP eCLIP, chromatin accessibility, foundation-model
-  embeddings (optional)
+- Generate per-position features from 9 active modalities, 106 feature
+  columns (114 with foundation-model embeddings): base scores,
+  annotation, sequence, genomic, conservation, epigenetic, junction, RBP
+  eCLIP, chromatin accessibility, plus optional foundation-model
+  embeddings
 - Swap modality sets via YAML config profiles (default, full_stack,
   isoform_discovery, meta_m3_novel)
 - Run at genome scale with memory monitoring, per-chromosome parquet
@@ -120,7 +121,7 @@ data_preparation via
 
 ## Evaluation
 
-- **Scale verified**: 24/24 chromosomes complete (2.88 GB total, 116 cols each)
+- **Scale verified**: 24/24 chromosomes complete (2.88 GB total, 116-column parquet each: feature columns plus metadata and base-probability fields)
 - **Location**: `data/mane/GRCh38/openspliceai_eval/analysis_sequences/`
 - **Alignment**: position-level verification via `verification.py`
 - **Downstream impact**: junction_has_support = #2 feature by SHAP (31.3%), FN reduction -60/-70% (donor/acceptor) on M1-P XGBoost
@@ -132,7 +133,7 @@ data_preparation via
 
 **Signals supporting the tier**:
 
-- 10 modalities (9 active + 1 fm_embeddings commented out) with 116 columns
+- 9 active modalities (plus fm_embeddings commented out), 106 feature columns written to a 116-column parquet
 - Full genome completed (24/24 chromosomes)
 - 4 YAML profiles covering distinct modeling objectives
 - Depended on by Adaptive Splice Prediction and Variant Effect Analysis
@@ -146,7 +147,7 @@ data_preparation via
 **To advance to Mature, the application needs**:
 
 - FM embeddings modality wired back in with Evo2 full-genome extraction
-- Versioned feature schema (116 columns is a frozen surface)
+- Versioned feature schema (the 116-column parquet schema is a frozen surface)
 - Test coverage for modality registration and alignment invariants
 - ENCODE-accession-driven downloads for epigenetic tracks (currently `remote_fallback` at run-time only; the `fetch-tracks` CLI currently covers conservation only)
 - Full meta-layer pre-flight integration (parallel to the base-layer pre-flight)

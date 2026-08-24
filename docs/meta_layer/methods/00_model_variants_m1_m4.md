@@ -661,7 +661,7 @@ ref_probs, alt_probs, delta = model.predict_with_delta(
 
 | Component | Status |
 |-----------|--------|
-| Full-genome feature parquets (9 modalities, 24 chroms) | **Done** (2.88 GB, 116 cols) |
+| Full-genome feature parquets (9 modalities, 24 chroms) | **Done** (2.88 GB, 116-col parquet) |
 | FM embeddings (10th modality, Evo2 7B) | Extraction in progress on GPU pod |
 | DenseFeatureExtractor (BigWig → [L, C] arrays) | **Done** |
 | SequenceLevelDataset (disk-backed .npz cache) | **Done** |

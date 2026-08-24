@@ -20,7 +20,26 @@ feature engineering pipeline. Each modality is a registered `Modality` subclass 
 | `fm_embeddings` | 8 | Foundation model | Pre-extracted embeddings (Evo2, SpliceBERT, etc.) | Label-agnostic scalar features from foundation model representations |
 
 **Total**: 114 feature columns (full-stack with fm_embeddings enabled).
-**Default full-stack**: 106 columns (fm_embeddings commented out by default — requires GPU-extracted embeddings).
+**Default full-stack**: 106 columns (fm_embeddings is commented out by default, since it requires GPU-extracted embeddings).
+
+!!! note "Three numbers, three meanings: 106 vs 100 vs 116"
+    You will see 106, 100, and 116 all quoted for "the features." They are not typos; they count
+    three different things.
+
+    - **106 feature columns (114 with `fm_embeddings`)** is this catalog: the ten modalities in the
+      table above, i.e. a mental model of the evidence the pipeline assembles.
+    - **100 columns (108 with `fm_embeddings`)** is what the position-level models actually read in
+      code, namely `MODALITY_COLUMNS` in `meta_layer/training/data_utils.py`. The six-column
+      difference is the `annotation` (3) and `sequence` (3) modalities, which are carried as
+      metadata and context rather than fed as numeric features, so they sit outside
+      `MODALITY_COLUMNS`.
+    - **116 columns** is the width of an on-disk `analysis_sequences_*.parquet`: the feature columns
+      plus key and metadata fields (`chrom`, `position`, `strand`, gene and window coordinates, the
+      `sequence` string) and the three raw base-model probabilities (`donor_prob`, `acceptor_prob`,
+      `neither_prob`).
+
+    Rule of thumb: use **106 / 114** for "the feature catalog," **100 / 108** for "what the model
+    consumes," and **116** only for "how wide the parquet is on disk."
 
 ---
 
@@ -277,8 +296,9 @@ K562/HepG2 with **neuronal CLIP** from SH-SY5Y and H9 — most importantly **TAR
 (TDP-43)**, the single largest RBP at 100,691 peaks and the splicing repressor behind
 the project's ALS/FTD cryptic-exon use cases (UNC13A, STMN2). Two consumers resolve it
 differently:
-- **Position-level modality** (these 8 columns → 116-col feature parquet / XGBoost
-  baseline): defaults to `cell_lines=("K562", "HepG2")` and *filters to them*.
+- **Position-level modality** (these 8 columns land in the 116-column `analysis_sequences`
+  parquet consumed by the XGBoost baseline): defaults to `cell_lines=("K562", "HepG2")` and
+  *filters to them*.
 - **M\*-S sequence-model dense channel** (`DenseFeatureExtractor._get_eclip_peaks`):
   harnesses the **full union — all evidence incl. neuronal — by default**, resolved
   internally as ONE pre-deduplicated file, no per-script flag (the "one RBP channel,

@@ -11,7 +11,7 @@ feature table, aligned position-by-position, that both model lines draw from.
     **Reads:** `predictions_{chrom}.parquet` ([Stage 2](02_base_scoring.md)) + streamed
     bigWig / junction / eCLIP sources, selected by a YAML profile.
     **Writes:** `data/<source>/<build>/openspliceai_eval/analysis_sequences/analysis_sequences_{chrom}.parquet`
-    (9 modalities, ~116 columns) + `feature_summary.json`.
+    (9 active modalities; 116-column parquet, 106 feature columns + metadata) + `feature_summary.json`.
 
 ---
 

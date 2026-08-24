@@ -141,7 +141,7 @@ Topic-based documentation for users and contributors. Organized by architectural
 | `docs/system_design/` | Resource management, configuration, output patterns |
 | `docs/base_layer/` | Data preparation, processing architecture, coordinates |
 | `docs/meta_layer/` | Foundation-Adaptor architecture, methods, experiments |
-| `docs/multimodal_feature_engineering/` | Feature catalog (100 columns, 9 modalities) |
+| `docs/multimodal_feature_engineering/` | Feature catalog (106 feature columns, 9 active modalities) |
 | `docs/applications/` | Domain-specific workflows (oncology, VUS, neurology) |
 | `docs/api/` | REST endpoints, data format, configuration |
 | `docs/tutorials/` | Splice prediction guide |

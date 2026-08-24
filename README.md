@@ -7,7 +7,7 @@
 More precisely, it is an **agentic AI system with hierarchical multi-task prediction** for discovering novel RNA isoforms: the disease-specific, variant-induced, and tissue-specific splice variants that lie beyond canonical annotations and represent a large, under-explored space of candidate therapeutic targets. Built as a self-contained **compound AI system**, it unites extensible foundation-model predictors, multimodal evidence fusion, agentic AI validation, and a meta-learning framework (M1–M4) that targets progressively harder splice-prediction problems.
 
 The system combines three key architectural ideas:
-- **Multi-task learning**: Shared multimodal representation (10 modalities, 116 features) with task-specific model heads (M1-M4)
+- **Multi-task learning**: Shared multimodal representation (9 active modalities, 106 feature columns; 114 with foundation models) with task-specific model heads (M1-M4)
 - **Hierarchical prediction**: M1 (canonical) → M2 (alternative) → M3 (novel discovery) → M4 (perturbation-induced), where each level tackles a harder problem with different label regimes
 - **Agentic validation**: LLM-powered agents for literature mining, expression evidence, clinical interpretation, and recursive self-improvement
 
@@ -59,7 +59,7 @@ graph TD
     %% Layer 3: Meta-Learning Layer with M1-M4 hierarchy
     subgraph L3 ["③ META-LEARNING LAYER (M1–M4)"]
         direction LR
-        F["Multimodal Feature Fusion<br/>10 modalities, 116 features"]:::meta
+        F["Multimodal Feature Fusion<br/>9 modalities · 106 features"]:::meta
         M1[M1: Canonical<br/>MANE]:::meta
         M2[M2: Alternative<br/>Ensembl / GENCODE]:::meta
         M3[M3: Novel<br/>junction = target]:::meta
@@ -233,7 +233,7 @@ its output satisfies the **per-nucleotide 3-class scoring protocol**
 | **Plugin Registry** | Decorator-based in-process registration for built-ins + YAML manifest (`configs/predictors.yaml`) for foundation-model-derived checkpoints and external models. Adding a predictor requires no downstream code changes. |
 | **Classical Models** | SpliceAI (TF, GRCh37/Ensembl) and OpenSpliceAI (PyTorch, GRCh38/MANE), wrapped as thin adapters over the existing `BaseModelRunner`. |
 | **Foundation-Model-Derived Predictors** | SpliceBERT + dilated-CNN classifier head (trained via [`examples/foundation_models/07a`](examples/foundation_models/07a_direct_shard_splice_predictor.py)) registered in the same catalog as classical models. Frozen-head and end-to-end fine-tuning pipelines for SpliceBERT, Evo2, HyenaDNA under [`foundation_models/`](foundation_models/). |
-| **10-Modality Feature Fusion** | 116 features across base scores, conservation, epigenetics, chromatin accessibility (ATAC-seq + DNase-seq), junction reads, RBP binding, DNA sequence, genomic context, annotations, and optional foundation model embeddings (Evo2, SpliceBERT). See [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md) |
+| **Multimodal Feature Fusion** | 106 feature columns across 9 active modalities (base scores, conservation, epigenetics, chromatin accessibility via ATAC-seq + DNase-seq, junction reads, RBP binding, DNA sequence, genomic context, annotations), rising to 114 with optional foundation-model embeddings (Evo2, SpliceBERT). See [Feature Catalog](docs/multimodal_feature_engineering/feature_catalog.md) |
 | **YAML-Driven Configs** | 4 profiles (default, full_stack, isoform_discovery, meta_m3_novel); add or drop modalities per modeling objective |
 
 ### 🧠 Meta Layer: Context-Aware Adaptive Prediction
@@ -281,7 +281,7 @@ its output satisfies the **per-nucleotide 3-class scoring protocol**
 | Layer | Purpose | Output | Status |
 |-------|---------|--------|--------|
 | **Base Layer** | Canonical splice prediction (MANE) | Baseline scores for ~10% of sites | ✅ Complete |
-| **Feature Engineering** | Multimodal evidence fusion | 116 feature columns (10 modalities) | ✅ Complete |
+| **Feature Engineering** | Multimodal evidence fusion | 106 feature columns (9 active modalities; 114 with FM) | ✅ Complete |
 | **Foundation Models** | Evo2/SpliceBERT classification | Per-nucleotide embeddings | 🔬 Experimental |
 | **Meta Layer** | Context-aware prediction (M1-M4) | Novel sites (90% beyond MANE) | 🔄 Active |
 | **Agentic Layer** | Multi-source validation + reports | Validated isoforms + drug targets | 📋 Planned |
@@ -607,7 +607,7 @@ MIT License - see LICENSE file for details
 |-------|-------------|--------|
 | 1-3 | Base Layer + Data Prep + Workflows | ✅ Complete |
 | 2.5 | Bioinformatics Lab UI | ✅ Complete |
-| 4 | Feature Engineering (10 modalities, 116 columns) | ✅ Complete |
+| 4 | Feature Engineering (9 active modalities, 106 feature columns) | ✅ Complete |
 | 5 | Foundation Models (Evo2, SpliceBERT) | 🔬 Experimental |
 | 6 | Meta Layer: M1-S promoted (macro PR-AUC 0.9998), M2-S promoted (alt-site PR-AUC 0.990, recall ~90%), M3-S best novel-site ranker | 🔄 Active |
 | 7 | Agentic Validation Layer | 📋 Planned |
