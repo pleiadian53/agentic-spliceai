@@ -4,8 +4,11 @@ M4 is the conditional arm of the meta layer: given a regulator perturbation
 (knock down RBP R), predict the resulting splicing change (signed ΔPSI at splice
 sites). Its missing training ingredient is perturbation-paired labels — WT vs
 knockdown ΔPSI across many regulators. SpliceTools (Flemington lab) provides
-rMATS JCEC differential-splicing tables for ~185 ENCODE RBP knockdowns
-(K562/HepG2), which supply exactly that signal.
+rMATS JCEC differential-splicing tables for 185 ENCODE RBP shRNA knockdowns,
+which supply exactly that signal. The tables carry no cell-line column; control
+read support is ~1,000x higher in liver markers (ALB, APOB, FGB, TF, SERPINA1)
+than in erythroid/K562 markers (HBG1/2, GATA1, GYPA) for all 185 knockdowns, so
+the panel is treated as **HepG2** (verified 2026-10-16).
 
 rMATS A3SS/A5SS semantics:
   * The long and short isoforms share one splice-site boundary and differ at the
@@ -25,6 +28,18 @@ no FDR/|dPSI| prefilter — the full distribution is retained and thresholded
 downstream. Rows carry event_uid / form / paired_position so a consumer can split
 leakage-safely by event and recover the pair.
 
+Event representation (the M4 modeling grain). The per-site rows above lose the
+junction partner: an A3SS event is a choice between two acceptors *spliced to one
+upstream donor* (the flanking exon), and the same acceptor pair measured against a
+different flanking exon is a different splicing choice (within one knockdown, 48%
+of such pairs differ by >0.1 ΔPSI). The script therefore also writes
+``kd_events.parquet``: one row per (rMATS record, RBP) carrying the full geometry
+(all three exons, the long/short alternative sites, and the shared partner site,
+each GT/AG-validated), read counts, and ``dpsi`` = long-form ΔPSI. ``event_key``
+identifies an event by geometry, so the same event is recognised across the 185
+per-RBP rMATS runs (whose numeric IDs are per-file); ``altpair_key`` groups events
+that share an alternative-site pair but differ in flanking exon.
+
 Coordinate handling reuses the M3 anchor ingester's proven machinery
 (examples/data_preparation/m3/06_ingest_encode_kd_anchors.py): a per-(strand,
 splice_type) GT/AG offset scan absorbs the rMATS 0-based convention and validates
@@ -33,6 +48,8 @@ the mapping; overall canonical rate < 0.85 hard-fails.
 Run (after `mamba activate agentic-spliceai`, files in
 data/encode_kd_splicetools/1_RBP_kd/):
     python examples/data_preparation/m4/01_ingest_kd_dpsi.py
+
+Outputs: data/mane/GRCh38/m4_labels/{kd_dpsi.parquet (per site), kd_events.parquet (per event)}.
 """
 
 from __future__ import annotations
@@ -48,6 +65,7 @@ REPO = Path(__file__).resolve().parents[3]
 KD_DIR = REPO / "data/encode_kd_splicetools/1_RBP_kd"
 FASTA = REPO / "data/mane/GRCh38/Homo_sapiens.GRCh38.dna.primary_assembly.fa"
 OUT = REPO / "data/mane/GRCh38/m4_labels/kd_dpsi.parquet"
+OUT_EVENTS = REPO / "data/mane/GRCh38/m4_labels/kd_events.parquet"
 
 _COMP = str.maketrans("ACGTNacgtn", "TGCANtgcan")
 
@@ -58,6 +76,15 @@ _BOUNDARY = {
     # event: (strand: (long_col, short_col))
     "A3SS": {"+": ("longExonStart_0base", "shortES"), "-": ("longExonEnd", "shortEE")},
     "A5SS": {"+": ("longExonEnd", "shortEE"), "-": ("longExonStart_0base", "shortES")},
+}
+
+# The shared junction partner: the flanking-exon boundary that faces the alternative
+# exon. A3SS → the upstream donor; A5SS → the downstream acceptor. Same column
+# semantics as above (donor = exon end on +, exon start on −; acceptor the reverse),
+# so the same per-(strand, splice_type) offsets apply.
+_PARTNER = {
+    "A3SS": {"+": "flankingEE", "-": "flankingES", "type": "donor"},
+    "A5SS": {"+": "flankingES", "-": "flankingEE", "type": "acceptor"},
 }
 
 
@@ -173,6 +200,112 @@ def parse_file(fp: str, event: str, splice_type: str) -> pl.DataFrame:
         "event_id",
     ]
     return pl.concat([long_df.select(cols), short_df.select(cols)])
+
+
+def _sum_counts(col: str) -> pl.Expr:
+    """Sum of a comma-separated per-replicate count string."""
+    return (
+        pl.col(col).cast(pl.Utf8).str.split(",")
+        .list.eval(pl.element().cast(pl.Int64, strict=False)).list.sum()
+    )
+
+
+def _n_reps(col: str) -> pl.Expr:
+    """Number of replicates with a PSI value (non-NA) in a comma-separated string."""
+    return (
+        pl.col(col).cast(pl.Utf8).str.split(",")
+        .list.eval(pl.element().cast(pl.Float64, strict=False)).list.drop_nulls().list.len()
+    )
+
+
+def parse_events(fp: str, event: str) -> pl.DataFrame:
+    """Parse one rMATS JCEC table into one row per event with full geometry.
+
+    Exon coordinates are converted to 1-based inclusive (rMATS starts are 0-based).
+    Splice-site boundaries are kept raw (``*_boundary``) for the shared offset scan.
+    """
+    rbp = Path(fp).name.split("_test_cntl_")[0]
+    df = pl.read_csv(fp, separator="\t", quote_char='"', infer_schema_length=0)
+
+    def by_strand(plus: str, minus: str) -> pl.Expr:
+        return pl.when(pl.col("strand") == "+").then(pl.col(plus)).otherwise(pl.col(minus))
+
+    (pl_long, pl_short), (mn_long, mn_short) = (
+        _BOUNDARY[event]["+"], _BOUNDARY[event]["-"]
+    )
+    i64 = lambda c: pl.col(c).cast(pl.Int64)  # noqa: E731
+    df = df.with_columns([i64(c) for c in (
+        "longExonStart_0base", "longExonEnd", "shortES", "shortEE", "flankingES", "flankingEE")])
+    return df.select(
+        pl.lit(rbp).alias("rbp"),
+        pl.lit(event).alias("event_type"),
+        pl.col("chr").str.replace(r"^chr", "").alias("chrom"),
+        pl.col("strand"),
+        pl.col("GeneID").str.replace_all('"', "").alias("gene_id"),
+        pl.col("geneSymbol").str.replace_all('"', "").alias("gene_symbol"),
+        pl.col("ID").cast(pl.Int64).alias("rmats_id"),
+        (pl.col("longExonStart_0base") + 1).alias("long_exon_start"),
+        pl.col("longExonEnd").alias("long_exon_end"),
+        (pl.col("shortES") + 1).alias("short_exon_start"),
+        pl.col("shortEE").alias("short_exon_end"),
+        (pl.col("flankingES") + 1).alias("flank_exon_start"),
+        pl.col("flankingEE").alias("flank_exon_end"),
+        by_strand(pl_long, mn_long).alias("long_boundary"),
+        by_strand(pl_short, mn_short).alias("short_boundary"),
+        by_strand(_PARTNER[event]["+"], _PARTNER[event]["-"]).alias("partner_boundary"),
+        pl.col("IncLevelDifference").cast(pl.Float64, strict=False).alias("dpsi"),
+        _mean_psi("IncLevel1").alias("psi_kd"),
+        _mean_psi("IncLevel2").alias("psi_ctrl"),
+        _n_reps("IncLevel1").alias("n_rep_kd"),
+        _n_reps("IncLevel2").alias("n_rep_ctrl"),
+        _sum_counts("IJC_SAMPLE_1").alias("ijc_kd"),
+        _sum_counts("SJC_SAMPLE_1").alias("sjc_kd"),
+        _sum_counts("IJC_SAMPLE_2").alias("ijc_ctrl"),
+        _sum_counts("SJC_SAMPLE_2").alias("sjc_ctrl"),
+        pl.col("IncFormLen").cast(pl.Int64).alias("inc_form_len"),
+        pl.col("SkipFormLen").cast(pl.Int64).alias("skip_form_len"),
+        pl.col("FDR").cast(pl.Float64, strict=False).alias("fdr"),
+        pl.col("PValue").cast(pl.Float64, strict=False).alias("pvalue"),
+    )
+
+
+def build_events(
+    events: pl.DataFrame, fasta: pyfaidx.Fasta, best: dict[tuple[str, str], int]
+) -> pl.DataFrame:
+    """Offset-correct and GT/AG-validate the three sites of every event; add keys.
+
+    Each event contributes long/short alternative sites (acceptors for A3SS, donors
+    for A5SS) and the partner site of the opposite type. They are validated through
+    ``apply_offset_and_validate`` with the offsets already fitted on the site rows.
+    """
+    events = events.with_row_index("_ev")
+    alt_type = pl.when(pl.col("event_type") == "A3SS").then(pl.lit("acceptor")).otherwise(
+        pl.lit("donor"))
+    partner_type = pl.when(pl.col("event_type") == "A3SS").then(pl.lit("donor")).otherwise(
+        pl.lit("acceptor"))
+    sites = pl.concat([
+        events.select("_ev", "chrom", "strand", pl.lit(role).alias("role"),
+                      (alt_type if role != "partner" else partner_type).alias("splice_type"),
+                      pl.col(f"{role}_boundary").alias("boundary"))
+        for role in ("long", "short", "partner")
+    ])
+    sites = apply_offset_and_validate(sites, fasta, best)
+    wide = sites.pivot(on="role", index="_ev", values=["position", "canonical_dinuc"])
+    out = events.join(wide, on="_ev").rename({
+        "position_long": "long_site", "position_short": "short_site",
+        "position_partner": "partner_site", "canonical_dinuc_long": "canonical_long",
+        "canonical_dinuc_short": "canonical_short", "canonical_dinuc_partner": "canonical_partner",
+    }).drop("_ev", "long_boundary", "short_boundary", "partner_boundary")
+    geo = ["event_type", "chrom", "strand", "long_exon_start", "long_exon_end",
+           "short_exon_start", "short_exon_end", "flank_exon_start", "flank_exon_end"]
+    return out.with_columns(
+        pl.concat_str([pl.col(c).cast(pl.Utf8) for c in geo], separator=":").alias("event_key"),
+        pl.concat_str([pl.col(c).cast(pl.Utf8) for c in (
+            "event_type", "chrom", "strand", "long_site", "short_site")],
+            separator=":").alias("altpair_key"),
+        pl.lit("encode_kd_splicetools").alias("source"),
+        pl.lit("HepG2").alias("cell_line"),
+    )
 
 
 def find_offsets(
@@ -371,6 +504,35 @@ def main() -> None:
         df.group_by("strand")
         .agg(pl.col("canonical_dinuc").mean().alias("canonical_rate"), pl.len().alias("n"))
         .sort("strand")
+    )
+
+    # ── Event-level table (full geometry; the M4 modeling grain) ─────────
+    ev_frames = []
+    for event in ("A3SS", "A5SS"):
+        files = sorted(glob.glob(str(KD_DIR / f"*_{event}.MATS.JCEC.txt")))
+        if args.limit_files:
+            files = files[: args.limit_files]
+        ev_frames.extend(parse_events(fp, event) for fp in files)
+    events = build_events(pl.concat(ev_frames), fasta, best)
+    rates = events.select(
+        pl.col("canonical_long").mean(), pl.col("canonical_short").mean(),
+        pl.col("canonical_partner").mean()).row(0)
+    print(f"\nevents: canonical rate long/short/partner = "
+          f"{rates[0]:.4f} / {rates[1]:.4f} / {rates[2]:.4f}")
+    if min(rates) < 0.85:
+        raise SystemExit(f"[FAILED] event-site canonical rate {min(rates):.3f} < 0.85.")
+    n_dup = events.height - events.select("rbp", "event_key").unique().height
+    if n_dup:
+        raise SystemExit(f"[FAILED] {n_dup} (rbp, event_key) duplicates — geometry key not unique.")
+    events.write_parquet(OUT_EVENTS)
+    per_key = events.group_by("event_key").agg(pl.col("rbp").n_unique().alias("n_rbp"))
+    per_pair = events.group_by("rbp", "altpair_key").len()
+    print(
+        f"Wrote {OUT_EVENTS} ({events.height:,} event×RBP rows, "
+        f"{events['event_key'].n_unique():,} geometries, "
+        f"{events['altpair_key'].n_unique():,} alt-site pairs; RBPs per geometry median "
+        f"{per_key['n_rbp'].median():.0f}; {per_pair.filter(pl.col('len') > 1).height:,} "
+        f"(RBP, alt-pair) groups span >1 flanking exon)"
     )
 
 
