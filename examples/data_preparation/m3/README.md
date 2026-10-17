@@ -58,7 +58,7 @@ Steps 01–09 outputs land in `data/mane/GRCh38/m3_labels/`; step 10 in `data/en
 | Artifact | Count | Role |
 |---|---:|---|
 | `positives_pooled.parquet` | 154,113 | novel sites (donor/acceptor) — SpliceVault-dominated |
-| `negatives.parquet` | 308,000 | 154K hard (canonical-dinuc non-sites) + 154K easy |
+| `negatives.parquet` | 308,000 | 154K hard (canonical-dinuc non-sites) + 154K easy; **not used by M3-S** (per-gene-window training makes all non-positive, non-masked positions class 2) |
 | `annotation_mask.parquet` | 825,746 | annotated sites → **loss ignore-index** |
 | `disease_anchors.parquet` | 6,351 | held-out (Phase D2 generalization); anti-joined out of training |
 

@@ -11,34 +11,76 @@ Companion to [`m3_design.md`](m3_design.md) (the modeling decisions) and
 > the M3-R **candidate refiner** — the current Tier 2 direction (base proposes
 > candidates → classify real cryptic vs artifact from multimodal evidence).
 
+> **Status (reconciled 2026-10-17).** This note was written before M3-S was
+> trained (2026-05-30). It has been reconciled with what shipped. The main
+> correction: **M3-S never trains on `negatives.parquet`.** It trains per gene
+> window, so every position that is neither a positive nor annotated is class 2
+> automatically (§1, §2). The 154K hard / 154K easy negatives are an analysis
+> artifact; the sampled-negative design lives on only in M3-R (§5). The training
+> set size and sampling strategy are in §1b.
+
 ## 1. Anatomy of an M3 training example
 
 M3 forks the M2-S sequence model (`MetaSpliceModel`, 3-class per position). A
-training example is a **genomic position** with:
+training example is a **gene window**, and every position inside it carries a
+label. Each window has:
 
-- **Inputs** (extracted in Phase C, the pod job — *not yet built*): a sequence
-  window + base-model (OpenSpliceAI) scores + multimodal channels
-  (conservation, epigenetic, RBP `rbp_n_bound`, chromatin). **The `junction`
-  modality is dropped from inputs** (see §3).
-- **Label** — one of 4 values:
+- **Inputs** (cached per gene on the pod): a 5,001-nt sequence window plus 400
+  nt of context padding, base-model (OpenSpliceAI) scores, and **7** multimodal
+  channels (conservation, epigenetic, RBP `rbp_n_bound`, chromatin). **The
+  `junction` modality is dropped from inputs** (see §3), which is why M3 sees 7
+  channels instead of 9.
+- **Labels** (one per position, one of 4 values):
 
 | Label | Meaning | Source pool |
 |---|---|---|
-| `donor` | novel 5′ splice site | positives (donor) |
-| `acceptor` | novel 3′ splice site | positives (acceptor) |
-| `neither` (0) | true non-site | negatives (hard + easy) |
-| `ignore` (masked) | annotated splice site — excluded from the loss | annotation mask |
+| `donor` (0) | novel 5′ splice site | positives (donor) |
+| `acceptor` (1) | novel 3′ splice site | positives (acceptor) |
+| `neither` (2) | everything else in the window | **default for every position that is not a positive and not masked** (`negatives.parquet` is not read) |
+| `ignore` (255) | annotated splice site, excluded from the loss | annotation mask |
 
 The label is **categorical** (donor / acceptor / neither), *not* a junction
 read count.
+
+Because "neither" is a default and not a curated set, it contains real splice
+sites that no pool labels (see "Still open" in §4).
+
+## 1b. Training-set size and sampling
+
+There is no fixed table of examples. The training set is a labeling of every
+position in the training genes, sampled into windows on the fly. Numbers from the
+`m3_v1` run (`output/meta_layer/m3_v1/train.log`, 2026-05-30):
+
+| Quantity | Value |
+|---|---:|
+| Gene split (SpliceAI preset, paralogs removed) | 12,491 train / 1,275 val / 5,459 test genes |
+| Train / val genes containing at least one positive | 10,871 / 1,149 |
+| Genes in the sampler (after dropping genes shorter than a window) | 10,081 train, 1,066 val |
+| Positives on non-test chromosomes | 110,591 |
+| Positives on held-out chromosomes 1/3/5/7/9 | 43,522 |
+| Windows per epoch | 100,000 train, 5,000 val |
+| Window | 5,001 positions + 400 context |
+| Best epoch | 23 of 50 (patience 10), about 2.3M windows seen |
+
+**Sampling.** `splice_bias = 0.5`: half of the windows are centered on a
+positive (random gene that has positives, random positive, jitter of ±W/4), and
+half are uniform random windows from a random gene. The "splice sites" used for
+centering are the M3 positives only (`labels < 2`); masked annotated sites are
+never used as centers. An epoch covers about 500M labeled positions, and about 50K
+of its windows contain a positive by construction, so the 50% positive-centered
+sampling is the class-imbalance control. There is no negative sampling step.
+
+Positives on held-out chromosomes are never trained on: training builds caches
+only for train-chromosome genes, so the split is by gene and chromosome, not by
+row.
 
 ## 2. The pools (current, on disk, validated 2026-05-27)
 
 | Pool | File | Count | Role |
 |---|---|---:|---|
 | Positives | `positives_pooled.parquet` | **154,113** | novel sites → `donor`/`acceptor` |
-| Negatives | `negatives.parquet` | **308,000** | `neither` (154K hard + 154K easy) |
-| Annotation mask | `annotation_mask.parquet` | **825,746** | annotated sites → loss ignore-index |
+| Negatives | `negatives.parquet` | **308,000** | **not used by M3-S** (154K hard + 154K easy; analysis artifact, see below) |
+| Annotation mask | `annotation_mask.parquet` | **825,746** | annotated sites (GENCODE ∪ RefSeq-curated) → loss ignore-index |
 | Disease anchors | `disease_anchors.parquet` | **6,351** | **held-out** (Phase D2); anti-joined out of training |
 
 Positives: 93,162 acceptor + 60,951 donor; 78,006 `+` / 76,107 `−`.
@@ -46,16 +88,56 @@ Schema (key cols): `chrom, position, strand, splice_type, sources,
 in_gtex_novel, in_splicevault, sv_freq_pct, dinuc`.
 
 ### Positive provenance
-- **SpliceVault** (~153,855): empirically observed cryptic donor/acceptor events
-  across 335K GTEx+SRA RNA-seq samples, absent from annotation. The bulk.
-- **GTEx-novel** (748): GTEx junction sides surviving the cross-annotation audit
-  + depth/tissue/GT-AG filters.
-- (40 in both.) All annotation-clean (GENCODE ∪ RefSeq-curated removed).
 
-### Negative composition
+Both arms are derived from split-read (junction) evidence, but neither is our own
+read counting. Each is a catalog of junctions that were already observed.
+
+**SpliceVault (~153.4K, the bulk).** SpliceVault (Dawes et al. 2023) is keyed on
+**annotated** splice sites. For each one it lists the most common mis-splicing
+events seen across 335,663 RNA-seq samples (316,449 SRA, which includes cancer
+specimens, plus 19,214 GTEx). An event is a split read with one end on the
+annotated site (the anchor) and the other end unannotated: a *cryptic donor*
+(`CD`) or *cryptic acceptor* (`CA`), or an exon-skipping event (`ES`). Per
+anchor, the top 4 events are kept, ranked by the number of samples with at least
+one supporting read. "Cryptic" therefore means *observed mis-splicing relative to
+an annotated site, pooled across samples*. It carries no condition or tissue
+label. Selection in `03_ingest_splicevault.py`:
+
+1. Keep `CD`/`CA` events; drop `ES`; keep events with frequency ≥ 1.0.
+2. Reconstruct the position as anchor ± event offset (strand-aware).
+3. Snap to the nearest GT/AG within ±2 nt (the offset has a ±1 convention
+   ambiguity); about 0.1% find no match and are dropped.
+4. Convert to the project's exonic-base convention, dedup by coordinate keeping
+   the max frequency, and require canonical GT/AG (re-validated, gate ≥ 0.97).
+5. `04_merge_positives.py` anti-joins against the annotation union.
+
+**GTEx-novel (748).** GTEx v8 junction sides absent from Ensembl, GENCODE and
+RefSeq-curated (cross-annotation audit), with summed reads ≥ 100, ≥ 5 tissues, and
+a canonical GT/AG dinucleotide (`02_build_positive_pool.py`).
+
+40 sites are in both arms. All positives are annotation-clean.
+
+**Proximity to annotation (measured 2026-10-17).** Distance from each positive to
+the nearest annotated site of the same type and strand: median 49 nt; 22% within
+10 nt, 51% within 50 nt, 65% within 100 nt, 96% within 500 nt, 99.9% within
+1,000 nt. The positives are local competitors of annotated sites, not deep
+intronic cryptic exons. (This is distance to the *nearest* annotated site, not
+necessarily the SpliceVault anchor.)
+
+**`sv_freq_pct` is not a bounded percentage.** Median 3.0, p90 19; 1,295 of the
+153,406 SpliceVault-derived rows exceed 100 (max 988). The paper gives no formula
+for the per-event frequency, so treat the field as a relative score until the raw
+SpliceVault file is checked.
+
+### Negative composition (`negatives.parquet`, not used by M3-S)
 - **Hard (154K):** positions carrying a canonical GT/AG dinucleotide but neither
-  annotated nor novel — force the model past the bare dinucleotide.
+  annotated nor novel, intended to force the model past the bare dinucleotide.
 - **Easy (154K):** random non-canonical gene-body positions.
+
+M3-S does not read these: per-gene-window training makes every non-positive,
+non-masked position class 2 already (§1). The file remains as an analysis
+artifact. `09_build_negatives.py` is still load-bearing for
+`annotation_mask.parquet`.
 
 ## 3. Is junction data the label? (the precise answer)
 
@@ -86,8 +168,8 @@ results:
 | Check | Result |
 |---|---|
 | Positives at canonical GT/AG | **1.00 both strands** (filtered to canonical) |
-| Hard negatives canonical | 1.00 both strands (canonical-by-construction) |
-| Easy negatives canonical | 0.00 both strands (non-canonical-by-construction) |
+| Hard negatives canonical | 1.00 both strands (canonical-by-construction; file not trained on) |
+| Easy negatives canonical | 0.00 both strands (non-canonical-by-construction; file not trained on) |
 | SpliceVault offset reconstruction | validated by the oracle → **100% canonical** post-conversion (the snap-to-nearest-canonical step) |
 | GTEx junction convention | 97.7% GT/AG both strands (no strand asymmetry) |
 | Minus-strand annotation bug | **fixed** (was 0.5–0.6 on `−`; now ~0.98); positives now strand-balanced (78K`+`/76K`−`) |
@@ -126,9 +208,19 @@ The **anti-circular D1 eval truth set** = `longread_truth_novel.parquet`
 scored against these, not against "absent from annotation."
 
 ### Still open ⚠️
-- **Negative purity** — negatives are *set-defined* non-sites (excluded from
-  annotation ∪ novel ∪ long-read sites can be added), not *functionally*
-  confirmed; bounded by the large pool, revisit if precision is suspect.
+- **Unlabeled real sites are trained as class 2 (positive-unlabeled labels).**
+  In M3-S, every position that is neither a positive nor annotated is "neither",
+  and the positives are a catalog (SpliceVault keeps only the top 4 events per
+  anchor), so many real cryptic sites are unlabeled. The scale is visible in the
+  eval truth: D1 holds 681,809 long-read-confirmed novel sites, but only 77,879
+  of them are in the positive pool. By the training code, which reads only the
+  positives, the `longread_confirmed` flag, the annotation mask and optional
+  anchors, the remaining D1 sites that fall in training genes are labeled class 2
+  and push the model the wrong way. **Untested hypothesis:** mask those sites
+  (class 255) instead of training them as negatives. This differs from Tier 1,
+  which dropped positives but masked nothing.
+- **Negative purity** for the M3-R candidate negatives is the same issue in a
+  smaller form (§5, "PU noise").
 
 (Cancer-cell-line RBP coverage bias is a separate, documented consideration —
 see the RBP tutorial's "What M3 actually uses" note; it's a coverage gap, not a
