@@ -103,7 +103,7 @@ To learn the *direction* of a perturbation, the model must see **both states**:
 
 The data substrate that supplies this, across many regulators:
 
-- **ENCODE shRNA-knockdown RNA-seq + ΔPSI** for ~200+ RBPs (K562/HepG2): the
+- **ENCODE shRNA-knockdown RNA-seq + ΔPSI** for ~200+ RBPs (the 185 in this corpus are HepG2): the
   causal chain *RBP → aberrant binding → neo-splice site*, measured.
 - disease-/tissue-specific KD where the generic panel doesn't reach (e.g.
   TDP-43 knockdown in a neuronal line for the ALS arc).
@@ -210,7 +210,7 @@ The honest negative is itself the result — and the spec for the next step.
 
 - Generalizes **within the regulators and cell-type contexts it trained on**.
   TDP-43's *neuronal* cryptic targets are out-of-distribution for ENCODE
-  K562/HepG2 KD data → that arm needs neuronal data, not a new model.
+  HepG2 KD data → that arm needs neuronal data, not a new model.
 - Truly novel regulators / unseen contexts: motif embeddings extend reach but
   remain research-open.
 - Annotation-derived labels carry circularity risk; validate against a held-out

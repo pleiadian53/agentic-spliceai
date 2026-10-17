@@ -40,7 +40,7 @@ down **186 known RBPs** (splicing factors and others) from ENCODE and ran
 | **Underlying RBP–eCLIP context** | Van Nostrand et al., *A large-scale binding and functional map of human RNA-binding proteins*, Nature 2020 (the ENCODE RBP program) |
 | **Code / data** | GitHub `flemingtonlab/SpliceTools` · web `splicetools.org` · archived data Zenodo **`10.5281/zenodo.7603628`** |
 | **Splicing caller** | rMATS 4.1.1 (`--task both`; JCEC = junction + exon-body counts) |
-| **Cell context** | ENCODE knockdown lines. The SpliceTools reference panel is **HepG2**; the project's earlier sourcing notes describe these as K562/HepG2. The tables carry **no cell-line column**, so if cell-type attribution matters for a specific analysis, confirm against the source bundle. |
+| **Cell context** | **HepG2.** The tables carry no cell-line column, so this was verified from the data: control read support in liver markers (ALB, APOB, FGB, TF, SERPINA1) exceeds erythroid/K562 markers (HBG1/2, GATA1, GYPA) ~1,000-fold (median 377,199 vs 340 reads) for all 185 knockdowns. Earlier notes calling the panel K562/HepG2 were wrong. |
 
 > This dataset was selected during a survey of candidate catalogs as the best
 > **mechanism-attributed** set — each splicing change is attributable to a known

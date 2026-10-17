@@ -180,7 +180,7 @@ def _write_report(path: Path, s: dict) -> None:
     """Render the stats blob as a readable markdown report."""
     L: list[str] = []
     L.append("# M4 perturbation-paired ΔPSI corpus — characterization\n")
-    L.append("Source: ENCODE shRNA-knockdown rMATS JCEC (SpliceTools, K562/HepG2), A3SS/A5SS.")
+    L.append("Source: ENCODE shRNA-knockdown rMATS JCEC (SpliceTools, HepG2), A3SS/A5SS.")
     L.append(
         "Built by `examples/data_preparation/m4/01_ingest_kd_dpsi.py`; "
         "characterized by `02_characterize_corpus.py`.\n"
