@@ -1,0 +1,289 @@
+#!/usr/bin/env python
+"""M4 benchmark: predict a held-out regulator's splicing response from k examples.
+
+Task (HepG2 RBP knockdown, A3SS/A5SS): given an event, a knocked-down regulator R,
+and features available before the knockdown outcome, predict ``dpsi``, the signed
+change in usage of the event's long form. Each regulator is a *task*; the question
+is how well a method adapts to a regulator it was not trained on, from k labeled
+events of that regulator (k = 0 is zero-shot).
+
+Regulators are split into ``--folds`` folds; each fold is held out in turn. Every
+method is scored on the **same rows**: the held-out regulator's events in held-out
+genes (SpliceAI chromosomes 1/3/5/7/9). Shots are drawn only from the regulator's
+events in training genes, so no test gene is ever seen under R.
+
+Two settings differ only in what is known about the *test genes*:
+
+* ``S3`` (headline) — held-out regulators AND held-out genes: nothing about the test
+  genes' knockdown responses is available. The pooled model trains on training
+  regulators × training genes.
+* ``S2`` — held-out regulators on genes already profiled under other knockdowns
+  (a new assay on known targets). The pooled model may also train on training
+  regulators × test genes, and the ``volatility`` prior (an event's mean ΔPSI under
+  the training regulators) is available.
+
+Methods (the benchmark ladder):
+
+| method | k | what it is |
+|---|---|---|
+| ``zero`` | – | predict 0; the magnitude floor |
+| ``volatility`` | – | S2 only: event's mean ΔPSI under training regulators |
+| ``pooled`` | 0 | XGBoost on site ⊕ regulator-binding features, all training regulators |
+| ``xgb`` | k | XGBoost fit on R's k shots only |
+| ``tabpfn`` | k | TabPFN in-context on R's k shots (no gradient steps); needs ``TABPFN_TOKEN`` |
+| ``pooled_tabpfn`` | k | TabPFN on R's k shots, predicting the residual of ``pooled`` |
+
+Metrics per (regulator, method, k, draw) from ``_m4_common.regression_metrics``:
+Spearman/Pearson and weighted MAE on all events; direction accuracy, sign AUROC
+and MAE on the prespecified significant events. Summaries are macro-averaged over
+regulators (each regulator is one task).
+
+Outputs (``--out-dir``): ``per_regulator.parquet``, ``summary.csv``,
+``learning_curves.png``, ``config.json``.
+
+Usage:
+    # quick configuration: 2 folds, 20 regulators, local methods only
+    python examples/meta_layer/17_m4_fewshot_benchmark.py \\
+        --folds 2 --regulators 20 --methods zero pooled xgb --k 16 64
+
+    # full S3 ladder (set TABPFN_TOKEN first for tabpfn / pooled_tabpfn)
+    python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S3
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import polars as pl
+
+# xgboost must load before torch (torch is imported lazily by tabpfn): if torch's
+# libomp loads first, libxgboost fails on ___kmpc_dispatch_deinit (macOS).
+import xgboost as xgb
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _m4_common as m4  # noqa: E402
+
+REPO = Path(__file__).resolve().parents[2]
+DEFAULT_OUT = REPO / "output/meta_layer/m4_fewshot"
+SCORE_COLS = ["spearman", "pearson", "mae_w", "dir_acc_sig", "sign_auroc_sig", "mae_sig"]
+
+
+def build_table(feature_set: str) -> tuple[pl.DataFrame, list[str]]:
+    """Events (labels, split, weights) joined to geometry + regulator features."""
+    ev = m4.assign_gene_split(m4.load_events())
+    geo, geo_cols = m4.geometry_features(ev, pl.read_parquet(m4.SITE_FEATURES))
+    reg, reg_cols = m4.regulator_features(ev, pl.read_parquet(m4.REGULATOR_FEATURES))
+    if feature_set == "compact":  # geometry + long−short deltas (+ partner context)
+        geo_cols = [c for c in geo_cols if not c.startswith(("long__", "short__"))]
+    feats = geo_cols + ["baseline_psi_loo", "n_other_kd"] + reg_cols
+    leaked = set(feats) & m4.OUTCOME_COLS
+    if leaked:
+        raise ValueError(f"outcome columns in the feature set: {sorted(leaked)}")
+    table = (
+        ev.select("event_key", "rbp", "gene_id", "split", "dpsi", "weight", "significant",
+                  "baseline_psi_loo", "n_other_kd")
+        .join(geo, on="event_key", how="left")
+        .join(reg, on=["event_key", "rbp"], how="left")
+    )
+    return table, feats
+
+
+def _xgb(n_estimators: int, depth: int, seed: int) -> xgb.XGBRegressor:
+    return xgb.XGBRegressor(n_estimators=n_estimators, max_depth=depth, learning_rate=0.05,
+                            subsample=0.8, colsample_bytree=0.8, tree_method="hist",
+                            random_state=seed, n_jobs=-1)
+
+
+def _tabpfn(seed: int):
+    """TabPFN on CUDA when present (pods); CPU otherwise (its MPS path needs torch ≥ 2.6)."""
+    import torch
+    from tabpfn import TabPFNRegressor
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return TabPFNRegressor(device=device, random_state=seed)
+
+
+def _tabpfn_ready() -> str | None:
+    """None if TabPFN can fit here; otherwise the reason (no token, license not accepted, ...)."""
+    if not os.environ.get("TABPFN_TOKEN"):
+        return "TABPFN_TOKEN not set"
+    try:
+        rng = np.random.default_rng(0)
+        _tabpfn(0).fit(rng.random((16, 3)), rng.random(16))
+    except Exception as exc:  # noqa: BLE001 — any failure means: run without TabPFN
+        return f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
+    return None
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--setting", choices=["S2", "S3"], default="S3")
+    ap.add_argument("--methods", nargs="+",
+                    default=["zero", "volatility", "pooled", "xgb", "tabpfn", "pooled_tabpfn"])
+    ap.add_argument("--k", nargs="+", type=int, default=[16, 64, 256])
+    ap.add_argument("--draws", type=int, default=3, help="shot resamples per (regulator, k)")
+    ap.add_argument("--folds", type=int, default=5)
+    ap.add_argument("--regulators", type=int, default=0,
+                    help="evaluate only the N held-out regulators with the most significant "
+                         "test events (0 = all)")
+    ap.add_argument("--feature-set", choices=["compact", "full"], default="compact")
+    ap.add_argument("--pooled-max-rows", type=int, default=400_000,
+                    help="uniformly subsample pooled training rows (event weights still apply in the fit)")
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--out-dir", type=Path, default=None)
+    args = ap.parse_args()
+
+    methods = list(args.methods)
+    if args.setting == "S3" and "volatility" in methods:
+        methods.remove("volatility")  # needs test genes' responses under other regulators
+    if {"tabpfn", "pooled_tabpfn"} & set(methods):
+        reason = _tabpfn_ready()
+        if reason:
+            print(f"TabPFN unavailable ({reason}) → skipping tabpfn / pooled_tabpfn. Accept the "
+                  "license at https://ux.priorlabs.ai (Licenses tab), export TABPFN_TOKEN, rerun.")
+            methods = [x for x in methods if x not in ("tabpfn", "pooled_tabpfn")]
+    out_dir = args.out_dir or DEFAULT_OUT / f"{args.setting.lower()}_{args.feature_set}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    t0 = time.time()
+
+    table, feats = build_table(args.feature_set)
+    print(f"{table.height:,} event×regulator rows, {len(feats)} features ({args.feature_set}); "
+          f"methods={methods}, setting={args.setting}")
+    folds = m4.regulator_folds(table["rbp"].unique().to_list(), args.folds, args.seed)
+    table = table.with_columns(pl.col("rbp").replace_strict(folds).alias("fold"))
+
+    test_rows = table.filter(pl.col("split") == "test")
+    sig_per_reg = test_rows.group_by("rbp").agg(pl.col("significant").sum().alias("n_sig"))
+    chosen = sig_per_reg.sort("n_sig", descending=True)["rbp"].to_list()
+    if args.regulators:
+        chosen = chosen[: args.regulators]
+    chosen_set = set(chosen)
+
+    records = []
+    for fold in range(args.folds):
+        held = [r for r, f in folds.items() if f == fold and r in chosen_set]
+        if not held:
+            continue
+        tf = time.time()
+        train_regs = table.filter(pl.col("fold") != fold)
+        pool_genes = ["train", "val"] if args.setting == "S3" else ["train", "val", "test"]
+        pool = train_regs.filter(pl.col("split").is_in(pool_genes))
+
+        pooled_model = None
+        if {"pooled", "pooled_tabpfn"} & set(methods):
+            if pool.height > args.pooled_max_rows:
+                pool = pool.sample(n=args.pooled_max_rows, seed=args.seed)
+            pooled_model = _xgb(400, 6, args.seed).fit(
+                pool.select(feats).to_numpy(), pool["dpsi"].to_numpy(),
+                sample_weight=pool["weight"].to_numpy())
+        volatility = None
+        if "volatility" in methods:
+            volatility = train_regs.group_by("event_key").agg(
+                pl.col("dpsi").mean().alias("vol"))
+
+        for rbp in held:
+            r_rows = table.filter(pl.col("rbp") == rbp)
+            test = r_rows.filter(pl.col("split") == "test")
+            shots_pool = r_rows.filter(pl.col("split") == "train")
+            if test.height < 3:
+                continue
+            Xt = test.select(feats).to_numpy()
+            y, w, sig = (test["dpsi"].to_numpy(), test["weight"].to_numpy(),
+                         test["significant"].to_numpy())
+            base_pred = pooled_model.predict(Xt) if pooled_model is not None else None
+
+            ctx = {"fold": fold, "rbp": rbp, "y": y, "w": w, "sig": sig}
+
+            def record(method: str, k: int, draw: int, yhat: np.ndarray, ctx=ctx) -> None:
+                records.append({"fold": ctx["fold"], "rbp": ctx["rbp"], "method": method,
+                                "k": k, "draw": draw,
+                                **m4.regression_metrics(ctx["y"], yhat, ctx["w"], ctx["sig"])})
+
+            if "zero" in methods:
+                record("zero", 0, 0, np.zeros_like(y))
+            if volatility is not None:
+                v = test.join(volatility, on="event_key", how="left")["vol"].fill_null(0.0)
+                record("volatility", 0, 0, v.to_numpy())
+            if base_pred is not None and "pooled" in methods:
+                record("pooled", 0, 0, base_pred)
+
+            for k in args.k:
+                if shots_pool.height < k:
+                    continue
+                for draw in range(args.draws):
+                    shots = shots_pool.sample(n=k, seed=args.seed * 1000 + draw)
+                    Xs, ys = shots.select(feats).to_numpy(), shots["dpsi"].to_numpy()
+                    if "xgb" in methods:
+                        mdl = _xgb(100, 3, draw).fit(Xs, ys)
+                        record("xgb", k, draw, mdl.predict(Xt))
+                    if "tabpfn" in methods:
+                        record("tabpfn", k, draw, _tabpfn(draw).fit(Xs, ys).predict(Xt))
+                    if "pooled_tabpfn" in methods and pooled_model is not None:
+                        resid = ys - pooled_model.predict(Xs)
+                        corr = _tabpfn(draw).fit(Xs, resid).predict(Xt)
+                        record("pooled_tabpfn", k, draw, base_pred + corr)
+        print(f"  fold {fold}: {len(held)} held-out regulators, pooled on {pool.height:,} rows "
+              f"({time.time() - tf:.0f}s)")
+
+    per = pl.DataFrame(records)
+    per.write_parquet(out_dir / "per_regulator.parquet")
+    # average draws within a regulator first, then macro over regulators
+    by_reg = per.group_by(["method", "k", "rbp"]).agg([pl.col(c).mean() for c in SCORE_COLS
+                                                       if c in per.columns])
+    summary = by_reg.group_by(["method", "k"]).agg(
+        pl.len().alias("n_regulators"),
+        *[pl.col(c).mean().alias(c) for c in SCORE_COLS if c in by_reg.columns],
+        *[pl.col(c).std().alias(f"{c}_sd") for c in ("spearman", "dir_acc_sig")
+          if c in by_reg.columns],
+    ).sort(["method", "k"])
+    summary.write_csv(out_dir / "summary.csv")
+    _plot(summary, out_dir / "learning_curves.png", args.setting)
+    (out_dir / "config.json").write_text(json.dumps(
+        vars(args) | {"methods_run": methods, "out_dir": str(out_dir), "features": feats,
+                      "n_regulators_evaluated": len(chosen),
+                      "runtime_seconds": round(time.time() - t0, 1)}, indent=2, default=str))
+    with pl.Config(tbl_rows=50, tbl_cols=12, float_precision=3):
+        print(summary)
+    print(f"\n→ {out_dir}  ({time.time() - t0:.0f}s)")
+    return 0
+
+
+def _plot(summary: pl.DataFrame, path: Path, setting: str) -> None:
+    """Learning curves (k on x) for Spearman and direction accuracy; k=0 methods as lines."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    for ax, metric, label in ((axes[0], "spearman", "Spearman ρ (all events)"),
+                              (axes[1], "dir_acc_sig", "Direction accuracy (significant)")):
+        if metric not in summary.columns:
+            continue
+        for method in summary["method"].unique().sort().to_list():
+            s = summary.filter((pl.col("method") == method)
+                               & pl.col(metric).is_not_null()).sort("k")
+            if s.height == 0:  # e.g. Spearman is undefined for constant `zero`
+                continue
+            if s.height == 1 and s["k"][0] == 0:
+                ax.axhline(s[metric][0], ls="--", lw=1, label=method)
+            else:
+                ax.plot(s["k"], s[metric], marker="o", label=method)
+        ax.set_xscale("log", base=2)
+        ax.set_xlabel("k (labeled events of the held-out regulator)")
+        ax.set_title(label)
+    axes[0].legend(fontsize=8)
+    fig.suptitle(f"M4 held-out-regulator benchmark ({setting})")
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
