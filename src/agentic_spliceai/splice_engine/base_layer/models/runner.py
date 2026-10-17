@@ -357,6 +357,100 @@ class BaseModelRunner:
     
     # ==== Phase 1 Helper Methods ====
     
+    def predict_spans(
+        self,
+        model_name: str,
+        spans: pl.DataFrame,
+        models: Optional[List] = None,
+        verbosity: int = 1,
+    ) -> pl.DataFrame:
+        """Predict on explicit genomic spans, bypassing the model's annotation.
+
+        ``run_single_model`` resolves genes through the base model's own GTF
+        (MANE for OpenSpliceAI), so a gene outside that annotation cannot be
+        scored there. The model itself needs only sequence: this method takes
+        the spans directly (e.g. Ensembl-only lncRNA genes, or an event span
+        plus flank) and runs the same extract → predict → tabulate path, so the
+        output matches the precomputed per-nucleotide predictions in schema and
+        coordinate convention.
+
+        Parameters
+        ----------
+        model_name : str
+            Base model name ('openspliceai', 'spliceai'); selects weights + FASTA.
+        spans : pl.DataFrame
+            Columns ``gene_id, chrom|seqname, start, end, strand`` (+ optional
+            ``gene_name``). 1-based inclusive coordinates; ``chrom`` may carry
+            or omit the ``chr`` prefix. If a ``sequence`` column is present
+            (e.g. the output of ``prepare_gene_data(annotation_source='ensembl')``,
+            minus strand already reverse-complemented) it is used as-is;
+            otherwise sequences are extracted from the model's FASTA.
+        models : list, optional
+            Pre-loaded models, so callers batching many spans load weights once.
+        verbosity : int
+            Verbosity level.
+
+        Returns
+        -------
+        pl.DataFrame
+            One row per nucleotide: ``gene_id, gene_name, chrom, position,
+            strand, gene_start, gene_end, donor_prob, acceptor_prob,
+            neither_prob``.
+
+        Examples
+        --------
+        >>> from agentic_spliceai.splice_engine.base_layer.data import prepare_gene_data
+        >>> genes = prepare_gene_data(genes=["MALAT1"], annotation_source="ensembl")
+        >>> preds = BaseModelRunner().predict_spans("openspliceai", genes)
+        """
+        from ...resources import get_model_resources
+        from ..data.sequence_extraction import extract_gene_sequences
+        from ..prediction.core import load_spliceai_models, predict_splice_sites_for_genes
+
+        resources = get_model_resources(model_name)
+        if "chrom" not in spans.columns and "seqname" in spans.columns:
+            spans = spans.rename({"seqname": "chrom"})
+        if "gene_name" not in spans.columns:
+            spans = spans.with_columns(pl.col("gene_id").alias("gene_name"))
+
+        if "sequence" in spans.columns:
+            gene_df = spans
+        else:
+            registry = self._registry_for(resources.build, resources.annotation_source)
+            gene_df = extract_gene_sequences(
+                gene_df=spans,
+                fasta_file=str(registry.get_fasta_path(validate=True)),
+                verbosity=verbosity,
+            )
+        if gene_df.height == 0:
+            return pl.DataFrame()
+
+        if models is None:
+            models = load_spliceai_models(
+                model_type=model_name, build=resources.build, verbosity=verbosity
+            )
+        predictions = predict_splice_sites_for_genes(
+            gene_df=gene_df,
+            models=models,
+            context=10000,
+            output_format="dict",
+            verbosity=verbosity,
+        )
+        return self._predictions_to_dataframe(predictions, config=None)
+
+    @staticmethod
+    def _registry_for(build: str, annotation_source: str) -> Any:
+        """Genomic registry for a model's build + annotation source.
+
+        Registry build keys must match settings.yaml (e.g. 'GRCh38_MANE', not 'GRCh38').
+        """
+        from ...resources import get_genomic_registry
+
+        if annotation_source.lower() == "mane":
+            registry_build = build if "_MANE" in build else f"{build}_MANE"
+            return get_genomic_registry(build=registry_build, release="1.3")
+        return get_genomic_registry(build=build, release="87")
+
     def _prepare_gene_data(
         self,
         config: BaseModelConfig,
@@ -366,7 +460,7 @@ class BaseModelRunner:
         verbosity: int = 1
     ) -> Optional[pl.DataFrame]:
         """Load gene annotations and extract sequences.
-        
+
         Parameters
         ----------
         config : BaseModelConfig
@@ -380,16 +474,9 @@ class BaseModelRunner:
         verbosity : int
             Verbosity level
         """
-        from ...resources import get_genomic_registry
         from ..data.sequence_extraction import extract_gene_sequences
-        
-        # Get registry for path resolution using provided build and annotation source
-        # Registry build key must match settings.yaml (e.g., 'GRCh38_MANE' not 'GRCh38')
-        if annotation_source.lower() == 'mane':
-            registry_build = build if '_MANE' in build else f'{build}_MANE'
-            registry = get_genomic_registry(build=registry_build, release='1.3')
-        else:  # Ensembl
-            registry = get_genomic_registry(build=build, release='87')
+
+        registry = self._registry_for(build, annotation_source)
         gtf_path = registry.get_gtf_path(validate=True)
         fasta_path = registry.get_fasta_path(validate=True)
         

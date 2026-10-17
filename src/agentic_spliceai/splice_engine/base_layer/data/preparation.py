@@ -530,50 +530,50 @@ def extract_sequences(
 def filter_by_genes(
     df: pl.DataFrame,
     genes: List[str],
-    gene_column: str = 'gene_name',
+    gene_column: Optional[str] = None,
     verbosity: int = 1
 ) -> pl.DataFrame:
     """Filter DataFrame to specific genes.
-    
-    Performs case-insensitive matching on gene names or IDs.
-    
+
+    Performs case-insensitive matching on gene names or IDs. Ensembl version
+    suffixes are ignored, so ``ENSG00000251562`` matches ``ENSG00000251562.5``.
+
     Parameters
     ----------
     df : pl.DataFrame
         DataFrame with gene information
     genes : List[str]
-        List of gene symbols or IDs to keep
-    gene_column : str, default='gene_name'
-        Column name to filter on ('gene_name' or 'gene_id')
+        List of gene symbols or IDs to keep (may be mixed)
+    gene_column : str, optional
+        Restrict matching to one column ('gene_name' or 'gene_id'). By default
+        a gene matches on whichever of ``gene_name`` / ``gene_id`` is present.
     verbosity : int, default=1
         Verbosity level
-    
+
     Returns
     -------
     pl.DataFrame
         Filtered DataFrame
-    
+
     Examples
     --------
-    >>> filtered_df = filter_by_genes(df, ['BRCA1', 'TP53'])
+    >>> filtered_df = filter_by_genes(df, ['BRCA1', 'ENSG00000141510'])
     """
-    if gene_column not in df.columns:
-        if verbosity >= 1:
-            print(f"⚠️  Column '{gene_column}' not found, trying fallback...")
-        # Try alternative column names
-        if 'gene_name' in df.columns:
-            gene_column = 'gene_name'
-        elif 'gene_id' in df.columns:
-            gene_column = 'gene_id'
-        else:
-            raise ValueError(f"No gene column found in DataFrame")
-    
-    # Convert gene list to uppercase for case-insensitive matching
-    genes_upper = [g.upper() for g in genes]
-    
-    # Filter (case-insensitive)
+    columns = [gene_column] if gene_column else ['gene_name', 'gene_id']
+    columns = [c for c in columns if c in df.columns]
+    if not columns:
+        raise ValueError("No gene column found in DataFrame")
+
+    def _key(expr: pl.Expr) -> pl.Expr:
+        return expr.str.to_uppercase().str.replace(r"^(ENS[A-Z]*G\d+)\.\d+$", "$1")
+
+    genes_key = pl.Series([g.upper() for g in genes]).str.replace(
+        r"^(ENS[A-Z]*G\d+)\.\d+$", "$1"
+    )
+
+    # Filter (case-insensitive, any matching column)
     filtered_df = df.filter(
-        pl.col(gene_column).str.to_uppercase().is_in(genes_upper)
+        pl.any_horizontal([_key(pl.col(c)).is_in(genes_key.to_list()) for c in columns])
     )
     
     if verbosity >= 2:
@@ -581,8 +581,10 @@ def filter_by_genes(
     
     # Report missing genes
     if verbosity >= 1 and filtered_df.height < len(genes):
-        found_genes = set(filtered_df[gene_column].str.to_uppercase().to_list())
-        missing = [g for g in genes_upper if g not in found_genes]
+        found_genes = set()
+        for c in columns:
+            found_genes |= set(filtered_df.select(_key(pl.col(c)))[c].to_list())
+        missing = [g for g in genes_key.to_list() if g not in found_genes]
         if missing:
             print(f"⚠️  {len(missing)} genes not found: {missing[:5]}{'...' if len(missing) > 5 else ''}")
     
