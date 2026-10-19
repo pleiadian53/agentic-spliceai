@@ -99,13 +99,23 @@ The installed package (`tabpfn` 9.2.0) defaults to 3.5, so M4 selects v2 explici
 
 *Attribution: the TabPFN results in this project are built with PriorLabs-TabPFN (v2).*
 
-## 7. Status
+## 7. Results
 
-The TabPFN methods are implemented and verified on a small synthetic fit, but have **not yet been run** on the benchmark: the first pass tried the default version (3.5), whose license gate stopped it. They run with TabPFN v2 in the next benchmark pass. Questions that run will answer:
+TabPFN v2 ran on the full benchmark on 2026-10-19 (S3, 185 held-out regulators, three shot draws per $k$):
 
-1. Does `tabpfn` beat `xgb` at the same $k$, the clearest test of the small-data argument?
-2. Does `pooled_tabpfn` beat `pooled`, showing that a few examples of a regulator add information beyond its binding features?
-3. How do both compare with the factorisation approach of part 2, which uses the same $k$ examples through a different inductive bias?
+| Method | $k$ = 16 | $k$ = 64 | $k$ = 256 |
+|---|---:|---:|---:|
+| `xgb` (direction acc.) | 0.516 | 0.525 | 0.529 |
+| `tabpfn` (direction acc.) | 0.515 | 0.534 | **0.565** |
+| `pooled_tabpfn` (direction acc.) | 0.518 | 0.526 | 0.545 |
+
+The three questions:
+
+1. **Does `tabpfn` beat `xgb`?** Yes from $k = 64$, and for 122 of 185 regulators at $k = 256$. The small-data argument holds: with a strong prior, a few hundred examples are usable; without one, they are overfit. TabPFN's error also approaches that of predicting zero (weighted MAE 0.095 vs 0.093), while XGBoost's stays worse (0.108).
+2. **Does `pooled_tabpfn` beat `pooled`?** Yes (0.545 vs 0.520 at $k = 256$), but it is worse than `tabpfn` alone: the pooled prior carries little S3 signal, so correcting it is a weaker start than learning from the shots directly.
+3. **Which regulators does it learn?** The best are 3′ splice-site and core spliceosome factors (U2AF1 0.811, U2AF2 0.756, SF3A3 0.752, RBM25 0.764), QKI (0.813, a strong motif), and MAGOH (0.762, exon-junction complex): regulators with strong, consistent programs.
+
+The comparison with matrix factorisation (part 2) is the next experiment.
 
 ---
 

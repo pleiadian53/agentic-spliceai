@@ -1,6 +1,6 @@
-# M4 benchmark v0: predicting a new regulator's splicing response
+# M4 benchmark: predicting a new regulator's splicing response
 
-**Status:** first end-to-end benchmark, 2026-10-17; **corrected 2026-10-18** for a shared-control leak (section 3.1). Development-stage results. The corrected S2 event prior is final; the model rows (`pooled`, `xgb`) are v0 numbers awaiting a rerun under the corrected folds and features, and TabPFN methods are not yet run. Artifact: `output/meta_layer/m4_fewshot/` (registered, tag `m4`).
+**Status:** v1, 2026-10-19. The first run (v0, 2026-10-17) leaked shared control noise between regulators (section 3.1); v1 reruns every method with control-batch-grouped folds and an out-of-batch baseline feature, and adds TabPFN v2. Development-stage results. Artifact: `output/meta_layer/m4_fewshot/` (registered, tag `m4`).
 
 M4 asks a conditional question that M1–M3 cannot: *if we knock down this RNA-binding protein, which splicing choices change, and in which direction?* This document records the first benchmark that answers it with held-out regulators, explains how the benchmark was built so that its gains are real, and states what the first numbers do and do not show.
 
@@ -84,55 +84,61 @@ Regulators are split into five folds, **keeping each control batch in one fold**
 | `volatility` | – | S2 only: the event's mean $\Delta$PSI under the training regulators |
 | `pooled` | 0 | XGBoost trained on all training regulators (site, geometry, and regulator-binding features) |
 | `xgb` | 16, 64, 256 | XGBoost trained on the held-out regulator's $k$ shots alone |
-| `tabpfn`, `pooled_tabpfn` | $k$ | TabPFN v2 in context on the shots, alone or on the pooled residual (**not yet run**) |
+| `tabpfn`, `pooled_tabpfn` | 16, 64, 256 | TabPFN v2 in context on the shots, alone or on the pooled model's residuals (S3 only; `tabpfn` depends only on the shots, so it would be identical in S2) |
 
-Features (229, "compact" set): event geometry (alternative-site distance, junction spans, exon lengths), the partner site's feature vector, long − short feature differences, the leave-one-out baseline PSI, the number of other knockdowns observing the event, and the regulator's own binding near each of the three sites.
+Features (229, "compact" set): event geometry (alternative-site distance, junction spans, exon lengths), the partner site's feature vector, long − short feature differences, the out-of-batch baseline PSI, the number of other knockdowns observing the event, and the regulator's own binding near each of the three sites.
 
 Metrics are computed per regulator and then averaged over regulators, since each regulator is one task: **direction accuracy** on significant events (a prediction of exactly 0 counts as a coin flip), **sign AUROC** on significant events, **Spearman** $\rho$ on all events, and event-weighted **MAE**.
 
 ## 5. Results
 
+All values are macro averages over 185 regulators (three shot draws per $k$, averaged within a regulator first). A regulator has a median of only 26 significant test events, so single-regulator numbers are noisy (standard deviation of direction accuracy about 0.12); the averages are not. Learning curves are written to `output/meta_layer/m4_fewshot/<setting>_compact/learning_curves.png` (images outside `docs/` are not tracked in git).
+
 ### S3: new regulator, new genes
 
-v0 numbers. Test genes share no events with training genes, so the fold leak does not reach S3 directly; the baseline-PSI feature carried a small amount of shared control noise (section 3.1), so `pooled` may be slightly optimistic until the rerun.
-
-| Method | Direction acc. | Sign AUROC | Spearman | MAE (weighted) | MAE (significant) |
-|---|---:|---:|---:|---:|---:|
-| zero | 0.500 | 0.500 | – | **0.0932** | 0.2304 |
-| **pooled** ($k$=0) | **0.580** | **0.588** | **0.069** | 0.0943 | **0.2274** |
-| xgb, $k$=16 | 0.516 | 0.500 | 0.005 | 0.1331 | 0.2401 |
-| xgb, $k$=64 | 0.527 | 0.511 | 0.011 | 0.1186 | 0.2316 |
-| xgb, $k$=256 | 0.532 | 0.518 | 0.019 | 0.1078 | 0.2290 |
-
-Learning curves for each run are written to `output/meta_layer/m4_fewshot/<setting>_compact/learning_curves.png` (images outside `docs/` are not tracked in git).
+| Method | Direction acc. | Sign AUROC | Spearman | MAE (weighted) |
+|---|---:|---:|---:|---:|
+| zero | 0.500 | 0.500 | – | **0.093** |
+| pooled ($k$=0) | 0.520 | 0.519 | 0.017 | 0.096 |
+| xgb, $k$ = 16 / 64 / 256 | 0.516 / 0.525 / 0.529 | 0.500 / 0.511 / 0.515 | 0.005 / 0.010 / 0.017 | 0.133 / 0.119 / 0.108 |
+| **tabpfn**, $k$ = 16 / 64 / 256 | 0.515 / 0.534 / **0.565** | 0.503 / 0.518 / **0.555** | 0.004 / 0.014 / **0.032** | 0.123 / 0.101 / 0.095 |
+| pooled_tabpfn, $k$ = 16 / 64 / 256 | 0.518 / 0.526 / 0.545 | 0.505 / 0.512 / 0.536 | 0.011 / 0.017 / 0.025 | 0.124 / 0.103 / 0.098 |
+| *reference rule, no learning:* $-(\text{out-of-batch baseline PSI} - \text{mean})$ | *0.624* | *0.639* | *0.050* | – |
 
 ### S2: new regulator, previously profiled genes
 
-| Method | Direction acc. | Sign AUROC | Spearman | MAE (weighted) | Status |
-|---|---:|---:|---:|---:|---|
-| zero | 0.500 | 0.500 | – | 0.0932 | final |
-| **volatility, batch-grouped folds** | **0.669** | **0.703** | **0.074** | 0.0950 | **final (corrected)** |
-| volatility, v0 folds | 0.742 | 0.795 | 0.208 | 0.0898 | leaky, superseded |
-| pooled ($k$=0), v0 folds | 0.695 | 0.742 | 0.169 | 0.0905 | leaky, rerun pending |
-| xgb, $k$=256 | 0.532 | 0.518 | 0.019 | 0.1078 | v0 (fits only the regulator's own shots) |
+| Method | Direction acc. | Sign AUROC | Spearman | MAE (weighted) |
+|---|---:|---:|---:|---:|
+| zero | 0.500 | 0.500 | – | 0.093 |
+| **volatility** | **0.669** | **0.703** | 0.074 | 0.095 |
+| **pooled** ($k$=0) | 0.631 | 0.670 | **0.097** | **0.092** |
+| xgb, $k$=256 | 0.529 | 0.515 | 0.017 | 0.108 |
 
-The v0 S2 figure is superseded and not shown; it will be regenerated with the rerun.
+### What changed from v0
 
-All values are macro averages over 185 regulators (three shot draws per $k$, averaged within a regulator first). The per-regulator standard deviation of direction accuracy is about 0.12, and a regulator has a median of only 26 significant test events, so single-regulator numbers are noisy; the averages are not.
+| Number | v0 (leaky) | v1 | Why |
+|---|---:|---:|---|
+| S3 pooled direction acc. | 0.580 | 0.520 | v0's baseline-PSI feature left out only the row, keeping batch-mates' copies of the same control |
+| S2 event prior direction acc. | 0.742 | 0.669 | v0 split control batches across folds |
+| S2 pooled direction acc. | 0.695 | 0.631 | both of the above |
+
+Most of v0's apparent zero-shot signal was shared control noise.
 
 ### Per-regulator view
 
-- **Regulator-specific gains over the event prior: withdrawn pending the rerun.** v0 reported the pooled model beating the prior for 36 of 185 regulators (QKI +0.10, U2AF1 +0.08). Both sides of that comparison used leaky folds, so it is not reported as a finding until it is recomputed.
-- **The best zero-shot (S3) regulators** with ≥ 30 significant test events include CPSF6 (0.74), EIF4A3 (0.73), TIAL1 (0.73), QKI (0.72), HNRNPU (0.71), and U2AF1 (0.68).
-- **The regulator's own eCLIP binding does not help yet.** Regulators with HepG2 eCLIP score the same as regulators with none (S3 direction accuracy 0.574 vs 0.581). Only 1.6% of (site, regulator) pairs with eCLIP have the regulator bound within ±300 nt, so binding is too sparse to carry most responses, which are presumably indirect.
+- **TabPFN learns the spliceosome's 3′ splice-site machinery.** At $k = 256$, TabPFN beats XGBoost for 122 of 185 regulators. Its best regulators (≥ 30 significant test events) are QKI (0.813), U2AF1 (0.811), RBM25 (0.764), MAGOH (0.762), U2AF2 (0.756), and SF3A3 (0.752). U2AF1, U2AF2, and SF3A3 recognise the 3′ splice site and branch point, exactly the decision an A3SS event makes; QKI has a strong sequence motif; MAGOH belongs to the exon-junction complex. Regulators with strong, coherent programs are learnable from a few hundred examples.
+- **Regulator-specific signal on top of the event prior is real but concentrated.** In S2 the pooled model beats the event prior for 53 of 185 regulators, most clearly NONO (+0.12), RBM25 (+0.11), SF3A3 (+0.11), IGF2BP2 (+0.09), and SRSF3 (+0.09).
+- **The regulator's own eCLIP binding helps only marginally.** TabPFN at $k = 256$ scores 0.577 for regulators with HepG2 eCLIP, 0.551 with K562-only eCLIP, and 0.560 with none. Only 1.6% of (site, regulator) pairs with eCLIP have the regulator bound within ±300 nt, so most responses are presumably indirect.
 
 ## 6. What the results mean
 
-**An event's response to other knockdowns is the strongest single predictor, but weaker than v0 suggested.** Averaging an event's response under knockdowns from *other* control batches gives 67% direction accuracy (chance 50%), above the zero-shot feature model on new genes (58%). Some events are volatile and tend to move the same way whatever is depleted. v0's 74% overstated this because batch-mates share control noise; how much regulator-specific signal sits on top of the prior is the open question the rerun answers.
+**Zero-shot prediction on new genes is not yet solved.** With the leak removed, the pooled model is near chance on unseen regulators and unseen genes (0.520). Nothing in the current features tells the model *which* regulator was knocked down beyond its sparse binding.
 
-**Learning a regulator from its own handful of examples fails at these sizes.** With 229 features and at most 256 shots, a per-regulator XGBoost overfits: its error is worse than predicting zero at every $k$. This is precisely the small-data regime that in-context tabular models (TabPFN) and shrinkage toward a strong prior are designed for, which is why they are the next methods to run.
+**A few hundred examples of a regulator help, if the learner has a prior.** TabPFN improves steadily with $k$ and overtakes XGBoost from $k = 64$; at $k = 256$ it reaches 0.565 overall and above 0.75 for core splicing factors. XGBoost trained on the same shots overfits. Stacking TabPFN on the pooled model (`pooled_tabpfn`) does not help, because the pooled prior itself carries little signal in S3.
 
-**S2 is a cold-start problem.** The event × regulator matrix is partially observed and dominated by a shared response axis. A new regulator's $k$ shots are best used to *place* it relative to known regulators, as in collaborative filtering, rather than to fit a model from scratch.
+**The bound structure of PSI is the largest untapped signal.** A rule with no learning, predicting that events near full usage fall and events near zero rise, scores 0.624 in S3, above every trained method. The pooled model has the out-of-batch baseline as a feature but does not exploit it: squared-error regression on targets that are almost all near zero learns to predict tiny changes. Building the bound into the model (perturbed PSI through a log-odds offset from an independent baseline, [tutorial part 2](02_model_architecture.md)) is the most direct next step.
+
+**An event's behaviour under other knockdowns predicts a new one.** On profiled genes, the event prior reaches 0.669, and the pooled model (which sees those responses through training) adds regulator-specific gains for about a quarter of regulators. This is the cold-start structure that matrix factorisation is built for.
 
 ## 7. Limitations
 
@@ -140,15 +146,14 @@ All values are macro averages over 185 regulators (three shot draws per $k$, ave
 - The epigenetic and chromatin features use the current ENCODE track versions; four of the older genome-wide feature store's tracks predate an accession update, so this table and that store differ on H3K36me3 and DNase (correlation 0.87 to 0.99).
 - Pooled-model hyperparameters are untuned, and pooled training rows are subsampled to 400,000.
 - The direction metric is defined only on significant events (1.49% of rows); Spearman over all events is dominated by near-zero changes.
+- `pooled_tabpfn` was run in S3 only; an S2 run was stopped by a crashed worker and not repeated, since the pooled prior it builds on carries little S3 signal.
 
 ## 8. Next steps
 
-0. **Rerun S3 and S2** under batch-grouped folds and the batch-out baseline (the pod driver runs both settings in about ten minutes); regenerate the figures and the per-regulator comparison.
-1. **TabPFN** in context on the shots, alone and on the pooled residual (`pooled_tabpfn`).
-2. **Cold-start factorisation for S2**: low-rank completion of the event × regulator matrix; fit a new regulator's loading from its $k$ shots.
-3. **Residual stacking**: volatility prior + pooled model + $k$-shot correction, evaluated as a learning curve.
-4. **Regulator descriptors for S3**: motif and binding-profile summaries that let the pooled model tell regulators apart without shots.
-5. **Strata**: directly bound vs unbound events; MANE vs Ensembl-only genes.
+1. **Bounded formulation:** predict perturbed PSI as $\sigma(\operatorname{logit}(p_0) + \delta)$ with an independent $p_0$ and a beta-binomial loss on knockdown read counts, so the bound effect (worth 0.624 on its own) is built in.
+2. **Cold-start factorisation for S2:** low-rank completion of the event × regulator matrix; fit a new regulator's loading from its $k$ shots, and compare with TabPFN at the same $k$.
+3. **Regulator descriptors for S3:** motif and binding-profile summaries, or protein language-model embeddings, so the model can tell regulators apart without shots.
+4. **Strata:** directly bound vs unbound events; MANE vs Ensembl-only genes.
 
 ## 9. Reproduce
 

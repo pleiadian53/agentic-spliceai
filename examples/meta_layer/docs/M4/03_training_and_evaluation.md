@@ -73,24 +73,25 @@ Each held-out regulator is a separate task. Metrics are computed **per regulator
 
 Direction is scored only on significant events (FDR < 0.05, $\lvert y \rvert \ge 0.1$, ≥ 20 reads per condition), because the sign of a tiny, noisy change is not a meaningful target. Chance is 0.5 for both direction metrics. Magnitude is always reported next to direction: a method can get the sign right while predicting changes that are far too large or too small.
 
-## 8. Results so far
+## 8. Results
 
-From the first benchmark (details and figures in [`m4_fewshot_benchmark.md`](m4_fewshot_benchmark.md)):
+From the v1 benchmark (2026-10-19; full tables in [`m4_fewshot_benchmark.md`](m4_fewshot_benchmark.md)):
 
-| Setting | Method | Direction acc. | Spearman | Status |
-|---|---|---:|---:|---|
-| S3 | `pooled`, $k = 0$ | 0.580 | 0.069 | v0; rerun pending |
-| S3 | `xgb`, $k = 16 / 64 / 256$ | 0.516 / 0.527 / 0.532 | ≈ 0.01 | v0 |
-| S2 | `volatility` | **0.669** | 0.074 | final (batch-grouped folds) |
-| S3 rows | rule: $-$(out-of-batch baseline PSI $-$ mean) | 0.624 | 0.050 | reference, no learning |
+| Setting | Method | Direction acc. | Spearman |
+|---|---|---:|---:|
+| S3 | `pooled`, $k = 0$ | 0.520 | 0.017 |
+| S3 | `xgb`, $k = 16 / 64 / 256$ | 0.516 / 0.525 / 0.529 | ≤ 0.017 |
+| S3 | `tabpfn`, $k = 16 / 64 / 256$ | 0.515 / 0.534 / **0.565** | **0.032** at $k = 256$ |
+| S2 | `volatility` | **0.669** | 0.074 |
+| S2 | `pooled`, $k = 0$ | 0.631 | **0.097** |
+| S3 rows | rule: $-$(out-of-batch baseline PSI $-$ mean) | 0.624 | 0.050 |
 
-Three readings:
+Four readings:
 
-1. **The zero-shot model has real but modest signal** on unseen regulators and genes, and does not yet exploit the bound structure that a one-feature rule captures (0.624).
-2. **Per-regulator learning from 16–256 examples fails** with 229 features: XGBoost overfits and its error is worse than predicting 0. This is the regime where a strong prior matters, which motivates TabPFN.
-3. **An event's response to other knockdowns predicts a new one** (0.669), once shared-control noise is removed. Some events are simply volatile.
-
-The `pooled` rows are being rerun under batch-grouped folds and the out-of-batch baseline feature; TabPFN rows (TabPFN v2, part 4) run in the same pass.
+1. **Zero-shot on new genes is near chance** (0.520) once shared control noise is removed; the first run's 0.580 was mostly that noise.
+2. **TabPFN learns from a few hundred examples where XGBoost cannot**, reaching above 0.75 for core 3′ splice-site factors (U2AF1, U2AF2, SF3A3).
+3. **An event's response to other knockdowns predicts a new one** (0.669 in S2).
+4. **The bound rule (0.624) beats every learned S3 method**, which points to the bounded formulation of part 2.
 
 ## 9. Running it
 
