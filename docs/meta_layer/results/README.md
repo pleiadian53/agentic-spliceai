@@ -26,7 +26,7 @@ Current, promoted models. All splice tasks are severely class-imbalanced, so the
 | [M3-S (v1)](m3_novel.md#m3-s-m3-v1-the-novel-site-ranker) | Novel sites (junction-supported) | anti-circular D1 / D2 | D1 P@5 **0.335**, D2 R@20 **0.79** | beats base (0.277 / 0.51) |
 | [M3-anchor](m3_novel.md#m3-anchor-folding-disease-anchors-in-the-disease-cryptic-win) | Novel + disease anchors (budgeted fold) | anti-circular D1 / D2 | D2 R@20 **0.86** (SF3B1), D1 held | D2 0.79 → 0.86 over M3-v1 |
 | [M3-R](m3_novel.md#m3-r-the-candidate-refiner-milestone) | Candidate refiner (rerank) | anti-circular D1 / D2 | **ties base** (honest negative) | within-gene flat |
-| M4 | Perturbation-induced | — | *in progress* | — |
+| M4 | Perturbation-induced (HepG2 RBP knockdown, A3SS/A5SS) | held-out regulators, gene split | v0: direction acc. **0.58** zero-shot on new genes; **0.67** event prior on profiled genes (shared-control corrected) | *in progress* |
 
 **The one-line story:** the canonical task (M1) is essentially solved; the alternative-site task (M2)
 is where multimodal refinement pays off most dramatically; and the novel-site frontier (M3) is where a
@@ -77,7 +77,7 @@ sequence model, `-P` = position-level. Full convention in
 | M3-S v1.1 | `m3s_v1_1_confirmed` | Tier 1 confirmed-only retrain — marginally worse than v1 (label noise was *not* the ceiling) |
 | M3-anchor | `m3s_anchorpos` | Disease-anchor fold (5% budget) — improves held-out SF3B1 (D2 R@20 0.86) with no D1 cost; not yet promoted (single chromosome split) |
 | M3-R | `m3r_candidate_refiner` | Honest negative — not promoted; global-AUC triage repurposable |
-| M4 | — | In progress (perturbation-paired labels needed) |
+| M4 | `m4_fewshot` (benchmark, no model promoted) | Research — labels built (185 HepG2 knockdowns); v0 held-out-regulator benchmark run; TabPFN and cold-start factorisation next |
 
 Superseded versions (M1-S v1/v2 blends, M2-S v1/v2) are summarized as **version history** on each
 model page — the design trail is preserved without competing with the current numbers.

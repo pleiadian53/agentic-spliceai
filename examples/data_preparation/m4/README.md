@@ -50,7 +50,7 @@ rate, so a coordinate/build regression cannot pass silently.
 | `kd_events.parquet` | 1,585,467 rows | **the modeling grain**: one row per (event, RBP) with full event geometry (19,340 geometries) |
 | `kd_dpsi.parquet` | 3,170,934 rows | per-site view of the same events (= 2 × 1,585,467; 27,171 unique regulated sites) |
 | `site_features.parquet` (step 03) | 41,127 sites | multimodal feature vector of every long, short, and partner site |
-| `regulator_site_features.parquet` (step 04) | 4,007,346 (site, RBP) pairs | binding of the knocked-down RBP itself near each site; null when it has no eCLIP (17 of 185) |
+| `regulator_site_features.parquet` (step 04) | 4,007,346 (site, RBP) pairs | binding of the knocked-down RBP itself near each site; null when it has no eCLIP (81 of 185; 71 have HepG2 peaks, 33 K562 only) |
 
 ### Event table (`kd_events.parquet`)
 

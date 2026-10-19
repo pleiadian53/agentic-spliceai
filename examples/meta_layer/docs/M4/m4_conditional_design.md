@@ -2,6 +2,14 @@
 
 **Status:** design note + first-instance validation (TDP-43/ALS). 2026-05-23.
 
+> **Update 2026-10-17 — first benchmark.** Step 2 has a v0: a held-out-regulator benchmark on the
+> event-level corpus (`kd_events.parquet`, full geometry incl. the partner site). The corpus is
+> **HepG2** (verified), not K562/HepG2. Results and design in
+> [`m4_fewshot_benchmark.md`](m4_fewshot_benchmark.md): an event's response to other knockdowns is the
+> strongest single predictor (67% direction accuracy once shared-control leakage is removed);
+> per-regulator few-shot learners need a prior. Knockdowns share control samples (27 batches), so
+> any comparison across regulators must keep batch-mates together.
+>
 > **Update 2026-07-28 — the labels now exist.** Roadmap step 1 (§6) is **built**:
 > the perturbation-paired ΔPSI corpus is `data/mane/GRCh38/m4_labels/kd_dpsi.parquet`
 > (3.17M signed per-site rows, 185 ENCODE-KD RBPs; 104 also have eCLIP binding, incl.
