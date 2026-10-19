@@ -51,7 +51,7 @@ echo "============================================================"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
 # The stock image Python is PEP-668 externally managed (same setting as ops/gpu_runner.py setup).
-python -c "import tabpfn" 2>/dev/null || PIP_BREAK_SYSTEM_PACKAGES=1 pip install -q tabpfn
+python -c "import tabpfn" 2>/dev/null || PIP_BREAK_SYSTEM_PACKAGES=1 pip install -q "tabpfn==9.2.0"
 
 # Preflight: every bigWig the full_stack config uses must be cached locally; otherwise the
 # modality silently streams from ENCODE/UCSC (slow, and a failed fetch is a failed run).
