@@ -130,6 +130,65 @@ def _tabpfn_ready(version: str) -> str | None:
     return None
 
 
+def _init_tabpfn_worker(threads: int) -> None:
+    """Pool initializer: split the CPU threads across workers (preprocessing is CPU-bound)."""
+    import torch
+
+    torch.set_num_threads(max(1, threads))
+
+
+def _tabpfn_predict(xs: np.ndarray, target: np.ndarray, xt: np.ndarray, seed: int,
+                    version: str) -> np.ndarray:
+    """One in-context TabPFN fit on the shots, predicting the regulator's test rows."""
+    return _tabpfn(seed, version).fit(xs, target).predict(xt)
+
+
+def run_tabpfn_jobs(jobs: list[dict], tests: dict[str, np.ndarray], version: str,
+                    workers: int) -> list[tuple[dict, np.ndarray]]:
+    """Run TabPFN jobs serially or on a bounded process pool.
+
+    A TabPFN v2 call (8 ensemble members, 229 features, ~2,000 query rows) takes 7-10 s,
+    almost all of it single-threaded CPU preprocessing, so a full benchmark (~5,000 calls)
+    is ~12 h serially. Workers use the ``spawn`` start method (CUDA-safe), and at most
+    ``2 * workers`` jobs are in flight so each regulator's test matrix is pickled only
+    while it is needed.
+    """
+    if workers <= 1:
+        return [(j, _tabpfn_predict(j["xs"], j["target"], tests[j["rbp"]], j["seed"], version))
+                for j in jobs]
+    import multiprocessing as mp
+    import os
+    from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+
+    threads = (os.cpu_count() or workers) // workers
+    out: list[tuple[dict, np.ndarray]] = []
+    pending: dict = {}
+    t0, n_done = time.time(), 0
+    with ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"),
+                             initializer=_init_tabpfn_worker, initargs=(threads,)) as ex:
+        it = iter(jobs)
+        while True:
+            while len(pending) < 2 * workers:
+                j = next(it, None)
+                if j is None:
+                    break
+                fut = ex.submit(_tabpfn_predict, j["xs"], j["target"], tests[j["rbp"]],
+                                j["seed"], version)
+                pending[fut] = j
+            if not pending:
+                break
+            done, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for fut in done:
+                out.append((pending.pop(fut), fut.result()))
+                n_done += 1
+                if n_done % 250 == 0 or n_done == len(jobs):
+                    rate = n_done / (time.time() - t0)
+                    print(f"  TabPFN {n_done:,}/{len(jobs):,} jobs "
+                          f"({rate:.2f}/s, ~{(len(jobs) - n_done) / rate / 60:.0f} min left)",
+                          flush=True)
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -148,6 +207,8 @@ def main() -> int:
     ap.add_argument("--feature-set", choices=["compact", "full"], default="compact")
     ap.add_argument("--tabpfn-version", default=TABPFN_DEFAULT_VERSION,
                     help="TabPFN model version (v2 default; v2.5+ are non-commercial and gated)")
+    ap.add_argument("--tabpfn-workers", type=int, default=1,
+                    help="parallel TabPFN worker processes (1 = serial; ~8 on a GPU pod)")
     ap.add_argument("--pooled-max-rows", type=int, default=400_000,
                     help="uniformly subsample pooled training rows (event weights still apply in the fit)")
     ap.add_argument("--seed", type=int, default=0)
@@ -183,6 +244,9 @@ def main() -> int:
     chosen_set = set(chosen)
 
     records = []
+    tabpfn_jobs: list[dict] = []
+    reg_ctx: dict[str, dict] = {}     # per regulator: fold, y, w, sig, pooled prediction
+    reg_test: dict[str, np.ndarray] = {}  # per regulator: test feature matrix (stored once)
     for fold in range(args.folds):
         held = [r for r, f in folds.items() if f == fold and r in chosen_set]
         if not held:
@@ -215,7 +279,9 @@ def main() -> int:
                          test["significant"].to_numpy())
             base_pred = pooled_model.predict(Xt) if pooled_model is not None else None
 
-            ctx = {"fold": fold, "rbp": rbp, "y": y, "w": w, "sig": sig}
+            ctx = {"fold": fold, "rbp": rbp, "y": y, "w": w, "sig": sig, "base": base_pred}
+            if {"tabpfn", "pooled_tabpfn"} & set(methods):
+                reg_ctx[rbp], reg_test[rbp] = ctx, Xt
 
             def record(method: str, k: int, draw: int, yhat: np.ndarray, ctx=ctx) -> None:
                 records.append({"fold": ctx["fold"], "rbp": ctx["rbp"], "method": method,
@@ -240,14 +306,29 @@ def main() -> int:
                         mdl = _xgb(100, 3, draw).fit(Xs, ys)
                         record("xgb", k, draw, mdl.predict(Xt))
                     if "tabpfn" in methods:
-                        record("tabpfn", k, draw,
-                               _tabpfn(draw, args.tabpfn_version).fit(Xs, ys).predict(Xt))
+                        tabpfn_jobs.append({"rbp": rbp, "method": "tabpfn", "k": k,
+                                            "draw": draw, "seed": draw, "xs": Xs, "target": ys})
                     if "pooled_tabpfn" in methods and pooled_model is not None:
-                        resid = ys - pooled_model.predict(Xs)
-                        corr = _tabpfn(draw, args.tabpfn_version).fit(Xs, resid).predict(Xt)
-                        record("pooled_tabpfn", k, draw, base_pred + corr)
+                        tabpfn_jobs.append({"rbp": rbp, "method": "pooled_tabpfn", "k": k,
+                                            "draw": draw, "seed": draw, "xs": Xs,
+                                            "target": ys - pooled_model.predict(Xs)})
         print(f"  fold {fold}: {len(held)} held-out regulators, pooled on {pool.height:,} rows "
               f"({time.time() - tf:.0f}s)")
+
+    if tabpfn_jobs:
+        del table, test_rows  # free the event table before starting TabPFN workers
+        import gc
+
+        gc.collect()
+        print(f"TabPFN {args.tabpfn_version}: {len(tabpfn_jobs):,} jobs on "
+              f"{args.tabpfn_workers} worker(s)", flush=True)
+        for job, yhat in run_tabpfn_jobs(tabpfn_jobs, reg_test, args.tabpfn_version,
+                                         args.tabpfn_workers):
+            c = reg_ctx[job["rbp"]]
+            pred = c["base"] + yhat if job["method"] == "pooled_tabpfn" else yhat
+            records.append({"fold": c["fold"], "rbp": job["rbp"], "method": job["method"],
+                            "k": job["k"], "draw": job["draw"],
+                            **m4.regression_metrics(c["y"], pred, c["w"], c["sig"])})
 
     per = pl.DataFrame(records)
     per.write_parquet(out_dir / "per_regulator.parquet")

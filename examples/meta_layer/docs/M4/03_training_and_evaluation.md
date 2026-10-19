@@ -105,6 +105,9 @@ bash examples/meta_layer/ops_m4_pod.sh
 # or the benchmark alone, on any machine with site_features.parquet
 python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S3
 python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S2 --k 16 64 256
+
+# with TabPFN on a pod: run its ~5,000 in-context fits on 8 worker processes
+python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S3 --tabpfn-workers 8
 ```
 
 Outputs, per setting, in `output/meta_layer/m4_fewshot/<setting>_compact/`: `per_regulator.parquet` (one row per fold, regulator, method, $k$, and draw), `summary.csv` (macro averages), `learning_curves.png`, and `config.json`.

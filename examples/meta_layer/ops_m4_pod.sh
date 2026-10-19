@@ -86,7 +86,7 @@ fi
 if [[ " $STAGES " == *" benchmark "* ]]; then
     for s in $SETTINGS; do
         python -u examples/meta_layer/17_m4_fewshot_benchmark.py \
-            --setting "$s" --feature-set "$FEATURE_SET" $BENCH_ARGS
+            --setting "$s" --feature-set "$FEATURE_SET" --tabpfn-workers 8 $BENCH_ARGS
     done
 fi
 

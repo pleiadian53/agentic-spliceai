@@ -83,6 +83,7 @@ This is the tabular analogue of meta-learning: a shared model for what all regul
 | Draws | 3 random shot sets per $k$, averaged within each regulator |
 | Weights | unweighted (TabPFN takes no sample weights here) |
 | Model version | TabPFN v2 by default (`--tabpfn-version` to change) |
+| Cost and parallelism | one call (8 ensemble members, 229 features, ~2,000 query rows) takes 7–10 s, nearly all single-threaded CPU preprocessing; a full benchmark is ~5,000 calls, so `--tabpfn-workers` runs them on a bounded process pool (8 workers on a 96-core pod). Parallel and serial runs give identical metrics. |
 | Preflight | `_tabpfn_ready()` runs a tiny fit first; if it fails (for example, no network to download weights), the TabPFN methods are skipped with the reason printed and the rest of the benchmark runs |
 
 ## 6. Licensing: why M4 uses TabPFN v2
