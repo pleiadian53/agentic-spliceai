@@ -90,7 +90,7 @@ Three readings:
 2. **Per-regulator learning from 16–256 examples fails** with 229 features: XGBoost overfits and its error is worse than predicting 0. This is the regime where a strong prior matters, which motivates TabPFN.
 3. **An event's response to other knockdowns predicts a new one** (0.669), once shared-control noise is removed. Some events are simply volatile.
 
-The `pooled` rows are being rerun under batch-grouped folds and the out-of-batch baseline feature; TabPFN rows require accepting the TabPFN license (part 4).
+The `pooled` rows are being rerun under batch-grouped folds and the out-of-batch baseline feature; TabPFN rows (TabPFN v2, part 4) run in the same pass.
 
 ## 9. Running it
 

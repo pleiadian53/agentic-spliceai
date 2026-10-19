@@ -6,8 +6,7 @@
 #   The epigenetic + chromatin-accessibility bigWigs live only on the volume, which is why
 #   this runs here. Checkpointed per chromosome (--resume), so a restart loses one chrom.
 # Stage 2 (benchmark): examples/meta_layer/17_m4_fewshot_benchmark.py for each setting.
-#   TabPFN methods run only if TABPFN_TOKEN is exported (license acceptance at
-#   https://ux.priorlabs.ai); TabPFN uses CUDA here.
+#   TabPFN methods use TabPFN v2 (free, Apache-2.0-based license, no token) on CUDA.
 #
 # Prerequisites (on the volume, checked below before any compute):
 #   data/mane/GRCh38/{FASTA, openspliceai_eval/precomputed/, m4_labels/kd_events.parquet,
@@ -47,7 +46,7 @@ echo "============================================================"
 echo "M4 pod run — $(date)"
 echo "  stages=$STAGES settings=$SETTINGS features=$FEATURE_SET"
 echo "  bigWig cache: $BIGWIG_CACHE"
-echo "  TabPFN: $([ -n "${TABPFN_TOKEN:-}" ] && echo enabled || echo 'skipped (no TABPFN_TOKEN)')"
+echo "  TabPFN: v2 (default; override with BENCH_ARGS=\"--tabpfn-version ...\")"
 echo "============================================================"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 

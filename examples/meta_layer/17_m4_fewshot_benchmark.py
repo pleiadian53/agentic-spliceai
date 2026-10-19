@@ -32,7 +32,7 @@ Methods (the benchmark ladder):
 | ``volatility`` | – | S2 only: event's mean ΔPSI under training regulators |
 | ``pooled`` | 0 | XGBoost on site ⊕ regulator-binding features, all training regulators |
 | ``xgb`` | k | XGBoost fit on R's k shots only |
-| ``tabpfn`` | k | TabPFN in-context on R's k shots (no gradient steps); needs ``TABPFN_TOKEN`` |
+| ``tabpfn`` | k | TabPFN in-context on R's k shots (no gradient steps) |
 | ``pooled_tabpfn`` | k | TabPFN on R's k shots, predicting the residual of ``pooled`` |
 
 Metrics per (regulator, method, k, draw) from ``_m4_common.regression_metrics``:
@@ -48,7 +48,7 @@ Usage:
     python examples/meta_layer/17_m4_fewshot_benchmark.py \\
         --folds 2 --regulators 20 --methods zero pooled xgb --k 16 64
 
-    # full S3 ladder (set TABPFN_TOKEN first for tabpfn / pooled_tabpfn)
+    # full S3 ladder (TabPFN v2 by default: free, Apache-2.0-based, no license gate)
     python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S3
 """
 
@@ -56,7 +56,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -102,22 +101,30 @@ def _xgb(n_estimators: int, depth: int, seed: int) -> xgb.XGBRegressor:
                             random_state=seed, n_jobs=-1)
 
 
-def _tabpfn(seed: int):
-    """TabPFN on CUDA when present (pods); CPU otherwise (its MPS path needs torch ≥ 2.6)."""
+# TabPFN v2 (Hollmann et al., Nature 2025) is the default: its weights are under the
+# Prior Labs License 1.1 (Apache 2.0 + "Built with PriorLabs-TabPFN" attribution) and
+# download without a license gate. v2.5 and later are free only for non-commercial,
+# non-production use, require license acceptance on the Prior Labs account, and need
+# TABPFN_TOKEN; select them with --tabpfn-version.
+TABPFN_DEFAULT_VERSION = "v2"
+
+
+def _tabpfn(seed: int, version: str = TABPFN_DEFAULT_VERSION):
+    """TabPFN regressor on CUDA when present (pods), else CPU (MPS needs torch >= 2.6)."""
     import torch
     from tabpfn import TabPFNRegressor
+    from tabpfn.constants import ModelVersion
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    return TabPFNRegressor(device=device, random_state=seed)
+    return TabPFNRegressor.create_default_for_version(
+        ModelVersion(version), device=device, random_state=seed)
 
 
-def _tabpfn_ready() -> str | None:
-    """None if TabPFN can fit here; otherwise the reason (no token, license not accepted, ...)."""
-    if not os.environ.get("TABPFN_TOKEN"):
-        return "TABPFN_TOKEN not set"
+def _tabpfn_ready(version: str) -> str | None:
+    """None if TabPFN can fit here; otherwise the reason (download, license, ...)."""
     try:
         rng = np.random.default_rng(0)
-        _tabpfn(0).fit(rng.random((16, 3)), rng.random(16))
+        _tabpfn(0, version).fit(rng.random((16, 3)), rng.random(16))
     except Exception as exc:  # noqa: BLE001 — any failure means: run without TabPFN
         return f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
     return None
@@ -139,6 +146,8 @@ def main() -> int:
                     help="evaluate only the N held-out regulators with the most significant "
                          "test events (0 = all)")
     ap.add_argument("--feature-set", choices=["compact", "full"], default="compact")
+    ap.add_argument("--tabpfn-version", default=TABPFN_DEFAULT_VERSION,
+                    help="TabPFN model version (v2 default; v2.5+ are non-commercial and gated)")
     ap.add_argument("--pooled-max-rows", type=int, default=400_000,
                     help="uniformly subsample pooled training rows (event weights still apply in the fit)")
     ap.add_argument("--seed", type=int, default=0)
@@ -149,10 +158,10 @@ def main() -> int:
     if args.setting == "S3" and "volatility" in methods:
         methods.remove("volatility")  # needs test genes' responses under other regulators
     if {"tabpfn", "pooled_tabpfn"} & set(methods):
-        reason = _tabpfn_ready()
+        reason = _tabpfn_ready(args.tabpfn_version)
         if reason:
-            print(f"TabPFN unavailable ({reason}) → skipping tabpfn / pooled_tabpfn. Accept the "
-                  "license at https://ux.priorlabs.ai (Licenses tab), export TABPFN_TOKEN, rerun.")
+            print(f"TabPFN {args.tabpfn_version} unavailable ({reason}) → skipping tabpfn / "
+                  "pooled_tabpfn.")
             methods = [x for x in methods if x not in ("tabpfn", "pooled_tabpfn")]
     out_dir = args.out_dir or DEFAULT_OUT / f"{args.setting.lower()}_{args.feature_set}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -231,10 +240,11 @@ def main() -> int:
                         mdl = _xgb(100, 3, draw).fit(Xs, ys)
                         record("xgb", k, draw, mdl.predict(Xt))
                     if "tabpfn" in methods:
-                        record("tabpfn", k, draw, _tabpfn(draw).fit(Xs, ys).predict(Xt))
+                        record("tabpfn", k, draw,
+                               _tabpfn(draw, args.tabpfn_version).fit(Xs, ys).predict(Xt))
                     if "pooled_tabpfn" in methods and pooled_model is not None:
                         resid = ys - pooled_model.predict(Xs)
-                        corr = _tabpfn(draw).fit(Xs, resid).predict(Xt)
+                        corr = _tabpfn(draw, args.tabpfn_version).fit(Xs, resid).predict(Xt)
                         record("pooled_tabpfn", k, draw, base_pred + corr)
         print(f"  fold {fold}: {len(held)} held-out regulators, pooled on {pool.height:,} rows "
               f"({time.time() - tf:.0f}s)")

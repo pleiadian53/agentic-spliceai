@@ -84,7 +84,7 @@ Regulators are split into five folds, **keeping each control batch in one fold**
 | `volatility` | – | S2 only: the event's mean $\Delta$PSI under the training regulators |
 | `pooled` | 0 | XGBoost trained on all training regulators (site, geometry, and regulator-binding features) |
 | `xgb` | 16, 64, 256 | XGBoost trained on the held-out regulator's $k$ shots alone |
-| `tabpfn`, `pooled_tabpfn` | $k$ | TabPFN in context on the shots, alone or on the pooled residual (**pending license**) |
+| `tabpfn`, `pooled_tabpfn` | $k$ | TabPFN v2 in context on the shots, alone or on the pooled residual (**not yet run**) |
 
 Features (229, "compact" set): event geometry (alternative-site distance, junction spans, exon lengths), the partner site's feature vector, long − short feature differences, the leave-one-out baseline PSI, the number of other knockdowns observing the event, and the regulator's own binding near each of the three sites.
 

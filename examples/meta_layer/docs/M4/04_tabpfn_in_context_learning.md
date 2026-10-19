@@ -37,7 +37,7 @@ TabPFN (Hollmann et al., ICLR 2023; extended in *Nature*, 2025) is a PFN for tab
 - **Distributional regression output.** For regression, TabPFN predicts a distribution over binned target values rather than a single number; the point prediction is its mean (or another summary).
 - **Ensembling over input transformations.** Predictions are averaged over several preprocessings of the features and target.
 
-The *Nature* version handles up to about 10,000 context rows and 500 features; later releases extend this. The installed package (`tabpfn` 9.2.0) defaults to model version 3.5, whose weights require a one-time license acceptance (section 6).
+The *Nature* version, **TabPFN v2**, handles up to about 10,000 context rows and 500 features; later releases (2.5, 3, 3.5) extend this but come with a more restrictive license (section 6). M4 uses v2.
 
 ## 4. Why it fits the M4 few-shot problem
 
@@ -82,21 +82,25 @@ This is the tabular analogue of meta-learning: a shared model for what all regul
 | Context size | $k \in \{16, 64, 256\}$, far below TabPFN's limits |
 | Draws | 3 random shot sets per $k$, averaged within each regulator |
 | Weights | unweighted (TabPFN takes no sample weights here) |
-| Preflight | `_tabpfn_ready()` runs a tiny fit first; if it fails (no token, license not accepted), the TabPFN methods are skipped with the reason printed and the rest of the benchmark runs |
+| Model version | TabPFN v2 by default (`--tabpfn-version` to change) |
+| Preflight | `_tabpfn_ready()` runs a tiny fit first; if it fails (for example, no network to download weights), the TabPFN methods are skipped with the reason printed and the rest of the benchmark runs |
 
-## 6. Access: the license token
+## 6. Licensing: why M4 uses TabPFN v2
 
-TabPFN's model weights are gated. One-time setup:
+TabPFN's model versions carry different licenses, and the choice matters for a public project.
 
-1. Log in at the Prior Labs portal (ux.priorlabs.ai) and accept the license for the model version in use (currently TabPFN 3.5) on the Licenses tab.
-2. Copy the API key from the account page.
-3. Export it as `TABPFN_TOKEN` before running the benchmark.
+| Version | License | Cost and terms | Access |
+|---|---|---|---|
+| **v2** (*Nature* 2025) | Prior Labs License 1.1: Apache 2.0 plus an attribution clause | free, commercial use allowed; display "Built with PriorLabs-TabPFN" where it is used | weights download directly; no account needed |
+| 2.5, 2.6, 3, 3.5 | model-specific non-commercial licenses (e.g. "TABPFN-3.5 Non-Commercial License") | free only for non-commercial, non-production use, outputs included; commercial use needs a paid license | gated: accept the license on a Prior Labs account, then set `TABPFN_TOKEN` |
 
-A valid key alone is not enough: the package checks that the account has accepted the license for the specific model version, and fails with a license error otherwise.
+The installed package (`tabpfn` 9.2.0) defaults to 3.5, so M4 selects v2 explicitly. For M4's context sizes ($k \le 256$ rows, 229 features), v2 is well within its design range.
+
+*Attribution: the TabPFN results in this project are built with PriorLabs-TabPFN (v2).*
 
 ## 7. Status
 
-The TabPFN methods are implemented and tested up to the license check, but have **not yet been run**: the first benchmark skipped them because the license had not been accepted. They will run with the next benchmark pass. Questions that run will answer:
+The TabPFN methods are implemented and verified on a small synthetic fit, but have **not yet been run** on the benchmark: the first pass tried the default version (3.5), whose license gate stopped it. They run with TabPFN v2 in the next benchmark pass. Questions that run will answer:
 
 1. Does `tabpfn` beat `xgb` at the same $k$, the clearest test of the small-data argument?
 2. Does `pooled_tabpfn` beat `pooled`, showing that a few examples of a regulator add information beyond its binding features?
