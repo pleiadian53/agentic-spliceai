@@ -64,6 +64,11 @@ def load_events(path: Path = EVENTS) -> pl.DataFrame:
     ``weight`` (each (regulator, alternative-site pair) cluster sums to 1, so a pair
     measured against several flanking exons is not over-counted), and the pre-outcome
     baseline columns ``baseline_psi_loo`` and ``n_other_kd``.
+
+    ``baseline_psi_loo`` leaves out the row's whole **control batch**, not just the row:
+    knockdowns in one batch share control libraries, so their control PSIs carry the same
+    sampling noise as this row's ΔPSI (corr with ΔPSI: own control −0.247, row-out
+    −0.047, batch-out −0.025).
     """
     ev = pl.read_parquet(path).filter(pl.col("dpsi").is_not_null())
     ev = ev.with_columns(
@@ -79,16 +84,14 @@ def load_events(path: Path = EVENTS) -> pl.DataFrame:
         ).alias("significant"),
         (1.0 / pl.len().over(["rbp", "altpair_key"])).alias("weight"),
     )
-    # Leave-this-experiment-out baseline: the geometry's mean control PSI over the
-    # OTHER knockdowns' control samples. Pre-outcome, and independent of this
-    # experiment's sampling noise.
+    # Leave-this-control-batch-out baseline: the geometry's mean control PSI over the
+    # control samples of OTHER batches. Pre-outcome, and independent of this row's
+    # control noise.
     psi = pl.col("psi_ctrl")
-    s_all = psi.sum().over("event_key")
-    n_all = psi.count().over("event_key")
-    n_other = n_all - psi.is_not_null().cast(pl.UInt32)
+    n_out = psi.count().over("event_key") - psi.count().over(["event_key", "control_batch"])
+    s_out = psi.sum().over("event_key") - psi.sum().over(["event_key", "control_batch"])
     return ev.with_columns(
-        pl.when(n_other > 0).then((s_all - psi.fill_null(0.0)) / n_other)
-        .otherwise(None).alias("baseline_psi_loo"),
+        pl.when(n_out > 0).then(s_out / n_out).otherwise(None).alias("baseline_psi_loo"),
         (pl.len().over("event_key") - 1).alias("n_other_kd"),
     )
 
@@ -195,11 +198,32 @@ def assign_gene_split(events: pl.DataFrame, preset: str = "spliceai",
     return out
 
 
-def regulator_folds(rbps: list[str], n_folds: int = 5, seed: int = 0) -> dict[str, int]:
-    """Assign each regulator to one of ``n_folds`` held-out folds (fixed seed)."""
+def regulator_folds(rbps: list[str], n_folds: int = 5, seed: int = 0,
+                    groups: dict[str, str] | None = None) -> dict[str, int]:
+    """Assign each regulator to one of ``n_folds`` held-out folds (fixed seed).
+
+    With ``groups`` (regulator → control batch), whole groups go to one fold, largest
+    first onto the currently smallest fold. Regulators sharing control samples share
+    control noise in their ΔPSI, so splitting a batch across folds leaks the held-out
+    regulator's noise into training (it inflated the S2 event prior from 0.655 to
+    0.742 direction accuracy).
+    """
     rng = np.random.default_rng(seed)
-    order = rng.permutation(sorted(rbps))
-    return {r: i % n_folds for i, r in enumerate(order)}
+    if groups is None:
+        order = rng.permutation(sorted(rbps))
+        return {r: i % n_folds for i, r in enumerate(order)}
+    members: dict[str, list[str]] = {}
+    for r in sorted(rbps):
+        members.setdefault(groups[r], []).append(r)
+    keys = list(rng.permutation(sorted(members)))
+    keys.sort(key=lambda g: -len(members[g]))  # stable: ties keep the seeded order
+    load = [0] * n_folds
+    out: dict[str, int] = {}
+    for g in keys:
+        f = int(np.argmin(load))
+        load[f] += len(members[g])
+        out.update(dict.fromkeys(members[g], f))
+    return out
 
 
 # ── Metrics ──────────────────────────────────────────────────────────────

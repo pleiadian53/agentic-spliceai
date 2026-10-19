@@ -308,6 +308,56 @@ def build_events(
     )
 
 
+def infer_control_batches(
+    events: pl.DataFrame, min_reads: int = 100, n_events: int = 3000,
+    min_shared: int = 50, same_frac: float = 0.9,
+) -> tuple[pl.DataFrame, dict]:
+    """Group knockdowns that share control samples into ``control_batch``es.
+
+    ENCODE knockdowns are run in batches against shared control libraries, so two
+    regulators in one batch report *identical* control junction counts for an event.
+    Their ΔPSI values then share the same control noise term, which leaks between them
+    in any comparison across regulators. Two regulators share a control when their
+    control counts agree on more than ``same_frac`` of well-covered events they both
+    measure; batches are the connected components of that relation. The relation is
+    sharply bimodal in this corpus (pairs agree on ~all or ~none of their events), which
+    is reported as ``n_ambiguous_pairs``.
+    """
+    ev = events.select("event_key", "rbp", "ijc_ctrl", "sjc_ctrl").drop_nulls().filter(
+        (pl.col("ijc_ctrl") + pl.col("sjc_ctrl")) >= min_reads)
+    top = ev.group_by("event_key").len().sort(["len", "event_key"], descending=True).head(n_events)
+    e = ev.join(top.select("event_key"), on="event_key", how="semi")
+    pairs = (
+        e.join(e, on="event_key", suffix="_b").filter(pl.col("rbp") < pl.col("rbp_b"))
+        .group_by("rbp", "rbp_b")
+        .agg(pl.len().alias("n"),
+             ((pl.col("ijc_ctrl") == pl.col("ijc_ctrl_b"))
+              & (pl.col("sjc_ctrl") == pl.col("sjc_ctrl_b"))).mean().alias("frac_same"))
+        .filter(pl.col("n") >= min_shared)
+    )
+    rbps = sorted(events["rbp"].unique().to_list())
+    parent = {r: r for r in rbps}
+
+    def find(x: str) -> str:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b in pairs.filter(pl.col("frac_same") > same_frac).select("rbp", "rbp_b").iter_rows():
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)  # root = alphabetically first member
+    batches = pl.DataFrame({"rbp": rbps, "control_batch": [f"ctrl:{find(r)}" for r in rbps]})
+    sizes = batches.group_by("control_batch").len()["len"]
+    stats = {
+        "n_batches": sizes.len(), "max_size": int(sizes.max()), "singletons": int((sizes == 1).sum()),
+        "n_pairs_tested": pairs.height,
+        "n_ambiguous_pairs": int(((pairs["frac_same"] > 0.1) & (pairs["frac_same"] <= same_frac)).sum()),
+    }
+    return batches, stats
+
+
 def find_offsets(
     df: pl.DataFrame, fasta: pyfaidx.Fasta, sample_n: int
 ) -> dict[tuple[str, str], int]:
@@ -524,6 +574,11 @@ def main() -> None:
     n_dup = events.height - events.select("rbp", "event_key").unique().height
     if n_dup:
         raise SystemExit(f"[FAILED] {n_dup} (rbp, event_key) duplicates — geometry key not unique.")
+    batches, bstats = infer_control_batches(events)
+    events = events.join(batches, on="rbp", how="left")
+    print(f"control batches: {bstats['n_batches']} (largest {bstats['max_size']}, "
+          f"{bstats['singletons']} singletons; {bstats['n_ambiguous_pairs']} ambiguous of "
+          f"{bstats['n_pairs_tested']:,} regulator pairs)")
     events.write_parquet(OUT_EVENTS)
     per_key = events.group_by("event_key").agg(pl.col("rbp").n_unique().alias("n_rbp"))
     per_pair = events.group_by("rbp", "altpair_key").len()

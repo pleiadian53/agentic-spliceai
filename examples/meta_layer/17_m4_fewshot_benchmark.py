@@ -7,7 +7,9 @@ change in usage of the event's long form. Each regulator is a *task*; the questi
 is how well a method adapts to a regulator it was not trained on, from k labeled
 events of that regulator (k = 0 is zero-shot).
 
-Regulators are split into ``--folds`` folds; each fold is held out in turn. Every
+Regulators are split into ``--folds`` folds; each fold is held out in turn. Folds are
+grouped by **control batch** (knockdowns sharing control libraries share control noise
+in their ΔPSI; splitting a batch leaks it). Every
 method is scored on the **same rows**: the held-out regulator's events in held-out
 genes (SpliceAI chromosomes 1/3/5/7/9). Shots are drawn only from the regulator's
 events in training genes, so no test gene is ever seen under R.
@@ -86,8 +88,8 @@ def build_table(feature_set: str) -> tuple[pl.DataFrame, list[str]]:
     if leaked:
         raise ValueError(f"outcome columns in the feature set: {sorted(leaked)}")
     table = (
-        ev.select("event_key", "rbp", "gene_id", "split", "dpsi", "weight", "significant",
-                  "baseline_psi_loo", "n_other_kd")
+        ev.select("event_key", "rbp", "control_batch", "gene_id", "split", "dpsi", "weight",
+                  "significant", "baseline_psi_loo", "n_other_kd")
         .join(geo, on="event_key", how="left")
         .join(reg, on=["event_key", "rbp"], how="left")
     )
@@ -130,6 +132,9 @@ def main() -> int:
     ap.add_argument("--k", nargs="+", type=int, default=[16, 64, 256])
     ap.add_argument("--draws", type=int, default=3, help="shot resamples per (regulator, k)")
     ap.add_argument("--folds", type=int, default=5)
+    ap.add_argument("--fold-grouping", choices=["control_batch", "none"], default="control_batch",
+                    help="keep regulators that share control samples in one fold (default); "
+                         "'none' reproduces the leaky v0 folds")
     ap.add_argument("--regulators", type=int, default=0,
                     help="evaluate only the N held-out regulators with the most significant "
                          "test events (0 = all)")
@@ -156,7 +161,9 @@ def main() -> int:
     table, feats = build_table(args.feature_set)
     print(f"{table.height:,} event×regulator rows, {len(feats)} features ({args.feature_set}); "
           f"methods={methods}, setting={args.setting}")
-    folds = m4.regulator_folds(table["rbp"].unique().to_list(), args.folds, args.seed)
+    groups = (dict(table.select("rbp", "control_batch").unique().iter_rows())
+              if args.fold_grouping == "control_batch" else None)
+    folds = m4.regulator_folds(table["rbp"].unique().to_list(), args.folds, args.seed, groups)
     table = table.with_columns(pl.col("rbp").replace_strict(folds).alias("fold"))
 
     test_rows = table.filter(pl.col("split") == "test")
@@ -255,8 +262,17 @@ def main() -> int:
     return 0
 
 
+# One fixed colour per method, so the same method looks the same in every figure.
+METHOD_COLORS = {"zero": "#7f7f7f", "volatility": "#d62728", "pooled": "#1f77b4",
+                 "xgb": "#ff7f0e", "tabpfn": "#2ca02c", "pooled_tabpfn": "#9467bd"}
+
+
 def _plot(summary: pl.DataFrame, path: Path, setting: str) -> None:
-    """Learning curves (k on x) for Spearman and direction accuracy; k=0 methods as lines."""
+    """Learning curves over k for Spearman and direction accuracy.
+
+    k-shot methods are lines with markers; k = 0 methods (zero, volatility, pooled)
+    are dashed horizontal references in their own colour.
+    """
     import matplotlib
 
     matplotlib.use("Agg")
@@ -272,14 +288,16 @@ def _plot(summary: pl.DataFrame, path: Path, setting: str) -> None:
                                & pl.col(metric).is_not_null()).sort("k")
             if s.height == 0:  # e.g. Spearman is undefined for constant `zero`
                 continue
+            color = METHOD_COLORS.get(method)
             if s.height == 1 and s["k"][0] == 0:
-                ax.axhline(s[metric][0], ls="--", lw=1, label=method)
+                ax.axhline(s[metric][0], ls="--", lw=1.5, color=color,
+                           label=f"{method} (k=0)")
             else:
-                ax.plot(s["k"], s[metric], marker="o", label=method)
+                ax.plot(s["k"], s[metric], marker="o", color=color, label=method)
         ax.set_xscale("log", base=2)
         ax.set_xlabel("k (labeled events of the held-out regulator)")
         ax.set_title(label)
-    axes[0].legend(fontsize=8)
+        ax.legend(fontsize=8, loc="best")
     fig.suptitle(f"M4 held-out-regulator benchmark ({setting})")
     fig.tight_layout()
     fig.savefig(path, dpi=150)
