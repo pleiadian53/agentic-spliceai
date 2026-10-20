@@ -142,5 +142,5 @@ Located in `examples/features/configs/`:
 ## Related Documentation
 
 - [Feature Catalog](../../docs/multimodal_feature_engineering/feature_catalog.md) — complete 100-column reference
-- [M1-M4 Model Variants](../meta_layer/docs/meta_model_variants_m1_m4.md) — how features feed into meta-layer training
+- [M1-M4 Model Variants](../meta_layer/docs/shared/meta_model_variants_m1_m4.md) — how features feed into meta-layer training
 - [Roadmap](../../docs/ROADMAP.md) — Phase 4 (feature engineering) and Phase 6 (meta-layer training)

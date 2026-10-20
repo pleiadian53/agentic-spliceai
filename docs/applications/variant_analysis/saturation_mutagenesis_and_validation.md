@@ -240,6 +240,6 @@ splice sites or regulatory elements.  The vulnerability map identifies:
 ## Related
 
 - [Variant effect validation](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/variant_analysis/results/variant_effect_validation.md) — current validation results
-- [OOD generalization](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/ood_generalization.md) — model limitations on unseen genes
+- [OOD generalization](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/m2/ood_generalization.md) — model limitations on unseen genes
 - `M2 evaluation` — alternative splice site generalization
 - `Isoform discovery` — downstream transcript assembly

@@ -260,6 +260,6 @@ still needing liftover.
   version of the same locus-level finding.
 - [`m4_benchmark_sweep.md`](m4_benchmark_sweep.md) — the 2026-04-15 v2 sweep (source of the ClinVar numbers).
 - [`variant_effect_validation.md`](variant_effect_validation.md) — 13 disease-gene variants + RNA-seq validation.
-- [`../../meta_layer/docs/M4/m4_conditional_design.md`](../../meta_layer/docs/M4/m4_conditional_design.md) — the conditional-M4 design note.
+- [`../../meta_layer/docs/m4/m4_conditional_design.md`](../../meta_layer/docs/m4/m4_conditional_design.md) — the conditional-M4 design note.
 - [`../../data_preparation/m4/`](../../data_preparation/m4/) — the regulator-arm ΔPSI corpus (the contrast in §4).
 - [`negative_strand_and_variant_effects.md`](../../../docs/variant_analysis/negative_strand_and_variant_effects.md) — strand/coordinate traps.

@@ -104,7 +104,16 @@ Session notes and logs written before 2026-10-20 use the old flat names.
 
 ---
 
-## Directories
+## Docs
 
-- `docs/`: methods and how-to notes: `evaluation_tutorial.md`, `evaluation_hierarchy.md`, `meta_model_variants_m1_m4.md`, plus `M2/`, `M3/`, `M4/` design notes.
-- `results/`: curated result write-ups (also promoted to [docs/meta_layer/results/](../../docs/meta_layer/results/README.md)).
+`docs/` mirrors the script folders: the notes for `m3/` scripts are in `docs/m3/`. Each folder holds design notes and the curated result write-ups (also promoted to [docs/meta_layer/results/](../../docs/meta_layer/results/README.md)).
+
+| Folder | Contents |
+|---|---|
+| [`docs/shared/`](docs/shared/) | M1–M4 variant overview, evaluation tutorial and evidence hierarchy (`shared/02_evaluate_sequence_model.py`), gene-cache memory notes, cross-build FASTA validation, junction-coverage findings |
+| [`docs/m1/`](docs/m1/) | M1-P full-genome results, M1-S logit-blend results, M1-S modality ablation |
+| [`docs/m2/`](docs/m2/) | Alternative-site evaluation, M2-S Ensembl-trained results, out-of-distribution generalization, architecture lessons |
+| [`docs/m3/`](docs/m3/) | Design, prerequisites, training data, label audit, Phase D evaluation, M3-R results ([README](docs/m3/README.md)) |
+| [`docs/m4/`](docs/m4/) | Tutorial series `01`–`04` (training data, architecture, training and evaluation, TabPFN), conditional design, few-shot benchmark, position-level scoping ([README](docs/m4/README.md)) |
+
+Before 2026-10-20 these lived in `docs/` (flat), `docs/M2/`–`docs/M4/` and `results/`; file names are unchanged.

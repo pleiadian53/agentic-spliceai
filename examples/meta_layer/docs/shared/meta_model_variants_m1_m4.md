@@ -563,7 +563,7 @@ ref_probs, alt_probs, delta = model.predict_with_delta(
 - **Shared training utilities**:
   `src/.../meta_layer/training/data_utils.py`
 - **M1-P full-genome results**:
-  `examples/meta_layer/docs/m1_fullgenome_results.md`
+  `examples/meta_layer/docs/m1/m1p_fullgenome_results.md`
 - **Ground truth generation**:
   `examples/data_preparation/04_generate_ground_truth.py`
 - **Dense label builder**:

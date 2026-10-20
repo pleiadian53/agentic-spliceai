@@ -9,7 +9,7 @@ from ENCODE shRNA-knockdown rMATS tables.
 
 This directory holds *data preparation* only. Model training / evaluation lives
 under `examples/meta_layer/`. Design + findings docs live under
-[`examples/meta_layer/docs/M4/`](../../meta_layer/docs/M4/).
+[`examples/meta_layer/docs/m4/`](../../meta_layer/docs/m4/).
 
 > Run each step after `mamba activate agentic-spliceai`.
 
@@ -134,6 +134,6 @@ validate the **de-repression sign** on held-out SF3B1 and TDP-43 anchors.
 
 ## Related
 
-- Design + findings: [`../../meta_layer/docs/M4/`](../../meta_layer/docs/M4/)
+- Design + findings: [`../../meta_layer/docs/m4/`](../../meta_layer/docs/m4/)
   (`m4_conditional_design.md`).
 - Sibling label workflow: [`../m3/README.md`](../m3/README.md) (novel splice sites).

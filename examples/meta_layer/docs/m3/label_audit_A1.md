@@ -142,4 +142,4 @@ Schema: `chrom, strand, position, splice_type, gene_id, max_reads, sum_reads, n_
 ## Related
 - [`m3_design.md`](m3_design.md) — what these labels feed into.
 - [`m3_prerequisites.md`](m3_prerequisites.md) — the go/no-go that motivated the audit.
-- [`../junction_coverage_findings.md`](../junction_coverage_findings.md) — the upstream junction audit.
+- [`../shared/junction_coverage_findings.md`](../shared/junction_coverage_findings.md) — the upstream junction audit.

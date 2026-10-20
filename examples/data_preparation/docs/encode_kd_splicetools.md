@@ -178,7 +178,7 @@ distribution**, emits **both** competing sites per event (long `+ΔPSI`, short
 `−ΔPSI`), and **never collapses the regulator** — `rbp` is M4's conditioning
 variable. Output: `data/mane/GRCh38/m4_labels/kd_dpsi.parquet` (3,170,934 signed
 per-site rows over 185 RBPs). See [`../m4/README.md`](../m4/README.md) for the schema
-and [`../../meta_layer/docs/M4/m4_conditional_design.md`](../../meta_layer/docs/M4/m4_conditional_design.md)
+and [`../../meta_layer/docs/m4/m4_conditional_design.md`](../../meta_layer/docs/m4/m4_conditional_design.md)
 for the model design.
 
 Both consumers share the same coordinate treatment: the raw rMATS boundary is mapped
@@ -213,5 +213,5 @@ dinucleotide by strand.
 
 - Consumers: [`../m3/06_ingest_encode_kd_anchors.py`](../m3/06_ingest_encode_kd_anchors.py) (M3 anchors) · [`../m4/01_ingest_kd_dpsi.py`](../m4/01_ingest_kd_dpsi.py) (M4 corpus)
 - Workflows: [`../m3/README.md`](../m3/README.md) · [`../m4/README.md`](../m4/README.md)
-- Model design: [`../../meta_layer/docs/M4/m4_conditional_design.md`](../../meta_layer/docs/M4/m4_conditional_design.md)
+- Model design: [`../../meta_layer/docs/m4/m4_conditional_design.md`](../../meta_layer/docs/m4/m4_conditional_design.md)
 - Sibling data doc: [`ground_truth_custom_genomes.md`](ground_truth_custom_genomes.md)

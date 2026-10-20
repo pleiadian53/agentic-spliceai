@@ -168,13 +168,13 @@ name normalization.
 **Not yet implemented.**  This is a planned agentic-layer tool for Phase 7.
 
 The meta-layer side (FASTA inference mode) is complete as of April 2026.
-The evaluation hierarchy document (`examples/meta_layer/docs/evaluation_hierarchy.md`)
+The evaluation hierarchy document (`examples/meta_layer/docs/shared/evaluation_hierarchy.md`)
 describes how this tool fits into the broader validation strategy.
 
 ---
 
 ## Related Documents
 
-- [Evaluation hierarchy](../../meta_layer/docs/evaluation_hierarchy.md) — evidence tiers for prediction validation
+- [Evaluation hierarchy](../../meta_layer/docs/shared/evaluation_hierarchy.md) — evidence tiers for prediction validation
 - [Model variants M1-M4](../../../docs/meta_layer/methods/00_model_variants_m1_m4.md) — M3 uses junction as validation target
 - [Nexus research agent](../../../src/nexus/) — multi-agent orchestration for evidence fusion

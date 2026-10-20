@@ -38,8 +38,8 @@ flowchart LR
   B --> D
   C --> D["<b>3. Feature engineering</b><br/>06_multimodal_genome_workflow.py<br/><i>analysis_sequences_{chrom}.parquet</i>"]
   D --> E["<b>4–5. Training</b><br/>shared/01_train_sequence_model.py<br/>--mode m1 / m2<br/><i>best.pt + config.pt</i>"]
-  E --> F["<b>6. Evaluation</b><br/>08 (yardstick) · 09 (alt sites)<br/>16 (tissue-stratified)<br/><i>eval_results.json</i>"]
-  F --> G["<b>7. Reporting</b><br/>10 verify · results/*.md<br/>MANIFEST · settings.yaml promotion<br/>Bio Lab UI /metrics"]
+  E --> F["<b>6. Evaluation</b><br/>shared/02 (yardstick) · m2/01 (alt sites)<br/>m2/02 (tissue-stratified)<br/><i>eval_results.json</i>"]
+  F --> G["<b>7. Reporting</b><br/>m2/03 verify · docs/&lt;variant&gt;/*.md<br/>MANIFEST · settings.yaml promotion<br/>Bio Lab UI /metrics"]
   D -.-> H["<b>9–11. M3 sub-series</b><br/>label curation → training →<br/>anti-circular eval"]
 
   classDef input fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#1a1a1a
@@ -69,7 +69,7 @@ orange = training · teal = evaluation · pink = reporting · green = the M3 bra
 | [3](03_feature_engineering.md) | Feature engineering | `features/06_multimodal_genome_workflow.py` | predictions + bigWig/junction/eCLIP | `…/openspliceai_eval/analysis_sequences/analysis_sequences_{chrom}.parquet` |
 | [4](04_training_m1s.md) · [5](05_training_m2s.md) | Training | `meta_layer/shared/01_train_sequence_model.py` | labels + base scores + dense channels | `output/meta_layer/{m1s,m2s}_v4_cleanannot/` |
 | [6](06_evaluation.md) | Evaluation | `shared/02_evaluate_sequence_model.py`, `m2/01_evaluate_alternative_sites.py`, `m2/02_evaluate_tissue_stratified.py` | checkpoint + `.npz` cache | `eval_results.json`, `m2a_eval_results.json`, `tissue_stratified.json` |
-| [7](07_reporting.md) | Reporting | `m2/03_verify_evaluation_stats.py`, `results/*.md`, Bio Lab UI `/metrics` | result JSONs | roll-ups + promotion registry + dashboard |
+| [7](07_reporting.md) | Reporting | `m2/03_verify_evaluation_stats.py`, `examples/meta_layer/docs/<variant>/*.md`, Bio Lab UI `/metrics` | result JSONs | roll-ups + promotion registry + dashboard |
 | [8](08_gpu_pods.md) | *(optional)* GPU pods | `meta_layer/ops_*.sh` | — | same artifacts, on a RunPod GPU |
 | **M3 sub-series** — reuses Stages 1–3, then: | | | | |
 | [9](09_m3_label_curation.md) | *(M3)* Label curation | `data_preparation/m3/*.py` | junctions + long-read + disease catalogs | `data/mane/GRCh38/m3_labels/*.parquet` |

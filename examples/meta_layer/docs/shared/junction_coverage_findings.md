@@ -11,7 +11,7 @@ non-obvious results that surfaced during the investigation:
 
 For the research framing, the "is M3 worth developing?" decision, and
 the connection to alternative data sources, see
-[m3_prerequisites.md](M3/m3_prerequisites.md).
+[m3_prerequisites.md](../m3/m3_prerequisites.md).
 
 ---
 
@@ -325,7 +325,7 @@ support for annotated alt isoforms, not annotation artifacts.**
 > **Naming note.** The "v2" / "v3" in this section are **corpus** generations
 > (`encode_rbp`, then `neuronal_rbp`), not architectures — every M2-S discussed
 > here is the `concat_fusion` architecture. See
-> [naming_convention.md](../../../docs/meta_layer/methods/naming_convention.md).
+> [naming_convention.md](../../../../docs/meta_layer/methods/naming_convention.md).
 
 ### For interpreting the `encode_rbp` M2-S results
 
@@ -355,7 +355,7 @@ is harder.
   are real raw material with median depth 4–7K reads and 51/54
   tissues, but their biological validity needs independent
   confirmation.
-- See [m3_prerequisites.md](M3/m3_prerequisites.md) for the M3 go/no-go
+- See [m3_prerequisites.md](../m3/m3_prerequisites.md) for the M3 go/no-go
   analysis.
 
 ### For the splice-sites TSV generation pipeline

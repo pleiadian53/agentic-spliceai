@@ -90,8 +90,8 @@ overcommitment to the meta-CNN when uncertain.
 
 ## Known limitations
 
-- M2-S OOD generalization degrades on unseen genes (see [ood_generalization.md](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/ood_generalization.md))
-- Junction modality coverage uneven across tissues (see [junction_coverage_findings.md](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/junction_coverage_findings.md))
+- M2-S OOD generalization degrades on unseen genes (see [ood_generalization.md](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/m2/ood_generalization.md))
+- Junction modality coverage uneven across tissues (see [junction_coverage_findings.md](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/shared/junction_coverage_findings.md))
 - `shap` package broken with numpy 2.4 — use XGBoost `pred_contribs=True` instead
 - Inference requires pod for large-scale work; local inference only feasible per-chromosome
 

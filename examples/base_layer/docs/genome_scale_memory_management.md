@@ -345,7 +345,7 @@ For now, the chunk-size reduction keeps peak memory manageable.
 
 ## Related Documentation
 
-- [OOM in M1-S gene caching](../../meta_layer/docs/oom_gene_caching.md) —
+- [OOM in M1-S gene caching](../../meta_layer/docs/shared/oom_gene_caching.md) —
   disk-backed `.npz` cache for meta-layer training
 - [I/O bottlenecks and DataLoader tuning](../../../docs/ml_engineering/data_pipeline/io_bottlenecks_dataloader.md) —
   num_workers, pin_memory, shard packing

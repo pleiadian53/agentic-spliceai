@@ -6,9 +6,8 @@ major annotation** (Ensembl, GENCODE, RefSeq) yet supported by junction
 evidence. M3 is the candidate generator that feeds Phase 8 (isoform
 discovery) and any later disease-conditional models.
 
-> Topic subdirectory under `examples/meta_layer/docs/`, mirroring the
-> [`M4/`](../M4/) layout. M3 material that used to live flat in `docs/`
-> now lands here.
+> Docs for the `examples/meta_layer/m3/` scripts; `docs/` mirrors the script folders
+> (`shared/`, `m1/`–`m4/`).
 
 > **📂 Where the data-prep scripts live:** the M3 label workflow (positive
 > pool, anchors, negatives) is under **[`examples/data_preparation/m3/`](../../../data_preparation/m3/)**
@@ -31,7 +30,7 @@ trained on a *pooled* positive set (GTEx-novel-filtered + Tier-1 published
 disease catalogs), with junctions as the **label**, not an input.
 
 Disease conditioning (the disease-Δ idea — "this site activates *in TDP-43
-LOF / SF3B1-mutant context*") is **deferred** to M3-D / [M4](../M4/). That is
+LOF / SF3B1-mutant context*") is **deferred** to M3-D / [M4](../m4/). That is
 perturbation-effect prediction, a different thesis. Building unconditional
 first gives us the catalog the conditional models select over. See
 [`m3_design.md`](m3_design.md) §1 for the full rationale.
@@ -81,8 +80,8 @@ features** — the external multimodal tracks are locus-level evidence, which is
 they lift M1/M2 but barely move novel-site discovery.
 
 ## Related
-- [`../meta_model_variants_m1_m4.md`](../meta_model_variants_m1_m4.md) — the M1–M4 variant overview.
-- [`../junction_coverage_findings.md`](../junction_coverage_findings.md) — strand asymmetry + biotype effects in the junction audit that seeds M3.
-- [`../ood_generalization.md`](../ood_generalization.md) — why training labels matter for alt/novel-site detection.
-- [`../M4/`](../M4/) — the disease-conditional sibling (perturbation as input).
+- [`../shared/meta_model_variants_m1_m4.md`](../shared/meta_model_variants_m1_m4.md) — the M1–M4 variant overview.
+- [`../shared/junction_coverage_findings.md`](../shared/junction_coverage_findings.md) — strand asymmetry + biotype effects in the junction audit that seeds M3.
+- [`../m2/ood_generalization.md`](../m2/ood_generalization.md) — why training labels matter for alt/novel-site detection.
+- [`../m4/`](../m4/) — the disease-conditional sibling (perturbation as input).
 - Audit script: `examples/meta_layer/shared/03_junction_coverage_audit.py`.

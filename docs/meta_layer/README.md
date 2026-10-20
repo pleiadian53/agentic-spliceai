@@ -79,5 +79,5 @@ Full archive: [meta-spliceai-archive/](meta-spliceai-archive/)
 | Shard packing | `src/.../meta_layer/data/shard_packing.py` |
 | Training script | `examples/meta_layer/shared/01_train_sequence_model.py` |
 | XGBoost baseline (M1-P) | `examples/meta_layer/m1/01_xgboost_baseline.py` |
-| M1-P full-genome results | `examples/meta_layer/docs/m1_fullgenome_results.md` |
+| M1-P full-genome results | `examples/meta_layer/docs/m1/m1p_fullgenome_results.md` |
 | Feature configs | `examples/features/configs/` |

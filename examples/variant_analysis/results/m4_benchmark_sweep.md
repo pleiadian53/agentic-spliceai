@@ -325,6 +325,6 @@ Checkpoints:
 ## 7. Related documents
 
 - VariantRunner tutorial: [`src/agentic_spliceai/splice_engine/meta_layer/docs/variant_runner.md`](../../../src/agentic_spliceai/splice_engine/meta_layer/docs/variant_runner.md)
-- M2-S v2 training + ablation: [`examples/meta_layer/results/m2s_ensembl_trained_results.md`](../../meta_layer/results/m2s_ensembl_trained_results.md)
+- M2-S v2 training + ablation: [`examples/meta_layer/docs/m2/m2s_ensembl_trained_results.md`](../../meta_layer/docs/m2/m2s_ensembl_trained_results.md)
 - Pod bootstrap: [`examples/meta_layer/shared/ops_bootstrap_pod.sh`](../../meta_layer/shared/ops_bootstrap_pod.sh)
 - Orchestrator: [`examples/variant_analysis/ops_m4_benchmarks_pod.sh`](../ops_m4_benchmarks_pod.sh)

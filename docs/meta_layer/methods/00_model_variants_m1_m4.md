@@ -691,7 +691,7 @@ ref_probs, alt_probs, delta = model.predict_with_delta(
 - **Disk-backed dataset**: `src/.../meta_layer/data/sequence_level_dataset.py`
 - **HDF5 shard packing**: `src/.../meta_layer/data/shard_packing.py`
 - **Training script**: `examples/meta_layer/shared/01_train_sequence_model.py`
-- **M1-P full-genome results**: `examples/meta_layer/docs/m1_fullgenome_results.md`
+- **M1-P full-genome results**: `examples/meta_layer/docs/m1/m1p_fullgenome_results.md`
 - **Dense label builder**: `foundation_models/foundation_models/utils/chunking.py`
 - **XGBoost baseline (M1-P)**: `examples/meta_layer/m1/01_xgboost_baseline.py`
 - **Modality ablation**: `examples/meta_layer/m1/03_modality_ablation.py`

@@ -275,7 +275,7 @@ A cancer neo-site with real RBP binding and splice grammar *is* a latent splice
 site; calling it is not a recognizer error. "Healthy-novel vs cancer-specific"
 is a downstream annotation/filtering question (the disease-context / agentic
 layer), not an M3 precision failure. (See `feedback_rbp_single_channel`,
-`feedback_splice_site_coordinate_validation`, and `examples/meta_layer/docs/M3/m3_design.md` §5.)
+`feedback_splice_site_coordinate_validation`, and `examples/meta_layer/docs/m3/m3_design.md` §5.)
 
 **M3-applicable checks:** RBP ablation evaluated against the **multi-tissue
 ENCODE4 long-read truth set** (cancer artifacts won't appear in healthy

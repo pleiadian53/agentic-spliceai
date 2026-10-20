@@ -192,7 +192,7 @@ with this stage's harness, so the UI and the eval rank identically by constructi
 
 - Tissue-stratified evaluation (an M2-S-oriented protocol, applicable when tissue context matters):
   [`examples/meta_layer/m2/02_evaluate_tissue_stratified.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m2/02_evaluate_tissue_stratified.py).
-- Local dev results: [`examples/meta_layer/docs/M3/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/M3/)
+- Local dev results: [`examples/meta_layer/docs/m3/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/m3/)
   (`m3_eval_D_results.md`, `m3r_candidate_refiner_results.md`).
 
 ---

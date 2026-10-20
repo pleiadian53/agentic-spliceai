@@ -230,4 +230,4 @@ The value of the ladder is that each negative result is **precisely characterize
 - [Model variants M1–M4](00_model_variants_m1_m4.md#m3-novel-splice-site-prediction): where M3 sits in the family.
 - [M3 novel-site results](../results/m3_novel.md): the evaluated numbers and the version story.
 - [M3 workflow sub-series](../../workflows/meta_layer/09_m3_label_curation.md): reproduce it end to end.
-- Local dev write-ups: `examples/meta_layer/docs/M3/` (design, training data, eval results).
+- Local dev write-ups: `examples/meta_layer/docs/m3/` (design, training data, eval results).

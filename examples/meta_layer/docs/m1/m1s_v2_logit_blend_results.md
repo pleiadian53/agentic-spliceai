@@ -179,7 +179,7 @@ blend reverses this: at sites where the meta-CNN is uncertain, the base
 model's signal dominates the blend, enabling graceful degradation rather than
 confident misclassification.
 
-See [OOD Generalization in Splice Site Prediction](../docs/ood_generalization.md)
+See [OOD Generalization in Splice Site Prediction](../m2/ood_generalization.md)
 for a detailed analysis of this failure mode and the architectural principles
 behind the fix.
 
@@ -187,6 +187,6 @@ behind the fix.
 
 - [M1-S v1 ablation study](m1s_ablation_study.md) — modality contributions (v1)
 - [M1-P full-genome results](m1p_fullgenome_results.md) — position-level XGBoost baseline
-- [M2 evaluation results](m2_evaluation_results.md) — alternative splice site evaluation
-- [OOD generalization](../docs/ood_generalization.md) — why v1 hurt on unseen sites, why v2 fixes it
-- [Variant analysis tutorial](../../../docs/variant_analysis/negative_strand_and_variant_effects.md)
+- [M2 evaluation results](../m2/alternative_site_evaluation_results.md) — alternative splice site evaluation
+- [OOD generalization](../m2/ood_generalization.md) — why v1 hurt on unseen sites, why v2 fixes it
+- [Variant analysis tutorial](../../../../docs/variant_analysis/negative_strand_and_variant_effects.md)

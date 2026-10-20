@@ -7,7 +7,7 @@ training the M3 meta-model (Phase C, under `examples/meta_layer/`).
 This directory holds *data preparation* only. Model training / evaluation /
 monitoring of the meta-models lives under `examples/meta_layer/`. The design
 and findings docs live under
-[`examples/meta_layer/docs/M3/`](../../meta_layer/docs/M3/).
+[`examples/meta_layer/docs/m3/`](../../meta_layer/docs/m3/).
 
 > Run each step after `mamba activate agentic-spliceai`.
 
@@ -65,7 +65,7 @@ Steps 01–09 outputs land in `data/mane/GRCh38/m3_labels/`; step 10 in `data/en
 **Framing (settled 2026-05-26):** M3 is a splice-site **recognizer** + post-filter.
 Annotated sites are masked in the loss (a novel and an annotated donor are
 sequence-identical); novelty is exact set-subtraction at inference. See
-[`../../meta_layer/docs/M3/m3_design.md`](../../meta_layer/docs/M3/m3_design.md) §5.
+[`../../meta_layer/docs/m3/m3_design.md`](../../meta_layer/docs/m3/m3_design.md) §5.
 
 ## Next: Phase C (training, a pod job)
 
@@ -75,4 +75,4 @@ junction modality dropped from inputs). bigWig streaming = pod, not local. The
 positive/negative/mask label set above is the entry point.
 
 ## Related
-- Design + findings: [`../../meta_layer/docs/M3/`](../../meta_layer/docs/M3/) (README, m3_design, m3_prerequisites, label_audit_A1)
+- Design + findings: [`../../meta_layer/docs/m3/`](../../meta_layer/docs/m3/) (README, m3_design, m3_prerequisites, label_audit_A1)

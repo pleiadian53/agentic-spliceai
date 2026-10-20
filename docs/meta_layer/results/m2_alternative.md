@@ -21,7 +21,7 @@ training annotation never contained.
 
 That motivated training a model directly on the broader Ensembl annotation — **M2-S**. The full
 narrative is in
-[`ood_generalization.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/ood_generalization.md).
+[`ood_generalization.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/m2/ood_generalization.md).
 
 ---
 
@@ -107,7 +107,7 @@ it drops overall PR-AUC by 0.029, the largest single-modality effect (removing a
   ~90%, PR-AUC 0.911 → 0.990.
 - The win comes from **training on the right annotation** (Ensembl), not from a fancier architecture —
   M2-S shares M1-S's design. The architecture-search post-mortem
-  ([`M2/architecture_and_inductive_bias_lessons.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/M2/architecture_and_inductive_bias_lessons.md))
+  ([`m2/architecture_and_inductive_bias_lessons.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/m2/architecture_and_inductive_bias_lessons.md))
   reached the same conclusion: leverage is upstream in features and labels, not in fusion.
 - Junction evidence again carries the multimodal signal — consistent with M1, and a useful contrast
   with [M3](m3_novel.md), where junction is deliberately withheld as the prediction target.

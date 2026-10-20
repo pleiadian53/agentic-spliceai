@@ -79,7 +79,7 @@ are pending.
 - First training script working end-to-end (even at small scale)
 - Baseline evaluation against random forest or M1-S-trained-on-negatives
 - Reproducible benchmark on held-out chromosome(s)
-- Initial results committed to `examples/meta_layer/results/`
+- Initial results committed to `examples/meta_layer/docs/m3/`
 
 ## Known limitations (anticipated)
 

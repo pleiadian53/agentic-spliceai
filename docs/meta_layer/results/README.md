@@ -91,6 +91,6 @@ model page — the design trail is preserved without competing with the current 
 - **[M3 — Novel splice sites](m3_novel.md)** — the M3-v1 ranker and the M3-R candidate-refiner milestone.
 
 **Sources.** Curated write-ups in
-[`examples/meta_layer/results/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/results/)
-and [`examples/meta_layer/docs/M3/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/M3/);
+[`examples/meta_layer/docs/<variant>/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/)
+(`m1/`, `m2/`, `m3/`, `m4/`);
 machine-readable metrics under `output/meta_layer/<model>/`.

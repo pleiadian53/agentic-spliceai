@@ -42,7 +42,7 @@ We build **unconditional first**, for six reasons:
 | Upfront data engineering | GTEx (already on disk) + small published catalogs | Multi-cohort recount3 ELT |
 
 The disease-conditional framing is genuinely valuable — but it is the
-[M4](../M4/) thesis (regulator → splicing map, perturbation as input), not
+[M4](../m4/) thesis (regulator → splicing map, perturbation as input), not
 M3's. Folding it into M3 v1 would collapse novel-discovery into
 perturbation-prediction and discard the unconditional catalog that Phase 8
 and the agentic layer actually consume.
@@ -55,7 +55,7 @@ labels*, not as a conditioning input.
 > (`data/mane/GRCh38/m4_labels/kd_dpsi.parquet` — 3.17M signed per-site ΔPSI rows
 > over 185 RBPs from ENCODE shRNA-KD rMATS). That does not change the
 > unconditional-first decision — the two models answer different questions — but
-> the conditional sibling is no longer data-blocked. See [`../M4/`](../M4/).
+> the conditional sibling is no longer data-blocked. See [`../m4/`](../m4/).
 
 ---
 
@@ -271,7 +271,7 @@ revisit once baselines are measured).
 - **Not** a truth-finder. Its output is a candidate list; downstream
   consumers (Phase 8, the agentic layer) apply structural / proteomic /
   cross-cohort filters.
-- **Not** disease-conditional. That is M3-D / [M4](../M4/).
+- **Not** disease-conditional. That is M3-D / [M4](../m4/).
 - **Not** tissue-conditional in v1. Tissue-specific novel sites will be
   under-ranked by the 54-tissue-averaged GTEx labels; tissue conditioning is
   a v2 consideration.
@@ -349,7 +349,7 @@ The architecture half was right. The labels half was wrong. Revised:
 > **Neither architecture nor label quality nor task framing is the lever. The
 > lever is position-level features** — evidence that varies base-to-base
 > (foundation-model scalars, local junction reads) rather than genome-averaged
-> tracks — and **perturbation conditioning** ([M4](../M4/)), where the input
+> tracks — and **perturbation conditioning** ([M4](../m4/)), where the input
 > genuinely differs per condition.
 
 M3-R is not promoted, but it is not wasted: its global AUC 0.675 is repurposable
@@ -372,6 +372,6 @@ M3-v1 is inspectable per gene in the Bio Lab UI's **Novel Site Explorer**
 - [`label_audit_A1.md`](label_audit_A1.md) — the cross-annotation experimental results.
 - [`m3_training_data.md`](m3_training_data.md) — what a training example is, label pools, validation status, and the M3-R data.
 - [`m3_eval_D_results.md`](m3_eval_D_results.md) · [`m3r_candidate_refiner_results.md`](m3r_candidate_refiner_results.md) — the Tier 0 / Tier 2 result tables.
-- [`../meta_model_variants_m1_m4.md`](../meta_model_variants_m1_m4.md) — M1–M4 overview.
-- [`../M4/`](../M4/) — the disease-conditional sibling.
+- [`../shared/meta_model_variants_m1_m4.md`](../shared/meta_model_variants_m1_m4.md) — M1–M4 overview.
+- [`../m4/`](../m4/) — the disease-conditional sibling.
 - Published methods + results: [`docs/meta_layer/methods/06_m3_novel_site_formulation.md`](../../../../docs/meta_layer/methods/06_m3_novel_site_formulation.md) · [`docs/meta_layer/results/m3_novel.md`](../../../../docs/meta_layer/results/m3_novel.md)

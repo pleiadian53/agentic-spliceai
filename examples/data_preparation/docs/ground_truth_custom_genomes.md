@@ -161,14 +161,14 @@ shared/01_train_sequence_model.py → build_gene_cache() → build_splice_labels
 
 Two `splice_sites_enhanced.tsv` files (one MANE, one Ensembl) are loaded
 simultaneously.  The set difference identifies alternative splice sites.
-See `examples/meta_layer/docs/evaluation_hierarchy.md`.
+See `examples/meta_layer/docs/shared/evaluation_hierarchy.md`.
 
 ### FASTA Inference Validation
 
 When running FASTA inference on sequences from a custom build, generate
 ground truth labels from that build's GTF, then compare predicted splice
 positions against the known sites.  See
-`examples/meta_layer/docs/cross_build_fasta_validation.md`.
+`examples/meta_layer/docs/shared/cross_build_fasta_validation.md`.
 
 ---
 

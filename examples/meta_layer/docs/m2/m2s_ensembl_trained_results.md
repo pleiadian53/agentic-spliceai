@@ -30,7 +30,7 @@
 
 > **Naming convention**: M2-S is the sequence-level meta model trained on
 > Ensembl splice sites for alternative site detection. See
-> [naming_convention.md](../../../docs/meta_layer/methods/naming_convention.md)
+> [naming_convention.md](../../../../docs/meta_layer/methods/naming_convention.md)
 > for the full model vs evaluation protocol distinction.
 
 ---
@@ -369,7 +369,7 @@ python -u examples/meta_layer/m2/01_evaluate_alternative_sites.py \
 
 ## Related
 
-- [M1-S v2 results](m1s_v2_logit_blend_results.md) — logit blend on canonical sites
+- [M1-S v2 results](../m1/m1s_v2_logit_blend_results.md) — logit blend on canonical sites
 - [Alternative site evaluation](alternative_site_evaluation_results.md) — Eval-Ensembl-Alt/Eval-GENCODE-Alt comparison
-- [OOD generalization](../docs/ood_generalization.md) — why training labels matter
-- [Variant effect validation](../../variant_analysis/results/variant_effect_validation.md)
+- [OOD generalization](ood_generalization.md) — why training labels matter
+- [Variant effect validation](../../../variant_analysis/results/variant_effect_validation.md)

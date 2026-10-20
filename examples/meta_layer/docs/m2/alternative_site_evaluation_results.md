@@ -5,7 +5,7 @@
 **Evaluation protocols**: Eval-Ensembl-Alt, Eval-GENCODE-Alt
 **Question**: How well do meta-layer models detect alternative splice sites?
 
-> See [naming_convention.md](../../../docs/meta_layer/methods/naming_convention.md)
+> See [naming_convention.md](../../../../docs/meta_layer/methods/naming_convention.md)
 > for model vs evaluation protocol definitions.
 
 ---
@@ -46,7 +46,7 @@ For M1-S, these alternative sites are **out-of-distribution (OOD)** — they
 were never positive labels during M1-S training.  For M2-S (trained on
 Ensembl), they are in-distribution.  Comparing M1-S vs M2-S on the same
 protocol reveals the value of training on broader labels.
-See [OOD Generalization](../docs/ood_generalization.md) for the full analysis.
+See [OOD Generalization](ood_generalization.md) for the full analysis.
 
 > **Note on site counts**: Annotation files contain per-transcript rows
 > (2.8M Ensembl, 3.5M GENCODE).  At the unique (chrom, position) level,
@@ -84,7 +84,7 @@ classic OOD failure: the meta-layer learned that "real" splice sites have
 strong base scores, high conservation, and junction support.  Alternative
 sites with moderate signals were actively suppressed.  The double-softmax bug
 amplified this by flattening the base model's informative moderate-confidence
-scores.  See [OOD Generalization](../docs/ood_generalization.md) for a
+scores.  See [OOD Generalization](ood_generalization.md) for a
 detailed analysis of this failure mode.
 
 **v2 finding — OOD fixed**: The logit-space blend **reverses this**.  v2 meta
@@ -263,9 +263,9 @@ python -u examples/meta_layer/m2/01_evaluate_alternative_sites.py \
 
 ## Related
 
-- [Naming convention](../../../docs/meta_layer/methods/naming_convention.md) — model vs evaluation protocol definitions
+- [Naming convention](../../../../docs/meta_layer/methods/naming_convention.md) — model vs evaluation protocol definitions
 - [M2-S results](m2s_ensembl_trained_results.md) — Ensembl-trained model details
-- [OOD generalization](../docs/ood_generalization.md) — why M1-S failed OOD, why logit blend fixes it
-- [M1-S v2 results](m1s_v2_logit_blend_results.md) — logit blend canonical evaluation
-- [M1-S ablation study](m1s_ablation_study.md) — modality contributions
-- [Temperature scaling](../../../docs/ml_engineering/probability_calibration/temperature_scaling.md)
+- [OOD generalization](ood_generalization.md) — why M1-S failed OOD, why logit blend fixes it
+- [M1-S v2 results](../m1/m1s_v2_logit_blend_results.md) — logit blend canonical evaluation
+- [M1-S ablation study](../m1/m1s_ablation_study.md) — modality contributions
+- [Temperature scaling](../../../../docs/ml_engineering/probability_calibration/temperature_scaling.md)

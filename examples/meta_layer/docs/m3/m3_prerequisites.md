@@ -18,7 +18,7 @@ This document walks through:
 
 Everything here is grounded in the audit outputs in
 `output/meta_layer/junction_coverage_audit*`. Companion document
-[junction_coverage_findings.md](../junction_coverage_findings.md)
+[junction_coverage_findings.md](../shared/junction_coverage_findings.md)
 documents the strand asymmetry and biotype composition effects that
 surfaced during the investigation.
 
@@ -85,7 +85,7 @@ retained_intron, pseudogene, NMD, and protein_coding_CDS_not_defined
 sites lifts alt-only coverage by ~3 points. Modest, which means
 most of the gap is *real* thin junction support for annotated
 alternatives, not annotation artifacts. See
-[junction_coverage_findings.md](../junction_coverage_findings.md).
+[junction_coverage_findings.md](../shared/junction_coverage_findings.md).
 
 ---
 
@@ -384,11 +384,11 @@ jupyter notebook notebooks/meta_layer/junction_coverage_audit.ipynb
 
 ## Related
 
-- [junction_coverage_findings.md](../junction_coverage_findings.md) —
+- [junction_coverage_findings.md](../shared/junction_coverage_findings.md) —
   detailed findings on strand asymmetry and biotype composition
-- [meta_model_variants_m1_m4.md](../meta_model_variants_m1_m4.md) —
+- [meta_model_variants_m1_m4.md](../shared/meta_model_variants_m1_m4.md) —
   overall M1/M2/M3/M4 design doc
-- [ood_generalization.md](../ood_generalization.md) — why training
+- [ood_generalization.md](../m2/ood_generalization.md) — why training
   labels matter for alt-site detection
 - `notebooks/meta_layer/junction_coverage_audit.ipynb` — tutorial
   version of the analysis with inline commentary

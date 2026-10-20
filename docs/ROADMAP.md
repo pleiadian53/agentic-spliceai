@@ -119,8 +119,8 @@ base model on alternative sites (0.775 > 0.749).
 
 **See**:
 - `docs/meta_layer/methods/00_model_variants_m1_m4.md` for the full M1-M4 framework
-- `examples/meta_layer/results/` for M1-S v2, M2, and ablation results
-- `examples/meta_layer/docs/ood_generalization.md` for OOD analysis
+- `examples/meta_layer/docs/m1/` and `docs/m2/` for M1-S v2, M2, and ablation results
+- `examples/meta_layer/docs/m2/ood_generalization.md` for OOD analysis
 
 ### Phase 7: Agentic Validation Layer — PLANNED
 

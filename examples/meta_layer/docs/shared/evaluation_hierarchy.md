@@ -144,9 +144,9 @@ that require multimodal evidence.
 
 ## Related Documents
 
-- [Model variants M1-M4](../../../docs/meta_layer/methods/00_model_variants_m1_m4.md) — M3 excludes junction from features
-- [M2 variant formulations](../../../docs/meta_layer/methods/05_m2_variant_formulations.md) — alternative splice site evaluation
-- [Alignment validation tool](../../agentic_layer/docs/alignment_validation_tool.md) — Tier 2 implementation (agentic layer)
+- [Model variants M1-M4](../../../../docs/meta_layer/methods/00_model_variants_m1_m4.md) — M3 excludes junction from features
+- [M2 variant formulations](../../../../docs/meta_layer/methods/05_m2_variant_formulations.md) — alternative splice site evaluation
+- [Alignment validation tool](../../../agentic_layer/docs/alignment_validation_tool.md) — Tier 2 implementation (agentic layer)
 - [Cross-build FASTA validation](cross_build_fasta_validation.md) — end-to-end pipeline for custom genome builds
-- [Ground truth for custom genomes](../../data_preparation/docs/ground_truth_custom_genomes.md) — `04_generate_ground_truth.py` with `--gtf`
+- [Ground truth for custom genomes](../../../data_preparation/docs/ground_truth_custom_genomes.md) — `04_generate_ground_truth.py` with `--gtf`
 - [OOM gene caching](oom_gene_caching.md) — disk-backed cache for large-scale evaluation

@@ -139,7 +139,7 @@ for this gene. The base model alone (OpenSpliceAI, which was trained on
 GENCODE) should detect this — the meta-layer's lack of signal at this
 OOD locus causes it to dampen the base model's prediction. This is the
 OOD generalization limitation described in the
-[OOD tutorial](../../meta_layer/docs/ood_generalization.md).
+[OOD tutorial](../../meta_layer/docs/m2/ood_generalization.md).
 
 ### Variant 4: CDC25B (Figure 3A)
 
@@ -260,8 +260,8 @@ python examples/variant_analysis/01b_splice_consequences.py \
 
 ## Related
 
-- [M1-S v2 results](../../meta_layer/results/m1s_v2_logit_blend_results.md) — model training and canonical evaluation
-- [M2 evaluation results](../../meta_layer/results/m2_evaluation_results.md) — alternative splice site generalization
-- [OOD generalization](../../meta_layer/docs/ood_generalization.md) — why some genes fail
+- [M1-S v2 results](../../meta_layer/docs/m1/m1s_v2_logit_blend_results.md) — model training and canonical evaluation
+- [M2 evaluation results](../../meta_layer/docs/m2/alternative_site_evaluation_results.md) — alternative splice site generalization
+- [OOD generalization](../../meta_layer/docs/m2/ood_generalization.md) — why some genes fail
 - [Negative strand tutorial](../../docs/variant_analysis/negative_strand_and_variant_effects.md) — coordinate systems and strand handling
 - [Temperature scaling](../../docs/ml_engineering/probability_calibration/temperature_scaling.md) — learned vs post-hoc calibration

@@ -36,10 +36,10 @@ from the artifacts. It writes nothing — it's a read-and-reprint guard.
 
 ## 3. Human-readable roll-ups
 
-The curated write-ups live in
-[`examples/meta_layer/results/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/results/)
-as checked-in Markdown — e.g. `m1s_ablation_study.md`, `m2s_ensembl_trained_results.md`,
-`alternative_site_evaluation_results.md`. A new model's results doc should state the base-vs-meta
+The curated write-ups live next to each variant's design notes in
+[`examples/meta_layer/docs/<variant>/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/)
+as checked-in Markdown — e.g. `m1/m1s_ablation_study.md`, `m2/m2s_ensembl_trained_results.md`,
+`m2/alternative_site_evaluation_results.md`. A new model's results doc should state the base-vs-meta
 comparison at a matched-recall / F1-optimal threshold plus PR-AUC and top-k — the
 [reporting norms from Stage 6](06_evaluation.md) — and link the exact JSON it
 was computed from.

@@ -213,14 +213,14 @@ For M3 evaluation:
 
 The same pipeline described here (generate labels → run inference → compare)
 applies to M3, with the addition of junction evidence as the validation
-signal.  See `examples/meta_layer/docs/evaluation_hierarchy.md` for the
+signal.  See `examples/meta_layer/docs/shared/evaluation_hierarchy.md` for the
 full evidence tier framework.
 
 ---
 
 ## Related Documents
 
-- [Ground truth for custom genomes](../../data_preparation/docs/ground_truth_custom_genomes.md) — `04_generate_ground_truth.py` usage
+- [Ground truth for custom genomes](../../../data_preparation/docs/ground_truth_custom_genomes.md) — `04_generate_ground_truth.py` usage
 - [Evaluation hierarchy](evaluation_hierarchy.md) — evidence tiers for prediction validation
-- [Alignment validation tool](../../agentic_layer/docs/alignment_validation_tool.md) — Tier 2 alignment-based validation
-- [Model variants M1-M4](../../../docs/meta_layer/methods/00_model_variants_m1_m4.md) — M3 novel site discovery
+- [Alignment validation tool](../../../agentic_layer/docs/alignment_validation_tool.md) — Tier 2 alignment-based validation
+- [Model variants M1-M4](../../../../docs/meta_layer/methods/00_model_variants_m1_m4.md) — M3 novel site discovery

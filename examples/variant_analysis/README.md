@@ -96,7 +96,7 @@ BRCA2, MLH1), covering both strands and multiple consequence types.
 ## Related
 
 - [Negative strand tutorial](../../docs/variant_analysis/negative_strand_and_variant_effects.md) — coordinate systems and strand handling
-- [OOD generalization](../meta_layer/docs/ood_generalization.md) — model limitations on unseen genes
+- [OOD generalization](../meta_layer/docs/m2/ood_generalization.md) — model limitations on unseen genes
 - [Meta-layer results](../../docs/meta_layer/results/README.md) — current M1/M2/M3 model results
 - [M3 novel-site results](../../docs/meta_layer/results/m3_novel.md) — the between-gene/within-gene
   version of the same locus-level limitation that caps this arm

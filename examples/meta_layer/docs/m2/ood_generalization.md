@@ -11,7 +11,7 @@ about the architecture and training data.
 > a field in `config.pt` (every checkpoint on disk uses `logit`). The v1/v2
 > labels are retained here because they are the vocabulary the experiment was
 > recorded in. See
-> [naming_convention.md](../../../docs/meta_layer/methods/naming_convention.md).
+> [naming_convention.md](../../../../docs/meta_layer/methods/naming_convention.md).
 
 ---
 

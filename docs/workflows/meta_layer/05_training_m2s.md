@@ -51,9 +51,9 @@ the dedicated alt-site evaluation in [Stage 6](06_evaluation.md) measures.
 
 The motivation and the architecture-search lessons behind M2-S are worth reading:
 
-- [`examples/meta_layer/docs/ood_generalization.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/ood_generalization.md)
+- [`examples/meta_layer/docs/m2/ood_generalization.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/m2/ood_generalization.md)
   — why the MANE-trained M1-S degrades on Ensembl/GENCODE sites.
-- [`examples/meta_layer/docs/M2/architecture_and_inductive_bias_lessons.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/M2/architecture_and_inductive_bias_lessons.md)
+- [`examples/meta_layer/docs/m2/architecture_and_inductive_bias_lessons.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/m2/architecture_and_inductive_bias_lessons.md)
   — the key finding that leverage is upstream in features/labels, not in fancier fusion.
 
 ---

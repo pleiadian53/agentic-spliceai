@@ -5,7 +5,7 @@ math (the novelty post-filter + per-gene precision@k / recall@k against an
 independent truth set) can be unit-tested on a hand-built fixture. The driver
 ``01_evaluate_m3_novel.py`` imports these.
 
-Design decisions baked in here (see ``examples/meta_layer/docs/M3/m3_design.md``):
+Design decisions baked in here (see ``examples/meta_layer/docs/m3/m3_design.md``):
 
 * **Novelty is applied, not scored.** Before ranking, a gene's scored positions
   are anti-joined against the annotation union (GENCODE ∪ RefSeq-curated); only

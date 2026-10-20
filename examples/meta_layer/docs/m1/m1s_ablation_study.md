@@ -189,7 +189,7 @@ Raw results: `output/meta_layer/m1s_eval/eval_ablation_*.json`
 
 ## Related
 
-- [M1-S evaluation results](../../../output/meta_layer/m1s_eval/eval_results.json)
-- [XGBoost M1-P ablation](m1_fullgenome_results.md) — earlier point-level ablation
-- [M2 variant formulations](../../../docs/meta_layer/methods/05_m2_variant_formulations.md)
-- [OOM and streaming evaluation](../docs/oom_gene_caching.md)
+- [M1-S evaluation results](../../../../output/meta_layer/m1s_eval/eval_results.json)
+- [XGBoost M1-P ablation](m1p_fullgenome_results.md) — earlier point-level ablation
+- [M2 variant formulations](../../../../docs/meta_layer/methods/05_m2_variant_formulations.md)
+- [OOM and streaming evaluation](../shared/oom_gene_caching.md)

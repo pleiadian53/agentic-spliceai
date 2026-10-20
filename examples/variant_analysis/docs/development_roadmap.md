@@ -128,7 +128,7 @@ cross-type donor-acceptor pairing to compute junction size changes.
 - [**Mutation-induced arm status**](../results/m4_variant_arm_status.md) — consolidated results + blockers
 - [M4 benchmark sweep](../results/m4_benchmark_sweep.md)
 - [Variant effect validation results](../results/variant_effect_validation.md)
-- [OOD generalization](../../meta_layer/docs/ood_generalization.md)
+- [OOD generalization](../../meta_layer/docs/m2/ood_generalization.md)
 - [Negative strand tutorial](../../../docs/variant_analysis/negative_strand_and_variant_effects.md)
 - [M1-M4 model variants](../../../docs/meta_layer/methods/00_model_variants_m1_m4.md)
 - [M2 variant formulations](../../../docs/meta_layer/methods/05_m2_variant_formulations.md)

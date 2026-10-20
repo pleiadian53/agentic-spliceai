@@ -157,7 +157,7 @@ print('candidates',pl.read_parquet(d+'candidate_labels.parquet').height)"
 
 Expected: 154,113 / 6,351 / 52,320. Coordinate integrity is checked by the GT/AG-by-strand oracle (all
 positives sit at a canonical dinucleotide on the correct strand) — see
-[`examples/meta_layer/docs/M3/m3_training_data.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/M3/m3_training_data.md).
+[`examples/meta_layer/docs/m3/m3_training_data.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/m3/m3_training_data.md).
 
 ---
 

@@ -138,9 +138,9 @@ running inference on named genes, not a per-gene metric breakdown.
 
 **Reference:** the exhaustive evaluation walkthrough (all modes, cache building, FASTA inference,
 threshold and calibration flags) is
-[`examples/meta_layer/docs/evaluation_tutorial.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/evaluation_tutorial.md),
+[`examples/meta_layer/docs/shared/evaluation_tutorial.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/shared/evaluation_tutorial.md),
 with the four-mode framing in
-[`evaluation_hierarchy.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/evaluation_hierarchy.md).
+[`evaluation_hierarchy.md`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/shared/evaluation_hierarchy.md).
 
 ---
 

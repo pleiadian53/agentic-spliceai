@@ -2,7 +2,7 @@
 """Verify data statistics and evaluation metrics across annotation sources and models.
 
 Reproduces and cross-checks the numbers documented in:
-  examples/meta_layer/results/alternative_site_evaluation_results.md
+  examples/meta_layer/docs/m2/alternative_site_evaluation_results.md
 
 Sections:
   1. Annotation statistics: gene counts, splice site counts (row vs unique)
