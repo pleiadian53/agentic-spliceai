@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Pilot checks on knockdown junction counts: are position-level labels usable?
+"""Label QC for knockdown junction counts: are position-level labels usable?
 
-Reads the per-BAM junction tables written by ``05_extract_kd_junctions.py`` and answers four
-questions for each knockdown in the pilot:
+Run after ``05_extract_kd_junctions.py`` and before building position-level labels. Reads its
+per-BAM junction tables and answers five questions for each knockdown:
 
 1. **Quality.** Reads, spliced reads, junctions, and the share of junction reads with a canonical
    splice motif (from ``manifest.json``).
@@ -19,15 +19,21 @@ questions for each knockdown in the pilot:
 4. **Induced sites.** Sites with control usage ≤ 0.01 and knockdown usage ≥ 0.10 (each with at
    least ``--min-den`` partner reads, and at least 5 reads into the site after knockdown), split
    by whether MANE or Ensembl annotate them.
+5. **Noise floor.** How many "induced" sites appear when nothing was knocked down: one control
+   replicate is compared with the other replicate of the same control experiment (both ways).
+   Each knockdown replicate is then compared with a single control replicate, so both sides have
+   one replicate's depth, and the ratio of the two counts is the knockdown's excess over noise.
+   An excess says the knockdown induces more sites than chance, not that any one site is real.
 
 Replicate agreement (ΔPSI from replicate 1 vs replicate 2, each against pooled control) is
 reported as a measure of label noise.
 
-Output: ``<junction-dir>/pilot_report.json`` and a printed summary. Light enough for a laptop
-(junction tables are a few MB each).
+Output: ``<junction-dir>/pilot_report.json`` and a printed summary. A few knockdowns run in
+seconds on a laptop (junction tables are a few MB each); all of them belong on the pod.
 
 Usage:
     python examples/data_preparation/m4/06_pilot_junction_usage.py
+    python examples/data_preparation/m4/06_pilot_junction_usage.py --targets U2AF1 PTBP1
 """
 
 from __future__ import annotations
@@ -82,6 +88,26 @@ def site_usage(kd: pl.DataFrame, ctrl: pl.DataFrame) -> pl.DataFrame:
     ).with_columns((pl.col("usage_kd") - pl.col("usage_ctrl")).alias("delta"))
 
 
+def induced_sites(u: pl.DataFrame, min_den: int) -> pl.DataFrame:
+    """Sites unused in control (usage <= 0.01) and used after knockdown (>= 0.10, >= 5 reads)."""
+    return u.filter((pl.col("den_ctrl") >= min_den) & (pl.col("den_kd") >= min_den)
+                    & (pl.col("usage_ctrl") <= 0.01) & (pl.col("usage_kd") >= 0.10)
+                    & (pl.col("num_kd") >= 5))
+
+
+def noise_floor(manifest: list[dict], jdir: Path, min_den: int) -> dict[str, list[int]]:
+    """Induced-site counts between two replicates of the same control experiment, both ways."""
+    out = {}
+    for exp in sorted({m["experiment"] for m in manifest if m["role"] == "control"}):
+        reps = sorted(m["file"] for m in manifest if m["experiment"] == exp)
+        if len(reps) < 2:
+            continue
+        a, b = load(manifest, jdir, [reps[0]]), load(manifest, jdir, [reps[1]])
+        out[exp] = [induced_sites(site_usage(a, b), min_den).height,
+                    induced_sites(site_usage(b, a), min_den).height]
+    return out
+
+
 def event_dpsi(kd: pl.DataFrame, ctrl: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:
     """Long-form ΔPSI of A3SS/A5SS events from junction reads alone."""
     def psi(j: pl.DataFrame, tag: str) -> pl.DataFrame:
@@ -122,6 +148,7 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--junction-dir", type=Path, default=JUNC)
     ap.add_argument("--min-den", type=int, default=20, help="min partner reads for a usage")
+    ap.add_argument("--targets", nargs="+", help="knockdowns to check (default: all counted)")
     args = ap.parse_args()
 
     manifest = [m for m in json.loads((args.junction_dir / "manifest.json").read_text())
@@ -133,6 +160,8 @@ def main() -> int:
     genes = pl.read_csv(GENES, separator="\t", columns=["gene_name", "chrom", "start", "end"]
                         ).with_columns(pl.col("chrom").str.replace(r"^chr", ""))
     report: dict = {"quality": [], "targets": {}}
+    null = noise_floor(manifest, args.junction_dir, args.min_den)
+    report["noise_floor"] = null
 
     print("1. Quality per BAM")
     for m in sorted(manifest, key=lambda m: (m["role"], m["target"], m["replicate"])):
@@ -143,7 +172,9 @@ def main() -> int:
               f"{(q['reads'] or 0) / 1e6:.0f}M reads, {(q['spliced_reads'] or 0) / 1e6:.1f}M spliced, "
               f"{q['junctions']:,} junctions, canonical {q['canonical_read_frac']}")
 
-    for target in sorted({m["target"] for m in manifest if m["role"] == "kd"}):
+    print(f"\n5. Noise floor (control rep vs control rep, both ways): {null}")
+    targets = sorted({m["target"] for m in manifest if m["role"] == "kd"})
+    for target in [t for t in targets if not args.targets or t in args.targets]:
         kd_rows = [m for m in manifest if m["role"] == "kd" and m["target"] == target]
         kd_files = [m["file"] for m in kd_rows]
         ctrl_exps = {e for m in kd_rows for e in m.get("control_experiments", [])}
@@ -179,10 +210,7 @@ def main() -> int:
 
         # 4. induced sites
         u = site_usage(kd, ctrl)
-        induced = u.filter((pl.col("den_ctrl") >= args.min_den) & (pl.col("den_kd") >= args.min_den)
-                           & (pl.col("usage_ctrl") <= 0.01) & (pl.col("usage_kd") >= 0.10)
-                           & (pl.col("num_kd") >= 5))
-        induced = induced.join(annot.group_by("chrom", "position", "strand", "splice_type")
+        induced = induced_sites(u, args.min_den).join(annot.group_by("chrom", "position", "strand", "splice_type")
                                .agg(pl.col("source").sort().str.join("+").alias("annotated_in")),
                                on=["chrom", "position", "strand", "splice_type"], how="left"
                                ).with_columns(pl.col("annotated_in").fill_null("none"))
@@ -196,13 +224,24 @@ def main() -> int:
                .select("gene_name", "chrom", "position", "strand", "splice_type", "usage_ctrl",
                        "usage_kd", "num_kd", "annotated_in").unique(["chrom", "position", "splice_type"]))
         res["top_induced"] = top.to_dicts()
+
+        # 5. excess over the noise floor, at one replicate's depth on both sides
+        ctrl1 = load(manifest, args.junction_dir, sorted(ctrl_files)[:1])
+        single = [induced_sites(site_usage(load(manifest, args.junction_dir, [f]), ctrl1),
+                                args.min_den).height for f in kd_files]
+        floor = [n for e in sorted(ctrl_exps) for n in null.get(e, [])]
+        res["induced_single_rep"] = single
+        res["noise_floor_same_controls"] = floor
+        if floor and np.mean(floor) > 0:
+            res["excess_over_noise"] = round(float(np.mean(single) / np.mean(floor)), 2)
         report["targets"][target] = res
 
         print(f"\n{target}: rMATS agreement r={res.get('rmats_pearson')} on {res.get('rmats_events_covered')} "
               f"covered events, sign agreement {res.get('rmats_sign_agreement_sig')} on "
               f"{res.get('rmats_sig_events')} significant | replicate r={res.get('replicate_pearson_changed_sites')} "
               f"| induced sites {res['induced_sites']} of {res['sites_measured']:,} measured "
-              f"{res['induced_by_annotation']}")
+              f"{res['induced_by_annotation']} | excess over noise {res.get('excess_over_noise')} "
+              f"({single} vs {floor})")
         with pl.Config(tbl_rows=8, float_precision=3, tbl_width_chars=160):
             print(top)
 

@@ -141,14 +141,16 @@ Junction reads were counted (`examples/data_preparation/m4/05_extract_kd_junctio
 
 **4. Induced sites: real for some regulators, noise for others.** The simple rule "usage ≤ 0.01 in control, ≥ 0.10 after knockdown, ≥ 5 reads" was also applied to two replicates of the same control, where nothing was knocked down, to measure the noise floor. At matched depth (one replicate vs one replicate):
 
-| Knockdown | Induced sites (knockdown vs control) | Same rule, control vs control | Signal |
+| Knockdown | Induced sites (each knockdown replicate vs one control replicate) | Same rule, control vs control (both ways) | Excess over noise |
 |---|---|---|---|
-| U2AF1 | 536 / 605 | 39 / 122 | about 5× the noise floor |
-| U2AF2 | 871 / 1,058 | 278 / 347 | about 3× |
-| PTBP1 | 246 / 342 | 67 / 122 | about 3× |
-| QKI | 229 / 251 | 67 / 122 | about 2× |
-| SF3B1 | 168 / 124 | 113 / 132 | at the noise floor |
-| TARDBP | 135 / 117 | 113 / 132 | at the noise floor |
+| U2AF1 | 536 / 605 | 39 / 122 | 7.1× |
+| PTBP1 | 246 / 342 | 67 / 122 | 3.1× |
+| U2AF2 | 793 / 965 | 278 / 347 | 2.8× |
+| QKI | 229 / 251 | 67 / 122 | 2.5× |
+| SF3B1 | 168 / 124 | 132 / 113 | 1.2× (at the noise floor) |
+| TARDBP | 135 / 117 | 132 / 113 | 1.0× (at the noise floor) |
+
+The excess is the mean of the knockdown counts over the mean of the control-vs-control counts for the same control experiment. It is computed by step 5 of `examples/data_preparation/m4/06_pilot_junction_usage.py` (`excess_over_noise` in `pilot_report.json`), so it is reproduced for every knockdown in P1.
 
 Most induced sites for U2AF1/U2AF2 are in no annotation (595 of 938 and 733 of 1,255 with pooled replicates), consistent with loss of the 3′ splice-site recognition factor exposing cryptic acceptors.
 
