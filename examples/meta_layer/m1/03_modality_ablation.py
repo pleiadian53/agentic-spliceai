@@ -12,7 +12,7 @@ Outputs:
   - PR curve comparison (base-only vs full-stack)
 
 Usage:
-    python 03_modality_ablation.py \\
+    python examples/meta_layer/m1/03_modality_ablation.py \\
         --input-dir data/mane/GRCh38/openspliceai_eval/analysis_sequences \\
         --train-chroms chr19 chr20 --test-chroms chr21 chr22 \\
         --output-dir output/modality_ablation

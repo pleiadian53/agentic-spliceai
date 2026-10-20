@@ -5,7 +5,7 @@
 #   long / short / partner site of kd_events.parquet (41,127 sites), with ALL modalities.
 #   The epigenetic + chromatin-accessibility bigWigs live only on the volume, which is why
 #   this runs here. Checkpointed per chromosome (--resume), so a restart loses one chrom.
-# Stage 2 (benchmark): examples/meta_layer/17_m4_fewshot_benchmark.py for each setting.
+# Stage 2 (benchmark): examples/meta_layer/m4/01_m4_fewshot_benchmark.py for each setting.
 #   TabPFN methods use TabPFN v2 (free, Apache-2.0-based license, no token) on CUDA.
 #
 # Prerequisites (on the volume, checked below before any compute):
@@ -16,7 +16,7 @@
 #
 # Usage:
 #   ssh <cluster>; cd ~/sky_workdir
-#   nohup bash examples/meta_layer/ops_m4_pod.sh > /runpod-volume/output/meta_layer/m4_pod.log 2>&1 &
+#   nohup bash examples/meta_layer/m4/ops_m4_pod.sh > /runpod-volume/output/meta_layer/m4_pod.log 2>&1 &
 #
 # Env overrides:
 #   STAGES="features benchmark"   SETTINGS="S3 S2"   FEATURE_SET=compact
@@ -40,7 +40,7 @@ data/GRCh38/junction_data/junctions_gtex_v8.parquet \
 data/mane/GRCh38/rbp_data/eclip_peaks.parquet \
 data/ensembl/Homo_sapiens.GRCh38.112.gtf \
 $M4/kd_events.parquet $M4/regulator_site_features.parquet $BIGWIG_CACHE" \
-    source examples/meta_layer/ops_bootstrap_pod.sh
+    source examples/meta_layer/shared/ops_bootstrap_pod.sh
 
 echo "============================================================"
 echo "M4 pod run — $(date)"
@@ -85,7 +85,7 @@ fi
 
 if [[ " $STAGES " == *" benchmark "* ]]; then
     for s in $SETTINGS; do
-        python -u examples/meta_layer/17_m4_fewshot_benchmark.py \
+        python -u examples/meta_layer/m4/01_m4_fewshot_benchmark.py \
             --setting "$s" --feature-set "$FEATURE_SET" --tabpfn-workers 8 $BENCH_ARGS
     done
 fi

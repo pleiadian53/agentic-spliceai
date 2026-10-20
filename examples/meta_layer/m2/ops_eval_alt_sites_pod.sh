@@ -48,7 +48,7 @@
 #   rsync -Pavz --include='*/' --include='*.py' --exclude='*' \
 #       src/agentic_spliceai/ <cluster>:~/sky_workdir/src/agentic_spliceai/
 #   rsync -Pavz --relative \
-#       examples/meta_layer/09_evaluate_alternative_sites.py \
+#       examples/meta_layer/m2/01_evaluate_alternative_sites.py \
 #       <cluster>:~/sky_workdir/
 #
 # Base scores (from precomputation, already on persistent volume):
@@ -59,13 +59,13 @@
 #   cd ~/sky_workdir
 #
 #   # Eval-Ensembl-Alt with M1-S
-#   bash examples/meta_layer/ops_eval_alt_sites_pod.sh m1s ensembl
+#   bash examples/meta_layer/m2/ops_eval_alt_sites_pod.sh m1s ensembl
 #
 #   # Eval-Ensembl-Alt with M2-S
-#   bash examples/meta_layer/ops_eval_alt_sites_pod.sh m2s ensembl
+#   bash examples/meta_layer/m2/ops_eval_alt_sites_pod.sh m2s ensembl
 #
 #   # Eval-GENCODE-Alt with M2-S
-#   bash examples/meta_layer/ops_eval_alt_sites_pod.sh m2s gencode
+#   bash examples/meta_layer/m2/ops_eval_alt_sites_pod.sh m2s gencode
 
 set -e
 
@@ -143,7 +143,7 @@ elif [ "$ANNOTATION" = "gencode" ]; then
 fi
 echo "  All prerequisites present."
 
-python -u examples/meta_layer/09_evaluate_alternative_sites.py \
+python -u examples/meta_layer/m2/01_evaluate_alternative_sites.py \
     --checkpoint "$CHECKPOINT" \
     $ANNOTATION_ARGS \
     $BUILD_CACHE \

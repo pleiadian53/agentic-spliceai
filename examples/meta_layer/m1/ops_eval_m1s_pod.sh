@@ -22,7 +22,7 @@
 #   # Updated source code
 #   rsync -Pavz --include='*/' --include='*.py' --exclude='*' \
 #       src/agentic_spliceai/ <cluster>:~/sky_workdir/src/agentic_spliceai/
-#   rsync -Pavz --relative examples/meta_layer/08_evaluate_sequence_model.py \
+#   rsync -Pavz --relative examples/meta_layer/shared/02_evaluate_sequence_model.py \
 #       <cluster>:~/sky_workdir/
 #
 # BigWig cache (first time only, ~17 GB):
@@ -31,7 +31,7 @@
 # Usage:
 #   ssh <cluster>
 #   cd ~/sky_workdir
-#   nohup bash examples/meta_layer/ops_eval_m1s_pod.sh \
+#   nohup bash examples/meta_layer/m1/ops_eval_m1s_pod.sh \
 #       > /runpod-volume/output/m1s_eval/eval.log 2>&1 &
 
 set -e
@@ -63,7 +63,7 @@ ls "$BIGWIG_CACHE"/hg38.phyloP100way.bw >/dev/null
 python -c "import pyBigWig" 2>/dev/null || { echo "ERROR: pyBigWig not installed"; exit 1; }
 echo "  All prerequisites present."
 
-python -u examples/meta_layer/08_evaluate_sequence_model.py \
+python -u examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint "$CHECKPOINT" \
     --build-cache \
     --bigwig-cache "$BIGWIG_CACHE" \

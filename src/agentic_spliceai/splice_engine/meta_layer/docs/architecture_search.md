@@ -135,14 +135,14 @@ self-normalization.
 
 ## Training Script Integration
 
-The training script `07_train_sequence_model.py` can be extended with an
+The training script `shared/01_train_sequence_model.py` can be extended with an
 `--activation` flag:
 
 ```bash
 # Compare activations
-python 07_train_sequence_model.py --mode m1 --activation relu  --output-dir output/meta_layer/m1s_relu
-python 07_train_sequence_model.py --mode m1 --activation gelu  --output-dir output/meta_layer/m1s_gelu
-python 07_train_sequence_model.py --mode m1 --activation selu  --output-dir output/meta_layer/m1s_selu
+python examples/meta_layer/shared/01_train_sequence_model.py --mode m1 --activation relu  --output-dir output/meta_layer/m1s_relu
+python examples/meta_layer/shared/01_train_sequence_model.py --mode m1 --activation gelu  --output-dir output/meta_layer/m1s_gelu
+python examples/meta_layer/shared/01_train_sequence_model.py --mode m1 --activation selu  --output-dir output/meta_layer/m1s_selu
 ```
 
 Results are saved as `best_metrics.json` in each output directory for

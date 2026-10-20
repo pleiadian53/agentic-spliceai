@@ -26,12 +26,12 @@
 # Usage:
 #   ssh <cluster>
 #   cd ~/sky_workdir
-#   nohup bash examples/meta_layer/ops_train_m3_pod.sh \
+#   nohup bash examples/meta_layer/m3/ops_train_m3_pod.sh \
 #       > /runpod-volume/output/meta_layer/m3s_anchorpos_train.log 2>&1 &
 #
 # Override the fold policy via env (defaults give the CV run above):
 #   DISEASE_ANCHORS=positivize ANCHOR_WEIGHT=5 \
-#   ANCHOR_SOURCES=sf3b1_cryptic,encode_kd_cryptic bash ops_train_m3_pod.sh
+#   ANCHOR_SOURCES=sf3b1_cryptic,encode_kd_cryptic bash examples/meta_layer/m3/ops_train_m3_pod.sh
 
 set -e
 
@@ -65,7 +65,7 @@ ls data/mane/GRCh38/m3_labels/disease_anchors.parquet >/dev/null
 ls "$BIGWIG_CACHE"/hg38.phyloP100way.bw >/dev/null
 echo "  All prerequisites present."
 
-python -u examples/meta_layer/07_train_sequence_model.py \
+python -u examples/meta_layer/shared/01_train_sequence_model.py \
     --mode m3 \
     --device cuda \
     --epochs 50 \
@@ -84,7 +84,7 @@ python -u examples/meta_layer/07_train_sequence_model.py \
 echo "============================================================"
 echo "M3-anchor training complete — $(date)"
 echo "Results: $OUTPUT_DIR"
-echo "Next: eval via ops_eval_m3_novel_pod.sh (--mode build-cache on pod),"
-echo "      rsync cache back, then 13_evaluate_m3_novel.py --mode eval locally."
+echo "Next: eval via m3/ops_eval_m3_novel_pod.sh (--mode build-cache on pod),"
+echo "      rsync cache back, then m3/01_evaluate_m3_novel.py --mode eval locally."
 echo "      M3-anchor is already registered in DEFAULT_MODELS."
 echo "============================================================"

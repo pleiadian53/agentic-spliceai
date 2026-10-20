@@ -1,7 +1,7 @@
 # Junction Coverage Findings: Strand Asymmetry & Biotype Composition
 
 Detailed findings from the junction coverage audit
-(`examples/meta_layer/11_junction_coverage_audit.py`). Focused on two
+(`examples/meta_layer/shared/03_junction_coverage_audit.py`). Focused on two
 non-obvious results that surfaced during the investigation:
 
 1. An apparent **+ vs − strand asymmetry** in alt-only coverage — which
@@ -370,7 +370,7 @@ retained_intron / protein_coding_CDS_not_defined rows? This could be:
 - An artifact of how transcript biotypes propagate to splice-site
   rows.
 
-Run `11_junction_coverage_audit.py` after any change and watch
+Run `shared/03_junction_coverage_audit.py` after any change and watch
 `q4_coverage_by_biotype.csv` to detect regressions.
 
 ---
@@ -379,14 +379,14 @@ Run `11_junction_coverage_audit.py` after any change and watch
 
 ```bash
 # Test chromosomes (default)
-python examples/meta_layer/11_junction_coverage_audit.py
+python examples/meta_layer/shared/03_junction_coverage_audit.py
 
 # Full genome
-python examples/meta_layer/11_junction_coverage_audit.py --chroms all \
+python examples/meta_layer/shared/03_junction_coverage_audit.py --chroms all \
     --output-dir output/meta_layer/junction_coverage_audit_fullgenome
 
 # Disable biotype filtering
-python examples/meta_layer/11_junction_coverage_audit.py \
+python examples/meta_layer/shared/03_junction_coverage_audit.py \
     --exclude-biotypes none
 ```
 

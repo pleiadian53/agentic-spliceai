@@ -250,7 +250,7 @@ def predict_splice_sites_for_genes(
     Closing that last gap WITHOUT retraining the base model is what the meta
     layer exists to do; the base scores become an input feature and multimodal
     evidence recalibrates them. See the M2-S alternative-site evaluation in
-    examples/meta_layer/09_evaluate_alternative_sites.py, which scores only
+    examples/meta_layer/m2/01_evaluate_alternative_sites.py, which scores only
     sites present in the eval annotation and absent from MANE, so shared
     canonical sites cannot inflate the result.
 

@@ -167,8 +167,8 @@ python examples/data_preparation/m4/03_build_site_features.py \
     --bigwig-cache /runpod-volume/bigwig_cache --resume
 
 # benchmark (either machine)
-python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S3
-python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S2
+python examples/meta_layer/m4/01_m4_fewshot_benchmark.py --setting S3
+python examples/meta_layer/m4/01_m4_fewshot_benchmark.py --setting S2
 ```
 
-`examples/meta_layer/ops_m4_pod.sh` runs the pod stages end to end, with a preflight that fails if any required input or bigWig track is missing.
+`examples/meta_layer/m4/ops_m4_pod.sh` runs the pod stages end to end, with a preflight that fails if any required input or bigWig track is missing.

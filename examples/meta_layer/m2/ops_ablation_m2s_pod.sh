@@ -3,24 +3,24 @@
 #
 # Uses the Ensembl test gene cache (M2-S's target distribution) to
 # measure each modality's contribution to alternative site detection.
-# Compare with ops_ablation_m1s_pod.sh (M1-S on MANE test cache) to
+# Compare with m1/ops_ablation_m1s_pod.sh (M1-S on MANE test cache) to
 # see whether modality importance shifts between canonical and
 # alternative splice site prediction.
 #
 # Prerequisites:
 #   1. M2-S checkpoint: output/meta_layer/m2s_v4_cleanannot/{best,config}.pt
 #   2. Ensembl test cache built on the cleanannot corpus, as produced by
-#      ops_eval_tissue_pod.sh:
+#      m2/ops_eval_tissue_pod.sh:
 #      /runpod-volume/output/meta_layer/gene_cache_ensembl_cleanannot/test/
 #
 # Paths are overridable so a differently-named checkpoint or cache can be
 # pointed at without editing the script:
-#   CHECKPOINT=... CACHE_DIR=... bash ops_ablation_m2s_pod.sh
+#   CHECKPOINT=... CACHE_DIR=... bash examples/meta_layer/m2/ops_ablation_m2s_pod.sh
 #
 # Usage:
 #   ssh <cluster>
 #   cd ~/sky_workdir
-#   nohup bash examples/meta_layer/ops_ablation_m2s_pod.sh \
+#   nohup bash examples/meta_layer/m2/ops_ablation_m2s_pod.sh \
 #       > /runpod-volume/output/m2s_ablation/ablation.log 2>&1 &
 
 set -e
@@ -50,7 +50,7 @@ CACHE_COUNT=$(find "$CACHE_DIR" -name "*.npz" 2>/dev/null | wc -l)
 echo "  Gene cache: $CACHE_COUNT genes"
 if [ "$CACHE_COUNT" -lt 100 ]; then
     echo "ERROR: cache too small or missing at $CACHE_DIR"
-    echo "  Build it with ops_eval_tissue_pod.sh (~3.4 h, needs the bigWig cache),"
+    echo "  Build it with m2/ops_eval_tissue_pod.sh (~3.4 h, needs the bigWig cache),"
     echo "  or set CACHE_DIR=<path> to an existing Ensembl test cache."
     exit 1
 fi
@@ -62,7 +62,7 @@ run_ablation() {
     echo "────────────────────────────────────────────────────────────"
     echo "  Ablation: $label — $(date)"
     echo "────────────────────────────────────────────────────────────"
-    python -u examples/meta_layer/08_evaluate_sequence_model.py \
+    python -u examples/meta_layer/shared/02_evaluate_sequence_model.py \
         --checkpoint "$CHECKPOINT" \
         --cache-dir "$CACHE_DIR" \
         --output-dir "$OUTPUT_DIR" \

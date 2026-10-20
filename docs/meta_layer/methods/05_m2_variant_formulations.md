@@ -40,7 +40,7 @@ The flow:
 5. Evaluate on all Ensembl sites (overall performance)
 6. Evaluate on (Ensembl \ MANE) sites only — the M2a-specific metric
 
-Step 6 tells us whether the meta-layer generalizes beyond the annotation source the base model was trained on. The filtering logic belongs in the evaluation script (`08_evaluate_sequence_model.py`, planned), not in training. The model's weights don't know about "Ensembl \ MANE" — they just produce `[L, 3]`. The evaluation carves out the interesting subset.
+Step 6 tells us whether the meta-layer generalizes beyond the annotation source the base model was trained on. The filtering logic belongs in the evaluation script (`shared/02_evaluate_sequence_model.py`, planned), not in training. The model's weights don't know about "Ensembl \ MANE" — they just produce `[L, 3]`. The evaluation carves out the interesting subset.
 
 This matters because every M2 "variant" proposed below is either a training protocol change (different labels, different loss weighting) or an evaluation protocol change (different site filtering, different metrics). The architecture is constant.
 
@@ -315,7 +315,7 @@ M2b. It costs almost nothing (evaluation filtering only), reveals how well the c
 ## Implementation Notes
 
 **For M2a/M2b (evaluation only):**
-- Add to the planned `08_evaluate_sequence_model.py`
+- Add to the planned `shared/02_evaluate_sequence_model.py`
 - Load two annotation sources: training annotation (MANE) and evaluation annotation (Ensembl or GENCODE)
 - Site-difference filtering: `eval_sites = ensembl_sites[~ensembl_sites.index.isin(mane_sites.index)]`
 - Report: overall recall/precision, recall at alternative sites, stratified by tier if using GENCODE

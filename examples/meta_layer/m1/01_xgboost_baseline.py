@@ -14,17 +14,17 @@ A 10% random holdout from training genes is used for early stopping
 
 Usage:
     # Full genome with SpliceAI split (default)
-    python 01_xgboost_baseline.py
+    python examples/meta_layer/m1/01_xgboost_baseline.py
 
     # Custom chromosome split (overrides the default)
-    python 01_xgboost_baseline.py \\
+    python examples/meta_layer/m1/01_xgboost_baseline.py \\
         --train-chroms chr19 --test-chroms chr21 chr22
 
     # Custom input directory
-    python 01_xgboost_baseline.py --input-dir /path/to/analysis_sequences/
+    python examples/meta_layer/m1/01_xgboost_baseline.py --input-dir /path/to/analysis_sequences/
 
     # With feature importance plot
-    python 01_xgboost_baseline.py --plot --output-dir output/m1_fullgenome
+    python examples/meta_layer/m1/01_xgboost_baseline.py --plot --output-dir output/m1_fullgenome
 """
 
 import argparse

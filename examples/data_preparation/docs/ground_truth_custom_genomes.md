@@ -152,7 +152,7 @@ The `splice_sites_enhanced.tsv` serves as the label source for
 `[L]` label arrays (0=donor, 1=acceptor, 2=neither):
 
 ```
-07_train_sequence_model.py → build_gene_cache() → build_splice_labels()
+shared/01_train_sequence_model.py → build_gene_cache() → build_splice_labels()
                                                        ↑
                                           splice_sites_enhanced.tsv
 ```

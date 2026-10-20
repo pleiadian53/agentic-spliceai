@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run M1-S ablation study: evaluate with each modality group zeroed out.
 #
-# Reuses the existing gene cache from ops_eval_m1s_pod.sh — no cache rebuild.
+# Reuses the existing gene cache from m1/ops_eval_m1s_pod.sh — no cache rebuild.
 # Each ablation run is inference-only (~15-20 min on A40).
 #
 # Prerequisites:
@@ -11,7 +11,7 @@
 # Usage:
 #   ssh <cluster>
 #   cd ~/sky_workdir
-#   nohup bash examples/meta_layer/ops_ablation_m1s_pod.sh \
+#   nohup bash examples/meta_layer/m1/ops_ablation_m1s_pod.sh \
 #       > /runpod-volume/output/m1s_eval/ablation.log 2>&1 &
 
 set -e
@@ -34,7 +34,7 @@ echo "============================================================"
 CACHE_COUNT=$(ls "$CACHE_DIR"/*.npz 2>/dev/null | wc -l)
 echo "  Gene cache: $CACHE_COUNT genes"
 if [ "$CACHE_COUNT" -lt 100 ]; then
-    echo "ERROR: Cache too small. Run ops_eval_m1s_pod.sh first."
+    echo "ERROR: Cache too small. Run m1/ops_eval_m1s_pod.sh first."
     exit 1
 fi
 
@@ -45,7 +45,7 @@ run_ablation() {
     echo "────────────────────────────────────────────────────────────"
     echo "  Ablation: $label — $(date)"
     echo "────────────────────────────────────────────────────────────"
-    python -u examples/meta_layer/08_evaluate_sequence_model.py \
+    python -u examples/meta_layer/shared/02_evaluate_sequence_model.py \
         --checkpoint "$CHECKPOINT" \
         --cache-dir "$CACHE_DIR" \
         --output-dir "$OUTPUT_DIR" \

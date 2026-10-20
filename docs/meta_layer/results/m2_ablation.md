@@ -87,7 +87,7 @@ the all-channel control refutes.
 **This measures dependence, not necessity.** Channels were zeroed at inference on a model that was
 trained with them present, which answers "does the trained model lean on this signal?" A model trained
 without junction support might route around its absence and lose less. The retraining question needs
-`03_modality_ablation.py`; the distinction is set out in the
+`m1/03_modality_ablation.py`; the distinction is set out in the
 [ablation workflow](../../workflows/ablation/README.md).
 
 **Do not generalise to other variants.** Modality importance is task-specific. M3 finds multimodal

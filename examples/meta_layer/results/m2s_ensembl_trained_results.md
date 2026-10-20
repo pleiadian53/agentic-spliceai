@@ -332,7 +332,7 @@ transcript structures at a genome-wide scale.
 
 ```bash
 # Training (M2-S v2 on pod)
-python -u examples/meta_layer/07_train_sequence_model.py \
+python -u examples/meta_layer/shared/01_train_sequence_model.py \
     --mode m1 --annotation-source ensembl --device cuda \
     --epochs 50 --lr 1e-3 --hidden-dim 32 --activation gelu \
     --samples-per-epoch 100000 --patience 10 \
@@ -344,7 +344,7 @@ python -u examples/meta_layer/07_train_sequence_model.py \
 
 # Eval-Ensembl-Alt (uses updated 09_ cache-dir convention:
 # --cache-dir is the parent holding {train, val, test} subdirs)
-python -u examples/meta_layer/09_evaluate_alternative_sites.py \
+python -u examples/meta_layer/m2/01_evaluate_alternative_sites.py \
     --checkpoint output/meta_layer/m2s_v2/best.pt \
     --annotation-source ensembl \
     --cache-dir /runpod-volume/output/meta_layer/gene_cache_ensembl \

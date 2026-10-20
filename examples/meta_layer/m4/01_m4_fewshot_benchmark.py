@@ -45,11 +45,11 @@ Outputs (``--out-dir``): ``per_regulator.parquet``, ``summary.csv``,
 
 Usage:
     # quick configuration: 2 folds, 20 regulators, local methods only
-    python examples/meta_layer/17_m4_fewshot_benchmark.py \\
+    python examples/meta_layer/m4/01_m4_fewshot_benchmark.py \\
         --folds 2 --regulators 20 --methods zero pooled xgb --k 16 64
 
     # full S3 ladder (TabPFN v2 by default: free, Apache-2.0-based, no license gate)
-    python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S3
+    python examples/meta_layer/m4/01_m4_fewshot_benchmark.py --setting S3
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ import xgboost as xgb
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _m4_common as m4  # noqa: E402
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 DEFAULT_OUT = REPO / "output/meta_layer/m4_fewshot"
 SCORE_COLS = ["spearman", "pearson", "mae_w", "dir_acc_sig", "sign_auroc_sig", "mae_sig"]
 

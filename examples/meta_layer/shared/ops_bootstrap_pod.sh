@@ -15,13 +15,13 @@
 #   first step) from every pod-runnable ops script.
 #
 # Usage (from inside another ops script):
-#   source ~/sky_workdir/examples/meta_layer/ops_bootstrap_pod.sh
+#   source ~/sky_workdir/examples/meta_layer/shared/ops_bootstrap_pod.sh
 #
 # Usage (standalone, sanity check):
-#   bash examples/meta_layer/ops_bootstrap_pod.sh
+#   bash examples/meta_layer/shared/ops_bootstrap_pod.sh
 #
 # Override defaults via env vars before sourcing:
-#   PERSISTENT_ROOT=/some/other/volume bash ops_bootstrap_pod.sh
+#   PERSISTENT_ROOT=/some/other/volume bash examples/meta_layer/shared/ops_bootstrap_pod.sh
 #   REQUIRE_PATHS="data/mane/GRCh38/Homo_sapiens.GRCh38.dna.primary_assembly.fa other/path"
 
 set -u

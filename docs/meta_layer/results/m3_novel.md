@@ -91,7 +91,7 @@ discovery task.
 M3-v1 trains on all 154,113 pooled positives with long-read-confirmed ones up-weighted 2×. Only ~50%
 are long-read-confirmed, so the original diagnosis blamed that unconfirmed half as "the ceiling — label
 noise you can't learn a clean boundary through." **Tier 1 tested it directly:** retrain the recognizer on
-the **77,879 confirmed positives only** (`07 --confirmed-only`, dropping 76,234), same architecture and
+the **77,879 confirmed positives only** (`shared/01_train_sequence_model.py --confirmed-only`, dropping 76,234), same architecture and
 schedule, then re-run the identical anti-circular eval.
 
 | Model | D1 P@5 | D1 R@20 | D1_hiconf P@5 | D2 R@20 |
@@ -116,7 +116,7 @@ teaching the recognizer that real SF3B1 / ENCODE-KD / TDP-43 cryptic sites are *
 **M3-anchor** folds them in properly (checkpoint `output/meta_layer/m3s_anchorpos`; see the
 [training workflow](../../workflows/meta_layer/10_training_m3.md)):
 
-- **Positivize** the SF3B1 and ENCODE-KD anchors (`07 --disease-anchors positivize`), **mask** the
+- **Positivize** the SF3B1 and ENCODE-KD anchors (`shared/01_train_sequence_model.py --disease-anchors positivize`), **mask** the
   TDP-43 (STMN2/UNC13A) anchors so they stay honest held-out probes.
 - **Governed by a budget, not a multiplier.** The anchors occupy a fixed **5% of positive-loss mass**
   (`--anchor-budget-frac 0.05`), which derives a per-anchor weight of 21.8×. A flat 5× would have been
@@ -180,8 +180,8 @@ multimodal evidence. The key design choice is **base-score-matched hard negative
 sampled to have the same base-score distribution as positives, so the base score *cannot* be the
 discriminator and the multimodal channels are forced to earn their keep.
 (Scripts:
-[`14_train_candidate_refiner.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/14_train_candidate_refiner.py) /
-[`15_evaluate_candidate_classifier.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/15_evaluate_candidate_classifier.py).)
+[`m3/03_train_candidate_refiner.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m3/03_train_candidate_refiner.py) /
+[`m3/04_evaluate_candidate_classifier.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m3/04_evaluate_candidate_classifier.py).)
 
 ### Phase 1 — training looked strong
 

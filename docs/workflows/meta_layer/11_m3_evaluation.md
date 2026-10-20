@@ -20,8 +20,8 @@ this stage is how to run it.
 
 | Model | Script | How it scores |
 |-------|--------|---------------|
-| **M3-S** (recognizer) | `13_evaluate_m3_novel.py` | dense per-position inference → post-filter → per-gene precision@k |
-| **M3-R** (refiner) | `15_evaluate_candidate_classifier.py` | rerank the candidate pool → same metric library |
+| **M3-S** (recognizer) | `m3/01_evaluate_m3_novel.py` | dense per-position inference → post-filter → per-gene precision@k |
+| **M3-R** (refiner) | `m3/04_evaluate_candidate_classifier.py` | rerank the candidate pool → same metric library |
 
 Both report **per-gene precision@k / recall@k** (k = 5/10/20) over the truth-containing genes on the
 held-out chromosomes (1, 3, 5, 7, 9), against three truth sets:
@@ -37,27 +37,27 @@ precision@k measures novelty recovery, not "is this a canonical site."
 
 ## M3-S — recognizer eval (three modes)
 
-`13` separates the one GPU-dependent step (the feature cache) from the cheap local steps:
+`m3/01_evaluate_m3_novel.py` separates the one GPU-dependent step (the feature cache) from the cheap local steps:
 
 ```bash
 # 1. LOCAL — resolve the truth-containing test-gene universe (no pod)
-python examples/meta_layer/13_evaluate_m3_novel.py --mode emit-universe
+python examples/meta_layer/m3/01_evaluate_m3_novel.py --mode emit-universe
 
 # 2. POD — build the shared per-gene .npz cache (bigWig; the only pod step)
-python examples/meta_layer/13_evaluate_m3_novel.py --mode build-cache \
+python examples/meta_layer/m3/01_evaluate_m3_novel.py --mode build-cache \
     --gene-list output/meta_layer/m3_eval_d1/eval_genes.txt \
     --cache-dir output/meta_layer/m3_eval_d1/gene_cache \
     --bigwig-cache /runpod-volume/bigwig_cache
 
 # 3. LOCAL — score every model on the cache, report precision@k
-python examples/meta_layer/13_evaluate_m3_novel.py --mode eval \
+python examples/meta_layer/m3/01_evaluate_m3_novel.py --mode eval \
     --cache-dir output/meta_layer/m3_eval_d1/gene_cache
 ```
 
 `--mode eval` scores **base / M1-S / M2-S / M3-v1 / M3-v1-mm0 / M3-v1.1 / M3-anchor** on the *same*
 candidate set, so every number is meta-vs-base on identical genes. It **fails fast** if base scores are
 missing (they would silently become a uniform prior and invalidate the eval) and loads each checkpoint
-via the config-type dispatcher `load_meta_model` (not the `concat_fusion`-hardcoded path in `08`/`09`).
+via the config-type dispatcher `load_meta_model` (not the `concat_fusion`-hardcoded path in `shared/02_evaluate_sequence_model.py`/`m2/01_evaluate_alternative_sites.py`).
 
 Two flags keep the comparison tractable:
 
@@ -74,12 +74,12 @@ Two flags keep the comparison tractable:
 
 ## M3-R — refiner eval
 
-`15` reranks the candidate pool by base score vs M3-R and scores both through the **same** metric library
-(`_m3_novel_eval.py`), by rasterizing per-candidate scores into the `[L,3]` array the recognizer path
+`m3/04_evaluate_candidate_classifier.py` reranks the candidate pool by base score vs M3-R and scores both through the **same** metric library
+(`m3/_m3_novel_eval.py`), by rasterizing per-candidate scores into the `[L,3]` array the recognizer path
 uses (with `-inf` fill so the precision@k denominator stays candidate-native):
 
 ```bash
-python examples/meta_layer/15_evaluate_candidate_classifier.py \
+python examples/meta_layer/m3/04_evaluate_candidate_classifier.py \
     --universe output/meta_layer/m3_eval_d1/eval_genes.parquet
 ```
 
@@ -115,7 +115,7 @@ The full tables and the within-vs-between-gene decomposition that explains Tier 
 in as positives helps the held-out disease truth **without** costing general novel recall.
 
 ```bash
-python examples/meta_layer/13_evaluate_m3_novel.py --mode eval \
+python examples/meta_layer/m3/01_evaluate_m3_novel.py --mode eval \
     --cache-dir output/meta_layer/m3_eval_d1/gene_cache \
     --output-dir output/meta_layer/m3_eval_d1 \
     --models base,M3-v1,M3-anchor --device mps
@@ -191,7 +191,7 @@ with this stage's harness, so the UI and the eval rank identically by constructi
 ## Related
 
 - Tissue-stratified evaluation (an M2-S-oriented protocol, applicable when tissue context matters):
-  [`examples/meta_layer/16_evaluate_tissue_stratified.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/16_evaluate_tissue_stratified.py).
+  [`examples/meta_layer/m2/02_evaluate_tissue_stratified.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m2/02_evaluate_tissue_stratified.py).
 - Local dev results: [`examples/meta_layer/docs/M3/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/docs/M3/)
   (`m3_eval_D_results.md`, `m3r_candidate_refiner_results.md`).
 

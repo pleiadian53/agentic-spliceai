@@ -37,7 +37,7 @@ flowchart LR
   A --> C["<b>2. Base scoring</b><br/>OpenSpliceAI<br/><i>predictions_{chrom}.parquet</i>"]
   B --> D
   C --> D["<b>3. Feature engineering</b><br/>06_multimodal_genome_workflow.py<br/><i>analysis_sequences_{chrom}.parquet</i>"]
-  D --> E["<b>4–5. Training</b><br/>07_train_sequence_model.py<br/>--mode m1 / m2<br/><i>best.pt + config.pt</i>"]
+  D --> E["<b>4–5. Training</b><br/>shared/01_train_sequence_model.py<br/>--mode m1 / m2<br/><i>best.pt + config.pt</i>"]
   E --> F["<b>6. Evaluation</b><br/>08 (yardstick) · 09 (alt sites)<br/>16 (tissue-stratified)<br/><i>eval_results.json</i>"]
   F --> G["<b>7. Reporting</b><br/>10 verify · results/*.md<br/>MANIFEST · settings.yaml promotion<br/>Bio Lab UI /metrics"]
   D -.-> H["<b>9–11. M3 sub-series</b><br/>label curation → training →<br/>anti-circular eval"]
@@ -67,14 +67,14 @@ orange = training · teal = evaluation · pink = reporting · green = the M3 bra
 | [1](01_data_preparation.md) | Data preparation (labels) | `data_preparation/04_generate_ground_truth.py` | GTF exon boundaries | `data/<source>/<build>/splice_sites_enhanced.tsv` |
 | [2](02_base_scoring.md) | Base scoring | base-layer prediction / `PredictionWorkflow` | FASTA + gene windows | `…/openspliceai_eval/precomputed/predictions_{chrom}.parquet` |
 | [3](03_feature_engineering.md) | Feature engineering | `features/06_multimodal_genome_workflow.py` | predictions + bigWig/junction/eCLIP | `…/openspliceai_eval/analysis_sequences/analysis_sequences_{chrom}.parquet` |
-| [4](04_training_m1s.md) · [5](05_training_m2s.md) | Training | `meta_layer/07_train_sequence_model.py` | labels + base scores + dense channels | `output/meta_layer/{m1s,m2s}_v4_cleanannot/` |
-| [6](06_evaluation.md) | Evaluation | `08_evaluate_sequence_model.py`, `09_evaluate_alternative_sites.py`, `16_evaluate_tissue_stratified.py` | checkpoint + `.npz` cache | `eval_results.json`, `m2a_eval_results.json`, `tissue_stratified.json` |
-| [7](07_reporting.md) | Reporting | `10_verify_evaluation_stats.py`, `results/*.md`, Bio Lab UI `/metrics` | result JSONs | roll-ups + promotion registry + dashboard |
+| [4](04_training_m1s.md) · [5](05_training_m2s.md) | Training | `meta_layer/shared/01_train_sequence_model.py` | labels + base scores + dense channels | `output/meta_layer/{m1s,m2s}_v4_cleanannot/` |
+| [6](06_evaluation.md) | Evaluation | `shared/02_evaluate_sequence_model.py`, `m2/01_evaluate_alternative_sites.py`, `m2/02_evaluate_tissue_stratified.py` | checkpoint + `.npz` cache | `eval_results.json`, `m2a_eval_results.json`, `tissue_stratified.json` |
+| [7](07_reporting.md) | Reporting | `m2/03_verify_evaluation_stats.py`, `results/*.md`, Bio Lab UI `/metrics` | result JSONs | roll-ups + promotion registry + dashboard |
 | [8](08_gpu_pods.md) | *(optional)* GPU pods | `meta_layer/ops_*.sh` | — | same artifacts, on a RunPod GPU |
 | **M3 sub-series** — reuses Stages 1–3, then: | | | | |
 | [9](09_m3_label_curation.md) | *(M3)* Label curation | `data_preparation/m3/*.py` | junctions + long-read + disease catalogs | `data/mane/GRCh38/m3_labels/*.parquet` |
-| [10](10_training_m3.md) | *(M3)* Training | `07 --mode m3` (pod) · `14` (local) | M3 labels + candidate table | `output/meta_layer/{m3_v1, m3r_candidate_refiner}/` |
-| [11](11_m3_evaluation.md) | *(M3)* Anti-circular eval | `13_evaluate_m3_novel.py`, `15_…` | checkpoint / booster + D1/D2 truth | `m3_eval_metrics.json` |
+| [10](10_training_m3.md) | *(M3)* Training | `shared/01_train_sequence_model.py --mode m3` (pod) · `m3/03_train_candidate_refiner.py` (local) | M3 labels + candidate table | `output/meta_layer/{m3_v1, m3r_candidate_refiner}/` |
+| [11](11_m3_evaluation.md) | *(M3)* Anti-circular eval | `m3/01_evaluate_m3_novel.py`, `m3/04_evaluate_candidate_classifier.py` | checkpoint / booster + D1/D2 truth | `m3_eval_metrics.json` |
 
 ---
 
@@ -101,8 +101,8 @@ conflate them:
 
 | Line | Example | How it consumes features |
 |------|---------|--------------------------|
-| **Position-level (`-P`)** | M1-P XGBoost (`01_xgboost_baseline.py`) | reads the `analysis_sequences_{chrom}.parquet` **tables directly** (one row per position) |
-| **Sequence-level (`-S`)** | **M1-S / M2-S** (`07_train_sequence_model.py`) | reads the modalities as **dense per-position channels** built on the fly by `DenseFeatureExtractor`, cached per gene as `.npz` |
+| **Position-level (`-P`)** | M1-P XGBoost (`m1/01_xgboost_baseline.py`) | reads the `analysis_sequences_{chrom}.parquet` **tables directly** (one row per position) |
+| **Sequence-level (`-S`)** | **M1-S / M2-S** (`shared/01_train_sequence_model.py`) | reads the modalities as **dense per-position channels** built on the fly by `DenseFeatureExtractor`, cached per gene as `.npz` |
 
 This series is about the **`-S` (sequence-level) line**. The parquet tables still matter to it —
 they drive *which positions get sampled* and feed the foundation-model scalar step — but the model
@@ -116,8 +116,8 @@ time plus one promotion registry:
 
 | Lever | Where | Controls |
 |-------|-------|----------|
-| `--mode {m1,m2,m3}` | `07_train_sequence_model.py` | **variant / label source** — `m1`=canonical/MANE, `m2`=alt/Ensembl |
-| `--arch {concat_fusion,xattn_fusion}` | `07_train_sequence_model.py` | **neural architecture** — `concat_fusion` (default, promoted) vs `xattn_fusion` (cross-attention, WIP) |
+| `--mode {m1,m2,m3}` | `shared/01_train_sequence_model.py` | **variant / label source** — `m1`=canonical/MANE, `m2`=alt/Ensembl |
+| `--arch {concat_fusion,xattn_fusion}` | `shared/01_train_sequence_model.py` | **neural architecture** — `concat_fusion` (default, promoted) vs `xattn_fusion` (cross-attention, WIP) |
 | `meta_models:` block | `config/settings.yaml` | **promotion pointer** — which output dir is the canonical M1-S / M2-S |
 
 These levers are **orthogonal**, and each one has its own history. A rebuilt training corpus does

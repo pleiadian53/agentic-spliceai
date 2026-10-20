@@ -4,7 +4,7 @@
 # This is the ONLY pod-dependent step of the M3 novel-splice-site eval: it builds
 # the shared 9-channel per-gene .npz cache, which needs the bigWig cache on the
 # network volume. Scoring + metrics run locally afterward
-# (13_evaluate_m3_novel.py --mode eval), so the pod is billed only for the build.
+# (m3/01_evaluate_m3_novel.py --mode eval), so the pod is billed only for the build.
 #
 # Prereqs on the volume (/runpod-volume), all kept after Phase C:
 #   bigwig_cache/*.bw
@@ -22,7 +22,7 @@
 #
 # Usage (on pod):
 #   ssh <cluster>; cd ~/sky_workdir
-#   nohup bash examples/meta_layer/ops_eval_m3_novel_pod.sh \
+#   nohup bash examples/meta_layer/m3/ops_eval_m3_novel_pod.sh \
 #       > /runpod-volume/output/meta_layer/m3_eval_d1/build_cache.log 2>&1 &
 
 set -e
@@ -30,7 +30,7 @@ WORKDIR=~/sky_workdir
 cd "$WORKDIR"
 
 # Symlink /runpod-volume -> data/, output/ so cwd-relative paths hit the volume.
-source examples/meta_layer/ops_bootstrap_pod.sh
+source examples/meta_layer/shared/ops_bootstrap_pod.sh
 
 GENE_LIST=output/meta_layer/m3_eval_d1/eval_genes.txt
 CACHE_DIR=output/meta_layer/m3_eval_d1/gene_cache   # -> /runpod-volume/output/... (persists, rsync-able)
@@ -48,7 +48,7 @@ echo "============================================================"
 # trained with) via the registry; the script's own preflight verifies test-chrom
 # base scores exist. If they are only on the Ensembl path on this volume, re-run
 # with: --base-scores-dir /runpod-volume/data/ensembl/GRCh38/openspliceai_eval/precomputed
-python -u examples/meta_layer/13_evaluate_m3_novel.py --mode build-cache \
+python -u examples/meta_layer/m3/01_evaluate_m3_novel.py --mode build-cache \
     --gene-list  "$GENE_LIST" \
     --cache-dir  "$CACHE_DIR" \
     --bigwig-cache "$BIGWIG_CACHE" \
@@ -56,5 +56,5 @@ python -u examples/meta_layer/13_evaluate_m3_novel.py --mode build-cache \
 
 echo "============================================================"
 echo "M3 Phase D cache build complete — $(date)"
-echo "  rsync $CACHE_DIR back to LOCAL, then: 13_evaluate_m3_novel.py --mode eval"
+echo "  rsync $CACHE_DIR back to LOCAL, then: m3/01_evaluate_m3_novel.py --mode eval"
 echo "============================================================"

@@ -15,19 +15,19 @@ Each evaluation run leaves JSON in the model's own directory:
 | File | From | Contents |
 |------|------|----------|
 | `best_metrics.json` | training ([Stage 4](04_training_m1s.md)) | best-epoch validation metrics |
-| `eval_results.json` | `08` | held-out meta-vs-base metrics |
-| `m2a_eval_results.json` | `09` | M2-S overall + alternative-site metrics |
-| `eval_ablation_*.json`, `eval_results_calibrated.json` | `08` diagnostics | ablation / calibration studies |
+| `eval_results.json` | `shared/02_evaluate_sequence_model.py` | held-out meta-vs-base metrics |
+| `m2a_eval_results.json` | `m2/01_evaluate_alternative_sites.py` | M2-S overall + alternative-site metrics |
+| `eval_ablation_*.json`, `eval_results_calibrated.json` | `shared/02_evaluate_sequence_model.py` diagnostics | ablation / calibration studies |
 
 These are the source of truth. Everything below is derived from them.
 
 ## 2. Cross-check the numbers
 
 Before quoting a metric in a write-up, reconcile it with the annotation statistics using
-[`examples/meta_layer/10_verify_evaluation_stats.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/10_verify_evaluation_stats.py):
+[`examples/meta_layer/m2/03_verify_evaluation_stats.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m2/03_verify_evaluation_stats.py):
 
 ```bash
-python examples/meta_layer/10_verify_evaluation_stats.py --section all
+python examples/meta_layer/m2/03_verify_evaluation_stats.py --section all
 ```
 
 It recomputes gene/site counts and the Ensembl `\` MANE and GENCODE `\` MANE set differences, then
@@ -69,7 +69,7 @@ Every model directory carries a `MANIFEST.yaml` recording how it was produced:
 
 ```yaml
 status: active
-produced_by: 07_train_sequence_model.py --mode m1
+produced_by: shared/01_train_sequence_model.py --mode m1
 referenced_by: settings.yaml meta_models."m1s.concat_fusion.cleanannot"
 ```
 

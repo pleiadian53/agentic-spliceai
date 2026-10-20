@@ -2,7 +2,7 @@
 
 ## Context
 
-The meta-layer evaluation script (`08_evaluate_sequence_model.py`) supports four
+The meta-layer evaluation script (`shared/02_evaluate_sequence_model.py`) supports four
 operating modes with increasing generality:
 
 | Case | Mode | Ground truth source | Evaluation? |
@@ -45,7 +45,7 @@ with curated splice site annotations (MANE, Ensembl, RefSeq).
 **Evaluation**: Standard classification metrics (PR-AUC, precision, recall, FN/FP
 counts, top-k accuracy).
 
-**Scripts**: `08_evaluate_sequence_model.py` with `--build-cache` or `--cache-dir`.
+**Scripts**: `shared/02_evaluate_sequence_model.py` with `--build-cache` or `--cache-dir`.
 
 ### Tier 2: Alignment to Annotated Reference
 

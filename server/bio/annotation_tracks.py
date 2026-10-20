@@ -4,7 +4,7 @@ The genome view draws one gene's predictions against ground truth. Ground truth
 has always been **MANE alone**, which is the wrong yardstick for M2-S: that model
 exists to find *alternative* sites, and the established protocol scores it on the
 **delta set** — sites in Ensembl but not in MANE (see
-``examples/meta_layer/09_evaluate_alternative_sites.py``, which builds the MANE
+``examples/meta_layer/m2/01_evaluate_alternative_sites.py``, which builds the MANE
 site set and counts a site alternative when it is absent from it).
 
 This module serves several annotations at once so the page can stack them the way

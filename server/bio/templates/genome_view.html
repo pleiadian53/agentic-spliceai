@@ -716,7 +716,7 @@ function renderGeneInfo(data) {
     // ── Alternative-site detection (the delta set) ──────────────────────
     // Scoring M2-S against MANE alone measures the wrong thing: it exists to
     // find sites MANE does not contain. Report recall on `Ensembl \ MANE`
-    // instead — the same set 09_evaluate_alternative_sites.py uses.
+    // instead — the same set m2/01_evaluate_alternative_sites.py uses.
     //
     // Reported as detected/total rather than TP/FP/FN: "false positive" is not
     // well defined against a *subset* of truth, since a call away from an alt
@@ -741,7 +741,7 @@ function renderGeneInfo(data) {
         // Those 8 are UNMEASURED, not missed. No prediction exists at those
         // positions, so scoring a model there would record a failure where no
         // measurement happened. This is not a statement about M2-S's scope: the
-        // offline eval (09_evaluate_alternative_sites.py) runs on Ensembl spans
+        // offline eval (m2/01_evaluate_alternative_sites.py) runs on Ensembl spans
         // with Ensembl-span base scores and does score all 30. The truncation is
         // a serving limitation of this page, tracked in the UI backlog.
         const inWin = p => p >= data.gene_start && p <= data.gene_end;

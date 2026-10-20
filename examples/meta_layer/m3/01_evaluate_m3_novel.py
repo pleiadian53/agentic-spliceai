@@ -22,17 +22,17 @@ M1-S / M2-S / M3-v1 alike → D1 is clean without any extra in-training split.
 Three modes (the cache build is the only bigWig/pod-dependent step):
 
     # 1. LOCAL — resolve the truth-containing test-gene universe
-    python 13_evaluate_m3_novel.py --mode emit-universe \\
+    python examples/meta_layer/m3/01_evaluate_m3_novel.py --mode emit-universe \\
         --output-dir output/meta_layer/m3_eval_d1
 
     # 2. POD (A40, network volume) — build the shared 9-channel .npz cache
-    python 13_evaluate_m3_novel.py --mode build-cache \\
+    python examples/meta_layer/m3/01_evaluate_m3_novel.py --mode build-cache \\
         --gene-list output/meta_layer/m3_eval_d1/eval_genes.txt \\
         --cache-dir output/meta_layer/m3_eval_d1/gene_cache \\
         --bigwig-cache /runpod-volume/bigwig_cache --device cuda
 
     # 3. LOCAL — score all models from the rsynced cache, report metrics
-    python 13_evaluate_m3_novel.py --mode eval \\
+    python examples/meta_layer/m3/01_evaluate_m3_novel.py --mode eval \\
         --cache-dir output/meta_layer/m3_eval_d1/gene_cache \\
         --universe output/meta_layer/m3_eval_d1/eval_genes.parquet \\
         --output-dir output/meta_layer/m3_eval_d1
@@ -48,7 +48,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[2]))
 from _example_utils import setup_example_environment  # noqa: E402
 setup_example_environment()
 
@@ -59,7 +59,7 @@ import _m3_novel_eval as m3eval  # noqa: E402
 log = logging.getLogger(__name__)
 
 # ── Default data / model locations ─────────────────────────────────────────
-REPO = Path(__file__).resolve().parents[2]  # examples/meta_layer/<file> -> repo root
+REPO = Path(__file__).resolve().parents[3]  # examples/meta_layer/<variant>/<file> -> repo root
 D1_TRUTH = REPO / "data/encode_longread/GRCh38/longread_truth_novel.parquet"
 D2_ANCHORS = REPO / "data/mane/GRCh38/m3_labels/disease_anchors.parquet"
 ANNOTATION_MASK = REPO / "data/mane/GRCh38/m3_labels/annotation_mask.parquet"

@@ -20,7 +20,7 @@ unchanged from the earlier stages, just pointed at `--device cuda`.
 Genome-scale meta-layer jobs follow the same three-step shape, wrapped by the `ops_*.sh` runners in
 [`examples/meta_layer/`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/):
 
-1. **Bootstrap** — `ops_bootstrap_pod.sh` idempotently links the working tree's `data/` and `output/`
+1. **Bootstrap** — `shared/ops_bootstrap_pod.sh` idempotently links the working tree's `data/` and `output/`
    to the pod's **persistent volume** (so large base-score parquets and the bigWig cache survive pod
    restarts) and sanity-checks the required paths. The other runners source it.
 2. **Run detached** — long jobs launch under `nohup … &` with unbuffered Python (`python -u`) so they
@@ -32,11 +32,11 @@ Genome-scale meta-layer jobs follow the same three-step shape, wrapped by the `o
 
 | Script | Wraps | Produces |
 |--------|-------|----------|
-| `ops_train_m1s_pod.sh` | `07 --mode m1 --device cuda --use-shards` (epochs 50, samples/epoch 100k, patience 10) | M1-S checkpoint |
-| `ops_train_m2s_pod.sh` | `07` on Ensembl labels (`--annotation-source ensembl --base-scores-dir <ensembl>`) | M2-S checkpoint |
-| `ops_eval_m1s_pod.sh` | `08 --build-cache --device cuda` | `eval_results.json` |
-| `ops_eval_alt_sites_pod.sh` | `09` — parameterized `{m1s\|m2s} {ensembl\|gencode}` | `m2a` / `m2b` results |
-| `ops_ablation_m1s_pod.sh`, `ops_ablation_m2s_pod.sh` | `08 --zero-channels …` looped over modality groups | `eval_ablation_*.json` |
+| `m1/ops_train_m1s_pod.sh` | `shared/01_train_sequence_model.py --mode m1 --device cuda --use-shards` (epochs 50, samples/epoch 100k, patience 10) | M1-S checkpoint |
+| `m2/ops_train_m2s_pod.sh` | `shared/01_train_sequence_model.py` on Ensembl labels (`--annotation-source ensembl --base-scores-dir <ensembl>`) | M2-S checkpoint |
+| `m1/ops_eval_m1s_pod.sh` | `shared/02_evaluate_sequence_model.py --build-cache --device cuda` | `eval_results.json` |
+| `m2/ops_eval_alt_sites_pod.sh` | `m2/01_evaluate_alternative_sites.py` — parameterized `{m1s\|m2s} {ensembl\|gencode}` | `m2a` / `m2b` results |
+| `m1/ops_ablation_m1s_pod.sh`, `m2/ops_ablation_m2s_pod.sh` | `shared/02_evaluate_sequence_model.py --zero-channels …` looped over modality groups | `eval_ablation_*.json` |
 
 !!! warning "Always `--device cuda` on a pod"
     The runners set it, but if you invoke the training/eval scripts directly on a pod, pass

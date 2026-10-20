@@ -179,7 +179,7 @@ probability outputs.
 # Requires existing gene cache from M1-S evaluation
 ssh <cluster>
 cd ~/sky_workdir
-nohup bash examples/meta_layer/ops_ablation_m1s_pod.sh \
+nohup bash examples/meta_layer/m1/ops_ablation_m1s_pod.sh \
     > /runpod-volume/output/m1s_eval/ablation.log 2>&1 &
 ```
 

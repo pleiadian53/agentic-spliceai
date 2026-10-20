@@ -17,9 +17,9 @@ set -u  # unset variable = fatal; do NOT use set -e (we want per-run isolation)
 # ── Bootstrap (data symlinks + path sanity) ──────────────────────────────
 # Idempotent: safe to source on every run. Verifies runtime cwd mirrors the
 # persistent volume so cwd-relative paths (Registry.data_root='data', etc.)
-# resolve correctly. See examples/meta_layer/ops_bootstrap_pod.sh.
+# resolve correctly. See examples/meta_layer/shared/ops_bootstrap_pod.sh.
 REQUIRE_PATHS="data/mane/GRCh38/Homo_sapiens.GRCh38.dna.primary_assembly.fa data/models/openspliceai data/clinvar/clinvar_splice_snvs.parquet data/mutsplicedb/splice_sites_induced.tsv data/GRCh38/junction_data/junctions_gtex_v8.parquet" \
-    source ~/sky_workdir/examples/meta_layer/ops_bootstrap_pod.sh || {
+    source ~/sky_workdir/examples/meta_layer/shared/ops_bootstrap_pod.sh || {
         echo "[FATAL] bootstrap failed — aborting before pre-flight"
         exit 1
     }

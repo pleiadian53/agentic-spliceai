@@ -6,8 +6,8 @@ M3 has **two** trainable formulations of the novel-site task, and they have very
 
 | Model | What it is | Trainer | Compute |
 |-------|-----------|---------|---------|
-| **M3-S** (recognizer) | 3-class sequence CNN, junction dropped, annotated sites masked | `07_train_sequence_model.py --mode m3` | **GPU pod** (dense `.npz` cache, like M1-S/M2-S) |
-| **M3-R** (candidate refiner) | XGBoost real-vs-artifact over base-matched candidates | `14_train_candidate_refiner.py` | **local** (tabular, no bigWig) |
+| **M3-S** (recognizer) | 3-class sequence CNN, junction dropped, annotated sites masked | `shared/01_train_sequence_model.py --mode m3` | **GPU pod** (dense `.npz` cache, like M1-S/M2-S) |
+| **M3-R** (candidate refiner) | XGBoost real-vs-artifact over base-matched candidates | `m3/03_train_candidate_refiner.py` | **local** (tabular, no bigWig) |
 
 Read [Stage 4 (M1-S training)](04_training_m1s.md) first for the shared trainer mechanics; below is only
 what M3 adds. The formulation rationale is
@@ -25,7 +25,7 @@ switches on automatically:
 - **confidence weighting** — long-read-confirmed positives up-weighted via `--confirmed-weight`.
 
 ```bash
-python examples/meta_layer/07_train_sequence_model.py \
+python examples/meta_layer/shared/01_train_sequence_model.py \
     --mode m3 --device cuda \
     --use-shards --epochs 50 --patience 10 --samples-per-epoch 100000 \
     --remove-paralogs --confirmed-weight 2.0 \
@@ -64,7 +64,7 @@ they are *not* splice sites (the opposite of what they are). An opt-in path fixe
 | `--anchor-positivize-sources STR` | `sf3b1_cryptic,encode_kd_cryptic` | which `source` values become positives; the rest (`tdp43_cryptic`, the STMN2/UNC13A ALS panel) stay masked so they remain honest held-out probes |
 
 ```bash
-python examples/meta_layer/07_train_sequence_model.py \
+python examples/meta_layer/shared/01_train_sequence_model.py \
     --mode m3 --device cuda \
     --use-shards --epochs 50 --patience 10 --samples-per-epoch 100000 \
     --remove-paralogs --bigwig-cache /runpod-volume/bigwig_cache \
@@ -73,7 +73,7 @@ python examples/meta_layer/07_train_sequence_model.py \
 ```
 
 `fold_disease_anchors()` (in `splice_engine/meta_layer/data/labels.py`) applies the policy, and
-`build_m3_labels()` honours an optional per-row `weight` column. `ops_train_m3_pod.sh` runs
+`build_m3_labels()` honours an optional per-row `weight` column. `m3/ops_train_m3_pod.sh` runs
 `--disease-anchors positivize --anchor-budget-frac 0.05` by default.
 
 !!! note "Anti-circularity is by construction, not by flag"
@@ -127,11 +127,11 @@ candidate's multimodal vector. Two steps — build the labels (Stage 9, Step 5),
 python examples/data_preparation/m3/11_build_candidate_labels.py --confirmed-only --neg-ratio 3
 
 # 2. train + diagnose
-python examples/meta_layer/14_train_candidate_refiner.py            # full: train + SHAP + ablation
-python examples/meta_layer/14_train_candidate_refiner.py --diagnostic-only   # just the go/no-go probe
+python examples/meta_layer/m3/03_train_candidate_refiner.py            # full: train + SHAP + ablation
+python examples/meta_layer/m3/03_train_candidate_refiner.py --diagnostic-only   # just the go/no-go probe
 ```
 
-`14` uses the leakage-safe **gene-level SpliceAI split** (test = chr 1/3/5/7/9, the same held-out set as
+`m3/03_train_candidate_refiner.py` uses the leakage-safe **gene-level SpliceAI split** (test = chr 1/3/5/7/9, the same held-out set as
 the recognizer eval), drops junction and the raw base probabilities from the features, and reports the
 held-out AUC plus **SHAP-by-modality** and a **leave-one-modality-out** ablation. Output →
 `output/meta_layer/m3r_candidate_refiner/` (`m3r_xgb.ubj`, `features.json`, `metrics.json`).
@@ -150,7 +150,7 @@ held-out AUC plus **SHAP-by-modality** and a **leave-one-modality-out** ablation
 |-----------|-----|
 | The best novel-site ranker (research deliverable) | **M3-S** `m3_v1` (pod) |
 | To fold curated disease anchors in as positives (SF3B1 / ENCODE-KD) | **M3-S** `--disease-anchors positivize --anchor-budget-frac 0.05` (pod) → `m3s_anchorpos` |
-| A cheap, local test of "does multimodal discriminate real cryptic sites?" | **M3-R** `14 --diagnostic-only` |
+| A cheap, local test of "does multimodal discriminate real cryptic sites?" | **M3-R** `m3/03_train_candidate_refiner.py --diagnostic-only` |
 | To reproduce the Tier 1 label experiment | M3-S `--confirmed-only` (pod) |
 
 ---

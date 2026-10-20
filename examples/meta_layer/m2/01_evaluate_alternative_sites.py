@@ -26,7 +26,7 @@ to the mounted volume.
 Usage:
     # M2a: Ensembl \\ MANE — build the Ensembl test cache, then evaluate.
     # --remove-paralogs is ON by default (leakage-clean held-out test).
-    python 09_evaluate_alternative_sites.py \\
+    python examples/meta_layer/m2/01_evaluate_alternative_sites.py \\
         --checkpoint output/meta_layer/m2s_v4_cleanannot/best.pt \\
         --annotation-source ensembl \\
         --build-cache \\
@@ -35,14 +35,14 @@ Usage:
 
     # Re-evaluate from the already-built cache (--cache-dir is the parent that
     # holds train/val/test; its test/ subdir must have been built above).
-    python 09_evaluate_alternative_sites.py \\
+    python examples/meta_layer/m2/01_evaluate_alternative_sites.py \\
         --checkpoint output/meta_layer/m2s_v4_cleanannot/best.pt \\
         --annotation-source ensembl \\
         --cache-dir output/meta_layer/gene_cache_ensembl_cleanannot
 
     # M2b: GENCODE \\ MANE. Requires the GENCODE GTF + splice_sites_enhanced.tsv
     # staged under data/gencode/GRCh38/ first (not present by default).
-    python 09_evaluate_alternative_sites.py \\
+    python examples/meta_layer/m2/01_evaluate_alternative_sites.py \\
         --checkpoint output/meta_layer/m2s_v4_cleanannot/best.pt \\
         --annotation-source gencode \\
         --gtf data/gencode/GRCh38/gencode.v47.annotation.gtf \\
@@ -62,7 +62,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import numpy as np
 
 # Add project to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[2]))
 from _example_utils import setup_example_environment
 setup_example_environment()
 
@@ -215,7 +215,7 @@ def main():
     )
     parser.add_argument(
         "--cache-dir", type=Path, default=None,
-        help="Parent gene-cache directory (same convention as 07_train_sequence_model.py: "
+        help="Parent gene-cache directory (same convention as shared/01_train_sequence_model.py: "
              "{train,val,train_shards,val_shards,test}). Test npz files are read from and "
              "written to <cache-dir>/test/. "
              "Default: output/meta_layer/gene_cache_<annotation_source>",
@@ -360,7 +360,7 @@ def main():
         print(f"  Limited to {len(test_genes)} genes")
 
     # ── Cache directory ──────────────────────────────────────────────
-    # Convention (matches 07_train_sequence_model.py): --cache-dir is the parent
+    # Convention (matches shared/01_train_sequence_model.py): --cache-dir is the parent
     # that holds {train, val, train_shards, val_shards, test}. We read/write test
     # npz files from <cache-dir>/test/.
     cache_parent = args.cache_dir or (

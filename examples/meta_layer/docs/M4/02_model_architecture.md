@@ -31,7 +31,7 @@ because biology is specific: TDP-43 loss matters where UG-rich sequence sits nea
 
 ## 2. What is implemented today
 
-The current benchmark (`examples/meta_layer/17_m4_fewshot_benchmark.py`) compares a ladder of methods. None is the neural architecture above; they are deliberately simple, to establish what the data supports before building it.
+The current benchmark (`examples/meta_layer/m4/01_m4_fewshot_benchmark.py`) compares a ladder of methods. None is the neural architecture above; they are deliberately simple, to establish what the data supports before building it.
 
 | Method | What it learns | How $R$ enters |
 |---|---|---|

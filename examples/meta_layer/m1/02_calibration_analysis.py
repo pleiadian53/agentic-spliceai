@@ -22,9 +22,9 @@ A model can perfectly rank positions but still output poorly calibrated
 probabilities.
 
 Usage:
-    python 02_calibration_analysis.py
-    python 02_calibration_analysis.py --n-bins 20 --plot
-    python 02_calibration_analysis.py --test-chroms chr21 chr22 --plot
+    python examples/meta_layer/m1/02_calibration_analysis.py
+    python examples/meta_layer/m1/02_calibration_analysis.py --n-bins 20 --plot
+    python examples/meta_layer/m1/02_calibration_analysis.py --test-chroms chr21 chr22 --plot
 """
 
 import argparse

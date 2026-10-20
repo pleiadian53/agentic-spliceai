@@ -311,12 +311,12 @@ label distribution* (PU noise: some "artifacts" may be unlabeled reals) — **Ph
 ## 6. Next steps
 1. ~~Recognizer: B3 truth set / Phase C train / D1+D2 eval~~ **DONE** (Tier 0;
    see [`m3_eval_D_results.md`](m3_eval_D_results.md)).
-2. **M3-R Phase 1** — formalize `examples/meta_layer/14_train_candidate_refiner.py`
+2. **M3-R Phase 1** — formalize `examples/meta_layer/m3/03_train_candidate_refiner.py`
    (gene-split, XGBoost `binary:logistic`, SHAP + leave-one-modality ablation,
    save model → `output/meta_layer/m3r_candidate_refiner/`).
-3. **M3-R Phase 2** — `examples/meta_layer/15_evaluate_candidate_classifier.py`:
+3. **M3-R Phase 2** — `examples/meta_layer/m3/04_evaluate_candidate_classifier.py`:
    rerank the per-gene candidate pool by M3-R vs base, precision@k/recall@k on
-   D1/D1_hiconf/D2 (reuses `_m3_novel_eval.py`). The honest test.
+   D1/D1_hiconf/D2 (reuses `m3/_m3_novel_eval.py`). The honest test.
 
 ## Related
 - Data workflow + run order: [`../../../data_preparation/m3/README.md`](../../../data_preparation/m3/README.md)

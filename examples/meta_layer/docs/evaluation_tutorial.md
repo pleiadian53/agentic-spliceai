@@ -1,6 +1,6 @@
 # M1-S Evaluation Tutorial
 
-Guide to all evaluation modes in `08_evaluate_sequence_model.py`.
+Guide to all evaluation modes in `shared/02_evaluate_sequence_model.py`.
 
 ---
 
@@ -25,7 +25,7 @@ Evaluate M1-S on the SpliceAI test split (chr1, 3, 5, 7, 9) using a
 pre-built gene cache.
 
 ```bash
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --device cuda
@@ -45,7 +45,7 @@ features) and then evaluate. This is the full pipeline for first-time
 setup on a new pod.
 
 ```bash
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --build-cache \
     --bigwig-cache /runpod-volume/bigwig_cache \
@@ -70,19 +70,19 @@ Evaluate on specific chromosomes or genes.
 
 ```bash
 # Specific chromosomes
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --test-chroms chr1 chr3
 
 # Specific genes
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --genes BRCA1 TP53 CFTR
 
 # Quick sanity check (first N genes)
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --max-genes 3 --device cpu
@@ -97,14 +97,14 @@ contribution. Reuses the existing gene cache — no rebuild needed.
 
 ```bash
 # Remove junction support channels
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --zero-channels junction_log1p junction_has_support \
     --device cuda
 
 # Remove all multimodal features (sequence + base scores only)
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --zero-channels all \
@@ -117,7 +117,7 @@ python 08_evaluate_sequence_model.py \
 
 **Output**: `eval_ablation_<channels>.json`.
 
-See `examples/meta_layer/ops_ablation_m1s_pod.sh` for the full ablation
+See `examples/meta_layer/m1/ops_ablation_m1s_pod.sh` for the full ablation
 battery and `results/m1s_ablation_study.md` for analysis.
 
 ---
@@ -128,7 +128,7 @@ Find the optimal operating point on the precision-recall curve. Useful
 for tuning the FP/FN trade-off.
 
 ```bash
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --sweep-thresholds \
@@ -153,7 +153,7 @@ confidence without changing ranking (PR-AUC preserved).
 
 ```bash
 # Build cache for SpliceAI validation chromosomes (chr2,4,6,8,10)
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --build-cache \
     --test-chroms chr2 chr4 chr6 chr8 chr10 \
@@ -165,7 +165,7 @@ python 08_evaluate_sequence_model.py \
 ### Step 2: Calibrate and evaluate
 
 ```bash
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --calibrate-temperature \
@@ -179,7 +179,7 @@ python 08_evaluate_sequence_model.py \
 If you already know the optimal T from a previous calibration:
 
 ```bash
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --temperature 1.5 \
@@ -204,7 +204,7 @@ annotations, base model scores, or multimodal features. Uses uniform
 1/3 base-score prior and zero multimodal features.
 
 ```bash
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --fasta /path/to/sequences.fa \
     --output-format parquet \
@@ -226,7 +226,7 @@ python 08_evaluate_sequence_model.py \
 For evaluating on Ensembl gene annotations instead of MANE:
 
 ```bash
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --annotation-source ensembl \
     --build-cache \
@@ -235,7 +235,7 @@ python 08_evaluate_sequence_model.py \
 ```
 
 For alternative site evaluation (Ensembl \ MANE), use
-`09_evaluate_alternative_sites.py` instead.
+`m2/01_evaluate_alternative_sites.py` instead.
 
 ---
 
@@ -244,17 +244,17 @@ For alternative site evaluation (Ensembl \ MANE), use
 ### First-time pod setup
 
 ```bash
-# 1. Provision pod and stage data (see ops_eval_m1s_pod.sh)
+# 1. Provision pod and stage data (see m1/ops_eval_m1s_pod.sh)
 # 2. Build cache + evaluate
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --build-cache --device cuda
 
 # 3. Run ablation study
-bash examples/meta_layer/ops_ablation_m1s_pod.sh
+bash examples/meta_layer/m1/ops_ablation_m1s_pod.sh
 
 # 4. Threshold sweep
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --sweep-thresholds --device cuda
@@ -264,7 +264,7 @@ python 08_evaluate_sequence_model.py \
 
 ```bash
 # 1. Temperature calibration (requires val cache)
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --calibrate-temperature \
@@ -272,7 +272,7 @@ python 08_evaluate_sequence_model.py \
     --sweep-thresholds --device cuda
 
 # 2. Compare: remove noisy epigenetic channels
-python 08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --cache-dir output/meta_layer/m1s/gene_cache/test \
     --zero-channels h3k36me3_max h3k4me3_max \

@@ -105,8 +105,8 @@ not the whole dataset.
 ### Building shards (in the training pipeline)
 
 ```python
-# From 07_train_sequence_model.py
-python -u examples/meta_layer/07_train_sequence_model.py \
+# From shared/01_train_sequence_model.py
+python -u examples/meta_layer/shared/01_train_sequence_model.py \
     --use-shards \              # enable shard packing
     --cache-dir /path/to/gene_cache \
     ...
@@ -259,6 +259,6 @@ Per sample:     open 1 file (0.5-30ms)        seek within open file (~0.01ms)
 100K samples:   100K file opens               100K seeks (1000x faster)
 ```
 
-The training pipeline in `07_train_sequence_model.py` supports both modes
+The training pipeline in `shared/01_train_sequence_model.py` supports both modes
 via `--use-shards`.  On local NVMe, per-gene NPZ files are fast enough.
 On GPU pods with network volumes, shards are essential.

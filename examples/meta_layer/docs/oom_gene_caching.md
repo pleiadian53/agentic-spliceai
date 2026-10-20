@@ -79,12 +79,12 @@ the disk-backed approach scales well with DataLoader workers.
 
 ```bash
 # Gene cache saved to persistent volume (survives pod restart)
-python 07_train_sequence_model.py \
+python examples/meta_layer/shared/01_train_sequence_model.py \
     --cache-dir /runpod-volume/output/meta_layer/gene_cache \
     ...
 
 # Resume after interruption (skips existing .npz files)
-python 07_train_sequence_model.py \
+python examples/meta_layer/shared/01_train_sequence_model.py \
     --cache-dir /runpod-volume/output/meta_layer/gene_cache \
     ...
 ```
@@ -107,7 +107,7 @@ For future workflows that cache per-gene data:
 
 ### The Problem
 
-Running `08_evaluate_sequence_model.py` with `--build-cache` for 5,522
+Running `shared/02_evaluate_sequence_model.py` with `--build-cache` for 5,522
 test genes on an A40 pod (503 GB system RAM) caused OOM.  The pod hit
 100% memory and restarted.
 
@@ -170,10 +170,10 @@ Neither PR-AUC uses 1% subsample (always ~1.0, negligible error).
 
 ### Files changed
 
-- `examples/meta_layer/08_evaluate_sequence_model.py` — streaming loop
+- `examples/meta_layer/shared/02_evaluate_sequence_model.py` — streaming loop
 - `src/.../eval/streaming_metrics.py` — `StreamingEvaluator` (NEW)
 - `src/.../eval/sequence_inference.py` — shared `infer_full_gene()` (NEW)
-- `examples/meta_layer/09_evaluate_alternative_sites.py` — Eval-Ensembl-Alt / Eval-GENCODE-Alt (NEW)
+- `examples/meta_layer/m2/01_evaluate_alternative_sites.py` — Eval-Ensembl-Alt / Eval-GENCODE-Alt (NEW)
 - `src/.../meta_layer/data/sequence_level_dataset.py` — gc + memory logging
 
 ---

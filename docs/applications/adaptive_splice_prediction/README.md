@@ -31,15 +31,15 @@ annotation sources richer than MANE).
 
 ## Driving examples
 
-- [`examples/meta_layer/01_xgboost_baseline.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/01_xgboost_baseline.py) — M1-P position-level XGBoost baseline
-- [`examples/meta_layer/02_calibration_analysis.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/02_calibration_analysis.py) — post-hoc calibration analysis
-- [`examples/meta_layer/03_modality_ablation.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/03_modality_ablation.py) — modality-by-modality ablation
-- [`examples/meta_layer/07_train_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/07_train_sequence_model.py) — train M1-S / M2-S sequence CNN
-- [`examples/meta_layer/08_evaluate_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/08_evaluate_sequence_model.py) — evaluate M1-S on held-out chromosomes
-- [`examples/meta_layer/09_evaluate_alternative_sites.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/09_evaluate_alternative_sites.py) — evaluate on Ensembl/GENCODE alternative sites
-- [`examples/meta_layer/10_verify_evaluation_stats.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/10_verify_evaluation_stats.py) — confidence intervals and statistical verification
-- [`examples/meta_layer/11_junction_coverage_audit.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/11_junction_coverage_audit.py) — junction coverage diagnostic
-- Pod ops: [`ops_train_m1s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/ops_train_m1s_pod.sh), [`ops_train_m2s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/ops_train_m2s_pod.sh), [`ops_ablation_m1s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/ops_ablation_m1s_pod.sh), [`ops_ablation_m2s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/ops_ablation_m2s_pod.sh)
+- [`examples/meta_layer/m1/01_xgboost_baseline.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m1/01_xgboost_baseline.py) — M1-P position-level XGBoost baseline
+- [`examples/meta_layer/m1/02_calibration_analysis.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m1/02_calibration_analysis.py) — post-hoc calibration analysis
+- [`examples/meta_layer/m1/03_modality_ablation.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m1/03_modality_ablation.py) — modality-by-modality ablation
+- [`examples/meta_layer/shared/01_train_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/shared/01_train_sequence_model.py) — train M1-S / M2-S sequence CNN
+- [`examples/meta_layer/shared/02_evaluate_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/shared/02_evaluate_sequence_model.py) — evaluate M1-S on held-out chromosomes
+- [`examples/meta_layer/m2/01_evaluate_alternative_sites.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m2/01_evaluate_alternative_sites.py) — evaluate on Ensembl/GENCODE alternative sites
+- [`examples/meta_layer/m2/03_verify_evaluation_stats.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m2/03_verify_evaluation_stats.py) — confidence intervals and statistical verification
+- [`examples/meta_layer/shared/03_junction_coverage_audit.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/shared/03_junction_coverage_audit.py) — junction coverage diagnostic
+- Pod ops: [`m1/ops_train_m1s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m1/ops_train_m1s_pod.sh), [`m2/ops_train_m2s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m2/ops_train_m2s_pod.sh), [`m1/ops_ablation_m1s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m1/ops_ablation_m1s_pod.sh), [`m2/ops_ablation_m2s_pod.sh`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m2/ops_ablation_m2s_pod.sh)
 
 ## `src/` surface
 
@@ -86,7 +86,7 @@ overcommitment to the meta-CNN when uncertain.
 - Canonical driver script for production inference (currently evaluation scripts serve this role)
 - Inference-path test coverage in `tests/`
 - M3-S (novel site discovery) trained and evaluated, demonstrating the full M1-M4 framework
-- Documented stable CLI wrapping `07_train_sequence_model.py` or a dedicated inference entry point
+- Documented stable CLI wrapping `shared/01_train_sequence_model.py` or a dedicated inference entry point
 
 ## Known limitations
 

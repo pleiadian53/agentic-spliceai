@@ -11,10 +11,10 @@ Sections:
   4. Cross-model comparison tables
 
 Usage:
-    python examples/meta_layer/10_verify_evaluation_stats.py
-    python examples/meta_layer/10_verify_evaluation_stats.py --section data
-    python examples/meta_layer/10_verify_evaluation_stats.py --section metrics
-    python examples/meta_layer/10_verify_evaluation_stats.py --section all
+    python examples/meta_layer/m2/03_verify_evaluation_stats.py
+    python examples/meta_layer/m2/03_verify_evaluation_stats.py --section data
+    python examples/meta_layer/m2/03_verify_evaluation_stats.py --section metrics
+    python examples/meta_layer/m2/03_verify_evaluation_stats.py --section all
 """
 
 import argparse

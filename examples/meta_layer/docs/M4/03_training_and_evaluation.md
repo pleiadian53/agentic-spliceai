@@ -14,7 +14,7 @@ Two kinds of hiding matter, and both have pitfalls specific to this data.
 
 ## 2. Hiding genes: the gene split
 
-Genes are split by chromosome, following the SpliceAI convention: chromosomes 1, 3, 5, 7, and 9 are **test**; the rest are training, with 10% of training genes held aside as validation (`assign_gene_split` in `_m4_common.py`). That gives 4,332 training, 481 validation, and 1,827 test genes.
+Genes are split by chromosome, following the SpliceAI convention: chromosomes 1, 3, 5, 7, and 9 are **test**; the rest are training, with 10% of training genes held aside as validation (`assign_gene_split` in `m4/_m4_common.py`). That gives 4,332 training, 481 validation, and 1,827 test genes.
 
 Splitting by gene keeps every representation of an event on one side: its long and short rows (which are the same measurement with opposite signs), all its regulators, and all its alternative partners. No event appears in two splits.
 
@@ -141,14 +141,14 @@ python examples/data_preparation/m4/01_ingest_kd_dpsi.py
 python examples/data_preparation/m4/04_build_regulator_features.py
 
 # GPU pod (bigWig cache on the volume): site features, then both benchmark settings
-bash examples/meta_layer/ops_m4_pod.sh
+bash examples/meta_layer/m4/ops_m4_pod.sh
 
 # or the benchmark alone, on any machine with site_features.parquet
-python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S3
-python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S2 --k 16 64 256
+python examples/meta_layer/m4/01_m4_fewshot_benchmark.py --setting S3
+python examples/meta_layer/m4/01_m4_fewshot_benchmark.py --setting S2 --k 16 64 256
 
 # with TabPFN on a pod: run its ~5,000 in-context fits on 8 worker processes
-python examples/meta_layer/17_m4_fewshot_benchmark.py --setting S3 --tabpfn-workers 8
+python examples/meta_layer/m4/01_m4_fewshot_benchmark.py --setting S3 --tabpfn-workers 8
 ```
 
 Outputs, per setting, in `output/meta_layer/m4_fewshot/<setting>_compact/`: `per_regulator.parquet` (one row per fold, regulator, method, $k$, and draw), `summary.csv` (macro averages), `learning_curves.png`, and `config.json`.

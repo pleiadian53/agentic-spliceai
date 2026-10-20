@@ -18,7 +18,7 @@ M3-R's reranking beats base on D1/D1_hiconf/D2 precision@k / recall@k.
 scores the parquet-sampled pool — but base-vs-M3-R here is apples-to-apples.)
 
 Usage:
-    python examples/meta_layer/15_evaluate_candidate_classifier.py
+    python examples/meta_layer/m3/04_evaluate_candidate_classifier.py
 """
 
 from __future__ import annotations
@@ -32,13 +32,13 @@ import numpy as np
 import xgboost as xgb  # before torch (macOS libomp clash)
 import polars as pl
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[2]))
 from _example_utils import setup_example_environment  # noqa: E402
 setup_example_environment()
 sys.path.insert(0, str(Path(__file__).parent))
 import _m3_novel_eval as m3eval  # noqa: E402
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 FEATURE_DIR = REPO / "data/mane/GRCh38/openspliceai_eval/analysis_sequences"
 D1_TRUTH = REPO / "data/encode_longread/GRCh38/longread_truth_novel.parquet"
 D2_ANCHORS = REPO / "data/mane/GRCh38/m3_labels/disease_anchors.parquet"

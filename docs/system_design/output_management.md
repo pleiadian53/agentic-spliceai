@@ -100,7 +100,7 @@ Schema (handled by [`agentic_spliceai.registry.Manifest`](https://github.com/ple
 # output/<topic>/<artifact>/MANIFEST.yaml
 status: active                # required: active | baseline | experimental | archived | placeholder
 produced_by:                  # required: command(s) or script(s) that produced this
-  - examples/meta_layer/07_train_sequence_model.py --mode m1
+  - examples/meta_layer/shared/01_train_sequence_model.py --mode m1
 superseded_by: null           # null, or the name of the replacement artifact
 created: 2026-05-23           # optional: ISO date
 notes: >                      # one-paragraph human description
@@ -161,7 +161,7 @@ python -m agentic_spliceai.registry validate
 # Add a starter MANIFEST for a new artifact
 python -m agentic_spliceai.registry add output/meta_layer/my_new_run \
     --status active \
-    --produced-by "examples/meta_layer/07_train_sequence_model.py --mode m1" \
+    --produced-by "examples/meta_layer/shared/01_train_sequence_model.py --mode m1" \
     --tag arch:concat_fusion --tag corpus:cleanannot --tag demo:interview_2026
 
 # Filtered listing — the multi-presentation lever

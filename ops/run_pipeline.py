@@ -14,12 +14,12 @@ Modes:
 Usage:
     # Dry-run — see what would happen (default, no cost)
     python ops/run_pipeline.py \\
-        -- python examples/meta_layer/13_evaluate_m3_novel.py \\
+        -- python examples/meta_layer/m3/01_evaluate_m3_novel.py \\
              --output /workspace/output/
 
     # Execute — launch on a remote GPU
     python ops/run_pipeline.py --execute \\
-        -- python examples/meta_layer/13_evaluate_m3_novel.py \\
+        -- python examples/meta_layer/m3/01_evaluate_m3_novel.py \\
              --output /workspace/output/
 
     # Override infrastructure for one run

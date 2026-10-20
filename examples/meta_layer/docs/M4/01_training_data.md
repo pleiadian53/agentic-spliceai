@@ -101,7 +101,7 @@ Geometry (alternative-site distance, two junction spans, three exon lengths, eve
 
 ### 4.4 The assembled vector
 
-The default *compact* representation (`examples/meta_layer/_m4_common.py`) has 229 columns:
+The default *compact* representation (`examples/meta_layer/m4/_m4_common.py`) has 229 columns:
 
 $$
 X_{e,R} = \big[\ \underbrace{g_e}_{7}\ ,\ \underbrace{s_{\text{long}} - s_{\text{short}}}_{100}\ ,\ \underbrace{s_{\text{partner}}}_{100}\ ,\ \underbrace{b_e}_{2}\ ,\ \underbrace{r_{e,R}}_{20}\ \big]

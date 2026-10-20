@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 M4_LABELS = REPO / "data/mane/GRCh38/m4_labels"
 EVENTS = M4_LABELS / "kd_events.parquet"
 SITE_FEATURES = M4_LABELS / "site_features.parquet"

@@ -222,7 +222,7 @@ trained on 2.8M Ensembl sites calls splice sites much more aggressively.
 
 ```bash
 # Eval-Ensembl-Alt: Ensembl alternative sites
-python -u examples/meta_layer/09_evaluate_alternative_sites.py \
+python -u examples/meta_layer/m2/01_evaluate_alternative_sites.py \
     --checkpoint output/meta_layer/m1s_v2_logit_blend/best.pt \
     --annotation-source ensembl \
     --build-cache \
@@ -231,7 +231,7 @@ python -u examples/meta_layer/09_evaluate_alternative_sites.py \
     --device cuda
 
 # Eval-GENCODE-Alt: GENCODE alternative sites
-python -u examples/meta_layer/09_evaluate_alternative_sites.py \
+python -u examples/meta_layer/m2/01_evaluate_alternative_sites.py \
     --checkpoint output/meta_layer/m1s_v2_logit_blend/best.pt \
     --annotation-source gencode \
     --gtf data/gencode/GRCh38/gencode.v47.annotation.gtf \

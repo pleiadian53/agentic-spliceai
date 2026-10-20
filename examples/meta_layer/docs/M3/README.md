@@ -12,7 +12,7 @@ discovery) and any later disease-conditional models.
 
 > **📂 Where the data-prep scripts live:** the M3 label workflow (positive
 > pool, anchors, negatives) is under **[`examples/data_preparation/m3/`](../../../data_preparation/m3/)**
-> (run-ordered `01`–`09` + its own README), NOT here — `examples/meta_layer/`
+> (run-ordered `01`–`11` + its own README), NOT here — `examples/meta_layer/`
 > holds the meta-model *training/eval*. Completing that workflow is a
 > **precondition** to M3 Phase C training.
 
@@ -85,4 +85,4 @@ they lift M1/M2 but barely move novel-site discovery.
 - [`../junction_coverage_findings.md`](../junction_coverage_findings.md) — strand asymmetry + biotype effects in the junction audit that seeds M3.
 - [`../ood_generalization.md`](../ood_generalization.md) — why training labels matter for alt/novel-site detection.
 - [`../M4/`](../M4/) — the disease-conditional sibling (perturbation as input).
-- Audit script: `examples/meta_layer/11_junction_coverage_audit.py`.
+- Audit script: `examples/meta_layer/shared/03_junction_coverage_audit.py`.

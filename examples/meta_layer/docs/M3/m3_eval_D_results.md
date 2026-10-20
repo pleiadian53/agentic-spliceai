@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-26 · **Model under test:** `output/meta_layer/m3_v1` (3-class
 novel-site recognizer, mm_channels=7) · **Harness:**
-[`examples/meta_layer/13_evaluate_m3_novel.py`](../../13_evaluate_m3_novel.py)
-(+ [`_m3_novel_eval.py`](../../_m3_novel_eval.py)).
+[`examples/meta_layer/m3/01_evaluate_m3_novel.py`](../../m3/01_evaluate_m3_novel.py)
+(+ [`m3/_m3_novel_eval.py`](../../m3/_m3_novel_eval.py)).
 
 ## What this measures (and why)
 
@@ -108,7 +108,7 @@ Raw metrics: `output/meta_layer/m3_eval_d1/m3_eval_metrics.json`.
 
 The original diagnosis called the ~50% unconfirmed SpliceVault positives "the
 ceiling — label noise you can't learn through." Tier 1 tested it: retrain the
-recognizer (`07 --confirmed-only`) on the **77,879 long-read-confirmed positives
+recognizer (`shared/01_train_sequence_model.py --confirmed-only`) on the **77,879 long-read-confirmed positives
 only** (drop 76,234 unconfirmed), same architecture/schedule, then the same
 anti-circular eval. **M3-v1.1 is marginally *worse* than M3-v1** everywhere:
 

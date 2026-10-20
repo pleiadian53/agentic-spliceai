@@ -19,7 +19,7 @@ runner ``ops_eval_tissue_pod.sh``).
 
 Example (base, local)::
 
-    python examples/meta_layer/16_evaluate_tissue_stratified.py \\
+    python examples/meta_layer/m2/02_evaluate_tissue_stratified.py \\
         --tissues dnase5 --models base
 
 Output: ``<output-dir>/tissue_stratified.json``.
@@ -35,7 +35,7 @@ from pathlib import Path
 
 import polars as pl
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from _example_utils import get_project_root  # noqa: E402  (marker-based root finding)
 
 logger = logging.getLogger("tissue_stratified")
@@ -227,7 +227,8 @@ def main() -> None:
     elif "meta" in models:
         raise SystemExit(
             "Meta recall requested but no --meta-outcomes parquet. Meta per-site outcomes come from "
-            "the neural eval (09 --dump-site-outcomes on a pod); see ops_eval_tissue_pod.sh."
+            "the neural eval (01_evaluate_alternative_sites.py --dump-site-outcomes on a pod); "
+            "see ops_eval_tissue_pod.sh."
         )
 
     if outcomes is not None:

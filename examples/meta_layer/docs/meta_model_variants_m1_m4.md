@@ -38,7 +38,7 @@ position, rather than as pre-computed tabular features at sampled points.
 
 | Model | Position-level (-P) | Sequence-level (-S) |
 |-------|--------------------|--------------------|
-| M1 | `01_xgboost_baseline.py` (XGBoost, 103 features) | `meta_splice_model_v3.py` (3-stream CNN) |
+| M1 | `m1/01_xgboost_baseline.py` (XGBoost, 103 features) | `meta_splice_model_v3.py` (3-stream CNN) |
 | M2 | `04_m2a_ensembl_vs_mane.py` (planned) | Same architecture, evaluated on alternative sites |
 | M3 | `05_m3_novel_prediction.py` (planned) | Same architecture, junction as target |
 | M4 | — | `predict_with_delta()` on ref/alt sequences |
@@ -445,8 +445,8 @@ All four variants use the same codebase:
 | Modality registry | `src/.../features/modalities/` | All |
 | Feature schema | `src/.../meta_layer/core/feature_schema.py` | All |
 | Workflow script | `examples/features/06_multimodal_genome_workflow.py` | All |
-| XGBoost baseline | `examples/meta_layer/01_xgboost_baseline.py` | M1, M2 |
-| Ablation analysis | `examples/meta_layer/03_modality_ablation.py` | M1, M2 |
+| XGBoost baseline | `examples/meta_layer/m1/01_xgboost_baseline.py` | M1, M2 |
+| Ablation analysis | `examples/meta_layer/m1/03_modality_ablation.py` | M1, M2 |
 
 The only things that change between variants are:
 1. The YAML config (which modalities are enabled)
@@ -575,9 +575,9 @@ ref_probs, alt_probs, delta = model.predict_with_delta(
 - Data sources and landscape:
   `docs/meta_layer/methods/04_data_sources_and_landscape.md`
 - XGBoost baseline (M1-P):
-  `examples/meta_layer/01_xgboost_baseline.py`
+  `examples/meta_layer/m1/01_xgboost_baseline.py`
 - Modality ablation:
-  `examples/meta_layer/03_modality_ablation.py`
+  `examples/meta_layer/m1/03_modality_ablation.py`
 - M3 config:
   `examples/features/configs/meta_m3_novel.yaml`
 - Full-stack config (M2):

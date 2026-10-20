@@ -19,8 +19,8 @@ Modes:
                       leave-one-modality-out ablation; save model + metrics.
 
 Usage:
-    python examples/meta_layer/14_train_candidate_refiner.py
-    python examples/meta_layer/14_train_candidate_refiner.py --diagnostic-only
+    python examples/meta_layer/m3/03_train_candidate_refiner.py
+    python examples/meta_layer/m3/03_train_candidate_refiner.py --diagnostic-only
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ import numpy as np
 import xgboost as xgb
 import polars as pl
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parents[2]))
 from _example_utils import setup_example_environment  # noqa: E402
 setup_example_environment()
 
@@ -48,7 +48,7 @@ from agentic_spliceai.splice_engine.meta_layer.training.data_utils import (  # n
 )
 
 log = logging.getLogger(__name__)
-REPO = Path(__file__).resolve().parents[2]  # examples/meta_layer/<file> -> repo root
+REPO = Path(__file__).resolve().parents[3]  # examples/meta_layer/<variant>/<file> -> repo root
 CAND = REPO / "data/mane/GRCh38/m3_labels/candidate_labels.parquet"
 OUT = REPO / "output/meta_layer/m3r_candidate_refiner"
 

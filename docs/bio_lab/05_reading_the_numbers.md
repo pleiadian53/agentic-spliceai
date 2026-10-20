@@ -37,7 +37,7 @@ The clearest illustration: on TARDBP the per-gene sweep reports base F1 **1.000*
 That is measured on MANE, where every alternative site M2-S correctly finds is scored as an error.
 A metric that improves when the model stops doing its job is the wrong metric — which is why the
 published M2-S result uses the **delta set** (Ensembl ∖ MANE), matching
-`09_evaluate_alternative_sites.py`.
+`m2/01_evaluate_alternative_sites.py`.
 
 Two consequences worth internalising:
 

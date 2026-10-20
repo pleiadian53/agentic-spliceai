@@ -18,11 +18,11 @@ context from [Stage 3](03_feature_engineering.md). The trainer is a single scrip
 ## The command
 
 The trainer is
-[`examples/meta_layer/07_train_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/07_train_sequence_model.py).
+[`examples/meta_layer/shared/01_train_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/shared/01_train_sequence_model.py).
 For M1-S, `--mode m1` selects the canonical variant and auto-selects MANE labels:
 
 ```bash
-python examples/meta_layer/07_train_sequence_model.py \
+python examples/meta_layer/shared/01_train_sequence_model.py \
     --mode m1 \
     --use-shards \
     --bigwig-cache <bigwig-cache-dir> \
@@ -36,7 +36,7 @@ The full genome-scale run is GPU-bound — see the [GPU Pods runbook](08_gpu_pod
 
 ## What the trainer does — two phases
 
-`07` runs in two phases:
+`shared/01_train_sequence_model.py` runs in two phases:
 
 1. **Cache build.** For each gene it assembles the training tensors — the base-score stream, the dense
    multimodal channels (via `DenseFeatureExtractor`, pulling bigWig / junction / eCLIP values), and the

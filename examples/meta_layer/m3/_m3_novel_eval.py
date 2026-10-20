@@ -3,7 +3,7 @@
 Pure functions — **no model / bigWig / torch dependencies** — so the metric
 math (the novelty post-filter + per-gene precision@k / recall@k against an
 independent truth set) can be unit-tested on a hand-built fixture. The driver
-``13_evaluate_m3_novel.py`` imports these.
+``01_evaluate_m3_novel.py`` imports these.
 
 Design decisions baked in here (see ``examples/meta_layer/docs/M3/m3_design.md``):
 
@@ -209,7 +209,7 @@ def combine_type_results(donor_res: dict, acceptor_res: dict, ks=(5, 10, 20)) ->
 
 
 # ---------------------------------------------------------------------------
-# Self-test fixture (run: python _m3_novel_eval.py)
+# Self-test fixture (run: python examples/meta_layer/m3/_m3_novel_eval.py)
 # ---------------------------------------------------------------------------
 
 def run_selftest() -> int:

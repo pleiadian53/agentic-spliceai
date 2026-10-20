@@ -2,7 +2,7 @@
 
 ## Motivation
 
-The meta-layer's FASTA inference mode (`08_evaluate_sequence_model.py --fasta`)
+The meta-layer's FASTA inference mode (`shared/02_evaluate_sequence_model.py --fasta`)
 produces splice site predictions on arbitrary sequences without ground truth
 annotations.  To evaluate these predictions, we need to map them back to a
 reference genome where splice sites are known.

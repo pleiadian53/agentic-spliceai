@@ -54,7 +54,7 @@ What TabPFN does **not** bring is biology. Its prior is generic tabular data, no
 
 ## 5. How M4 uses it
 
-Two methods in `examples/meta_layer/17_m4_fewshot_benchmark.py`, both on the same 229 compact features as every other method.
+Two methods in `examples/meta_layer/m4/01_m4_fewshot_benchmark.py`, both on the same 229 compact features as every other method.
 
 **`tabpfn`: the regulator's examples only.**
 

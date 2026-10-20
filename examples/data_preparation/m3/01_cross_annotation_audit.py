@@ -1,7 +1,7 @@
 """Phase A1 — cross-annotation audit of the GTEx novel-junction pool.
 
 Takes the novel junction sides surfaced by the junction-coverage audit (step 0,
-`examples/meta_layer/11_junction_coverage_audit.py` → q3_novel_junction_sides)
+`examples/meta_layer/shared/03_junction_coverage_audit.py` → q3_novel_junction_sides)
 and re-checks them against the STRAND-CORRECT annotation union (GENCODE v47 ∪
 RefSeq-curated ∪ Ensembl GRCh38). Sites absent from all of them are the
 genuinely-novel GTEx candidate pool that feeds step 02.

@@ -39,7 +39,7 @@ annotation passes the strand-validation gate (donor→GT / acceptor→AG, ~0.98
 
 | # | Script | Produces | Notes |
 |---|---|---|---|
-| 0 | `../../meta_layer/11_junction_coverage_audit.py` | `output/.../q3_novel_junction_sides.parquet` | **prerequisite** — GTEx novel junction sides (kept in meta_layer; general junction analysis) |
+| 0 | `../../meta_layer/shared/03_junction_coverage_audit.py` | `output/.../q3_novel_junction_sides.parquet` | **prerequisite** — GTEx novel junction sides (kept in meta_layer; general junction analysis) |
 | 01 | `01_cross_annotation_audit.py` | `A1_survivors_final.parquet` | q3 sides absent from GENCODE ∪ RefSeq-curated |
 | 02 | `02_build_positive_pool.py` | `positives_gtex_novel.parquet` | depth/tissue + GT/AG filter (GTEx-novel arm) |
 | 03 | `03_ingest_splicevault.py` | `positives_splicevault.parquet` | the bulk positive source (~154K novel cryptic sites) |

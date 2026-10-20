@@ -113,7 +113,7 @@ stack and the Phase D long-read truth set.
 > only ~50% of the pooled positives are long-read-confirmed, which made "the
 > unconfirmed half is the ceiling" the natural diagnosis. **Tier 1 tested it
 > directly:** retrain the recognizer on the 77,879 confirmed positives only
-> (`07 --confirmed-only` → `m3s_v1_1_confirmed`), same architecture and schedule.
+> (`shared/01_train_sequence_model.py --confirmed-only` → `m3s_v1_1_confirmed`), same architecture and schedule.
 > The result is **marginally worse everywhere** (D1 P@5 0.327 vs 0.335; D1 R@20
 > 0.343 vs 0.367; D2 R@20 0.779 vs 0.791). Dropping the unconfirmed positives
 > lost signal rather than removing noise — more data won, and the unconfirmed
@@ -207,7 +207,7 @@ hard:easy ratio (here 1:1) is the tunable knob. Built by
 >
 > Consequently **`negatives.parquet` is unused by the recognizer** — training runs
 > on the full gene split like M1/M2, and
-> [`07_train_sequence_model.py`](../../07_train_sequence_model.py) prints
+> [`shared/01_train_sequence_model.py`](../../shared/01_train_sequence_model.py) prints
 > `negatives.parquet unused` at startup. The "1:2 ratio" and the "hard:easy
 > tunable knob" describe a knob that does not exist; the effective positive:negative
 > ratio is whatever the gene windows contain. `09_build_negatives.py` remains
@@ -262,7 +262,7 @@ revisit once baselines are measured).
 > 0.277 and M2-S 0.258; D2 R@20 0.791 vs base 0.506.** M3-v1 is the only meta model
 > that beats raw base on independent novel-site truth — M1-S and M2-S both come in
 > *below* base, confirming that a separate model was justified. Harness:
-> [`13_evaluate_m3_novel.py`](../../13_evaluate_m3_novel.py).
+> [`m3/01_evaluate_m3_novel.py`](../../m3/01_evaluate_m3_novel.py).
 
 ---
 

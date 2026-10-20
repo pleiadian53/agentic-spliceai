@@ -28,7 +28,7 @@ surfaced during the investigation.
 
 ### 1.1 Setup
 
-- **Script:** `examples/meta_layer/11_junction_coverage_audit.py`
+- **Script:** `examples/meta_layer/shared/03_junction_coverage_audit.py`
 - **Notebook (tutorial version):** `notebooks/meta_layer/junction_coverage_audit.ipynb`
 - **Data inputs:**
   - `data/GRCh38/junction_data/junctions_gtex_v8.parquet` (353K
@@ -372,10 +372,10 @@ evaluate on alt sites + novel sites, run ablation.
 
 ```bash
 # Regenerate all audit outputs (test chroms)
-python examples/meta_layer/11_junction_coverage_audit.py
+python examples/meta_layer/shared/03_junction_coverage_audit.py
 
 # Full genome
-python examples/meta_layer/11_junction_coverage_audit.py --chroms all \
+python examples/meta_layer/shared/03_junction_coverage_audit.py --chroms all \
     --output-dir output/meta_layer/junction_coverage_audit_fullgenome
 
 # Notebook version (same analysis, tutorial style)

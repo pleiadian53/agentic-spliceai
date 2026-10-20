@@ -23,8 +23,8 @@
 # Usage:
 #   ssh <cluster>
 #   cd ~/sky_workdir
-#   nohup bash examples/meta_layer/ops_train_m2c_pod.sh \
-#       > /runpod-volume/output/meta_layer/m2c_train.log 2>&1 &
+#   nohup bash examples/meta_layer/m2/ops_train_m2s_pod.sh \
+#       > /runpod-volume/output/meta_layer/m2s_train.log 2>&1 &
 
 set -e
 
@@ -54,7 +54,7 @@ ls data/GRCh38/junction_data/junctions_gtex_v8.parquet >/dev/null
 ls "$BIGWIG_CACHE"/hg38.phyloP100way.bw >/dev/null
 echo "  All prerequisites present."
 
-python -u examples/meta_layer/07_train_sequence_model.py \
+python -u examples/meta_layer/shared/01_train_sequence_model.py \
     --mode m1 \
     --annotation-source ensembl \
     --device cuda \

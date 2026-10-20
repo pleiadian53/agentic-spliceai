@@ -8,7 +8,7 @@ rather than reusing the base-vs-meta overlay:
 The output is a sparse ranked list, not a dense per-position overlay. Ranking,
 the novelty post-filter, peak suppression, and channel selection all come from
 ``splice_engine.eval.novel_site_ranking`` so the UI and the offline evaluation
-harness (``examples/meta_layer/13_evaluate_m3_novel.py``) agree by construction.
+harness (``examples/meta_layer/m3/01_evaluate_m3_novel.py``) agree by construction.
 
 **Serving universe.** Genes are served from the M3 evaluation cache, whose universe
 is the held-out SpliceAI test chromosomes (1/3/5/7/9). Every inspectable gene is one

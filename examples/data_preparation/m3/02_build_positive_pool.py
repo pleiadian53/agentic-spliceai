@@ -12,7 +12,7 @@ Tier-1 disease catalogs (TDP-43, SF3B1, U2AF1, SMN2, ...) are folded in by a
 separate B1b step with their own provenance tags; this script produces the
 GTEx-novel arm only.
 
-Coordinate convention (from ``examples/meta_layer/11_junction_coverage_audit.py::normalize_junctions``):
+Coordinate convention (from ``examples/meta_layer/shared/03_junction_coverage_audit.py::normalize_junctions``):
 junctions are stored as 1-based inclusive intron coordinates; ``position`` is
 the *exonic* splice-site base — donor = last exonic base, acceptor = first
 exonic base. The canonical intronic dinucleotides therefore sit just inside
@@ -95,7 +95,7 @@ def self_check(fasta: pyfaidx.Fasta, n: int = 20000) -> float:
     """Validate the dinucleotide offset logic on GTEx-junction-derived sites.
 
     The survivors are derived with the *junction* coordinate convention
-    (intron start/end ± 1; see ``examples/meta_layer/11_junction_coverage_audit.py``). We validate
+    (intron start/end ± 1; see ``examples/meta_layer/shared/03_junction_coverage_audit.py``). We validate
     the offset against that same convention: derive donor/acceptor positions
     from real GTEx junctions and confirm the canonical GT/AG rate is ~98%.
 

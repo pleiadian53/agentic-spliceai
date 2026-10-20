@@ -3,7 +3,7 @@
 The M3 positives sit close to annotated splice sites (median 49 nt; 96% within 500 nt), so a
 ranker that only knows "GT/AG motif, near a known site" may already recover most of what the
 evaluation rewards. This probe measures that, on the same held-out eval universe and truth sets
-as ``13_evaluate_m3_novel.py``.
+as ``01_evaluate_m3_novel.py``.
 
 For every truth-containing gene and splice type it ranks the novel candidates three ways:
 
@@ -20,9 +20,9 @@ recall@20 per distance bin and the composition of each model's top 20.
 Requires the M3 eval cache (``output/meta_layer/m3_eval_d1/``). Run (after
 ``mamba activate agentic-spliceai``)::
 
-    python examples/meta_layer/18_m3_distance_baseline_probe.py
-    python examples/meta_layer/18_m3_distance_baseline_probe.py --limit 100   # smoke test
-    python examples/meta_layer/18_m3_distance_baseline_probe.py --summarize-only
+    python examples/meta_layer/m3/02_m3_distance_baseline_probe.py
+    python examples/meta_layer/m3/02_m3_distance_baseline_probe.py --limit 100   # smoke test
+    python examples/meta_layer/m3/02_m3_distance_baseline_probe.py --summarize-only
 
 Outputs (default ``output/meta_layer/m3_distance_probe/``): ``metrics.json``, ``cand.parquet``,
 ``truth.parquet``, ``summary.md``.
@@ -41,7 +41,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import _m3_novel_eval as m3eval  # noqa: E402
@@ -69,8 +69,8 @@ BIN_LABELS = ["<=10", "11-50", "51-100", "101-500", "501-1000", ">1000"]
 
 
 def _load_eval13():
-    """Import ``13_evaluate_m3_novel.py`` (digit-prefixed, so not importable by name)."""
-    spec = importlib.util.spec_from_file_location("eval13", HERE / "13_evaluate_m3_novel.py")
+    """Import ``01_evaluate_m3_novel.py`` (digit-prefixed, so not importable by name)."""
+    spec = importlib.util.spec_from_file_location("eval13", HERE / "01_evaluate_m3_novel.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

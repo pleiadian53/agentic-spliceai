@@ -10,7 +10,7 @@
 #   ssh sky-cb9e-pleiadian53
 #   cd ~/sky_workdir
 #   mkdir -p /runpod-volume/output/meta_layer
-#   nohup bash examples/meta_layer/ops_train_m1s_pod.sh > /runpod-volume/output/meta_layer/m1s_train.log 2>&1 &
+#   nohup bash examples/meta_layer/m1/ops_train_m1s_pod.sh > /runpod-volume/output/meta_layer/m1s_train.log 2>&1 &
 
 set -e
 
@@ -35,7 +35,7 @@ ls data/mane/GRCh38/rbp_data/eclip_peaks.parquet >/dev/null
 ls "$BIGWIG_CACHE"/hg38.phyloP100way.bw >/dev/null
 echo "  All data present."
 
-python -u examples/meta_layer/07_train_sequence_model.py \
+python -u examples/meta_layer/shared/01_train_sequence_model.py \
     --mode m1 \
     --device cuda \
     --epochs 50 \

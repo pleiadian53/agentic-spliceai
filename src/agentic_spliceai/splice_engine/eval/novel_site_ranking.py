@@ -7,7 +7,7 @@ Novel-site discovery (M3) asks a different question from M1/M2 refinement:
 That is a *within-gene ranking* problem, scored by per-gene precision@k / recall@k
 against independent truth — not a genome-wide PR-AUC. This module holds the pieces
 that answer it, shared by the offline evaluation harness
-(``examples/meta_layer/13_evaluate_m3_novel.py``) and the Bio Lab UI's Novel Site
+(``examples/meta_layer/m3/01_evaluate_m3_novel.py``) and the Bio Lab UI's Novel Site
 Explorer so both rank sites through exactly one implementation.
 
 Score arrays are ``[L, 3]`` in meta channel order ``[donor, acceptor, neither]``,

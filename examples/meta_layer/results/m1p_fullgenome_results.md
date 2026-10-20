@@ -224,6 +224,6 @@ All outputs saved to `output/meta_layer/m1_fullgenome/`:
 
 To reproduce:
 ```bash
-python examples/meta_layer/01_xgboost_baseline.py \
+python examples/meta_layer/m1/01_xgboost_baseline.py \
     --output-dir output/meta_layer/m1_fullgenome
 ```

@@ -7,11 +7,11 @@
 #   2) the tissue eval (16) stratifies those by GTEx tissue of junction support.
 #
 # Needs the pod's Ensembl base scores + bigWig cache on the volume (for the eval
-# cache) and the M2-S checkpoint. Assumes ops_bootstrap_pod.sh has symlinked
+# cache) and the M2-S checkpoint. Assumes shared/ops_bootstrap_pod.sh has symlinked
 # data/ and output/ to the volume.
 set -euo pipefail
-cd "$(dirname "$0")/../.."   # repo root
-source examples/meta_layer/ops_bootstrap_pod.sh
+cd "$(dirname "$0")/../../.."   # repo root
+source examples/meta_layer/shared/ops_bootstrap_pod.sh
 
 CHROMS="chr1 chr3 chr5 chr7 chr9"
 OUT="output/meta_layer/m2s_v4_cleanannot_alt_eval"
@@ -27,7 +27,7 @@ if [ -d "$CACHE/test" ] && [ "$(ls "$CACHE"/test/*.npz 2>/dev/null | wc -l)" -gt
 fi
 
 # 1) M2-S alternative-site eval, dumping per-site outcomes.
-python -u examples/meta_layer/09_evaluate_alternative_sites.py \
+python -u examples/meta_layer/m2/01_evaluate_alternative_sites.py \
     --checkpoint output/meta_layer/m2s_v4_cleanannot/best.pt \
     --annotation-source ensembl \
     --base-scores-dir "$BASE_SCORES" \
@@ -38,7 +38,7 @@ python -u examples/meta_layer/09_evaluate_alternative_sites.py \
     --dump-site-outcomes "$OUT/site_outcomes.parquet"
 
 # 2) Tissue-stratified base + meta recall (both from the dump).
-python -u examples/meta_layer/16_evaluate_tissue_stratified.py \
+python -u examples/meta_layer/m2/02_evaluate_tissue_stratified.py \
     --models base,meta --tissues dnase5 --test-chroms $CHROMS \
     --meta-outcomes "$OUT/site_outcomes.parquet" \
     --output-dir "$OUT"

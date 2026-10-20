@@ -80,7 +80,7 @@ for each run.
 ```bash
 ssh aspliceai-workspace        # cluster name printed by provision_cluster.py
 cd ~/sky_workdir               # your repo, synced by SkyPilot's workdir sync
-python examples/meta_layer/13_evaluate_m3_novel.py --output /workspace/output/
+python examples/meta_layer/m3/01_evaluate_m3_novel.py --output /workspace/output/
 ```
 
 Or launch a one-shot job from your laptop and pull results back automatically:
@@ -215,6 +215,6 @@ The repo also carries a manual, dashboard-driven RunPod workflow under
 model name via `--weights` — run a command). Task-specific run scripts still live
 next to the work they drive under `examples/<topic>/` — for example
 `examples/foundation_models/ops_*.py` (Evo2 embedding extraction, plus richer
-staging such as data-layout manifests) and `examples/meta_layer/ops_*_pod.sh`
+staging such as data-layout manifests) and `examples/meta_layer/<variant>/ops_*_pod.sh`
 (meta-model training/eval on a pod). Use `ops/` to get the pod; use those
 per-task scripts to drive the specific job.

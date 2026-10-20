@@ -238,7 +238,7 @@ produced concrete errors in the repository:
   the documented meaning of the tag ("meta-layer model generation") it was
   simply wrong.
 - `m1s_v2_logit_blend/`'s `produced_by` line read
-  *"07_train_sequence_model.py (v2 architecture, April 2026)"* while its own
+  *"shared/01_train_sequence_model.py (v2 architecture, April 2026)"* while its own
   `notes` field read *"v3 arch + ENCODE-only RBP"* — the manifest contradicted
   itself in adjacent fields.
 - `m2s_v3_baseline_repro/` is the trap that hid all of this: its corpus

@@ -24,7 +24,7 @@ Full machine-readable outputs and the detailed methods writeup live under
 
 ## 1. Question
 
-The junction-coverage audit (`examples/meta_layer/11_junction_coverage_audit.py`,
+The junction-coverage audit (`examples/meta_layer/shared/03_junction_coverage_audit.py`,
 Q3) surfaced **67,490** junction "sides" (donor/acceptor positions) that are
 supported by GTEx RNA-seq but **absent from Ensembl**. "Absent from Ensembl"
 is a weak definition of novel — the position could still be annotated in

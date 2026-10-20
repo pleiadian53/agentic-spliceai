@@ -50,7 +50,7 @@ scores, or (b) complementary but linearly accessible, then staged mixing
 buys nothing over concatenation.
 
 We measured this directly on the full-genome feature set
-(`12_feature_redundancy_analysis.py`), three tests:
+(`m2/04_feature_redundancy_analysis.py`), three tests:
 
 ### Test 1 — Cross-modality correlation (Spearman)
 
@@ -224,7 +224,7 @@ local, and decisive.
 ## Reproduce
 
 ```bash
-python examples/meta_layer/12_feature_redundancy_analysis.py \
+python examples/meta_layer/m2/04_feature_redundancy_analysis.py \
     --chromosomes chr22 chr21 chr19 --base-uncertain-threshold 0.5
 ```
 

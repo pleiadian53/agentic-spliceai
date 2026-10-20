@@ -4,8 +4,8 @@
 refiner does **not** improve novel-site ranking over the base model on the
 anti-circular test, and we now know precisely why.
 
-Scripts: [`14_train_candidate_refiner.py`](../../14_train_candidate_refiner.py)
-(Phase 1) · [`15_evaluate_candidate_classifier.py`](../../15_evaluate_candidate_classifier.py)
+Scripts: [`m3/03_train_candidate_refiner.py`](../../m3/03_train_candidate_refiner.py)
+(Phase 1) · [`m3/04_evaluate_candidate_classifier.py`](../../m3/04_evaluate_candidate_classifier.py)
 (Phase 2). Training-data prep: [`m3_training_data.md`](m3_training_data.md) §5.
 
 ## The reframe (recap)

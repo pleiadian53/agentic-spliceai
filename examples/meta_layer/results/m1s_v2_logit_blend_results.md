@@ -138,7 +138,7 @@ deltas.  Results on validated test variants:
 
 ```bash
 # Training (A40 pod)
-python -u examples/meta_layer/07_train_sequence_model.py \
+python -u examples/meta_layer/shared/01_train_sequence_model.py \
     --mode m1 --device cuda --epochs 50 \
     --cache-dir /runpod-volume/output/meta_layer/gene_cache_mane \
     --bigwig-cache /runpod-volume/bigwig_cache \
@@ -146,7 +146,7 @@ python -u examples/meta_layer/07_train_sequence_model.py \
     --output-dir /runpod-volume/output/meta_layer/m1s_v2_logit_blend
 
 # Evaluation (A40 pod)
-python -u examples/meta_layer/08_evaluate_sequence_model.py \
+python -u examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s_v2_logit_blend/best.pt \
     --build-cache --device cuda
 

@@ -8,7 +8,7 @@ Two-phase pipeline:
 Usage (examples are real; adjust paths to your environment):
     # M1-S: canonical refiner (MANE, all 9 modalities). Device auto-selects
     # cuda when available, else CPU; --use-shards speeds disk-backed I/O.
-    python 07_train_sequence_model.py --mode m1 --use-shards \
+    python examples/meta_layer/shared/01_train_sequence_model.py --mode m1 --use-shards \
         --bigwig-cache /path/to/bigwig_cache \
         --output-dir output/meta_layer/m1s_v4_cleanannot
 
@@ -16,7 +16,7 @@ Usage (examples are real; adjust paths to your environment):
     # the MANE-trained OpenSpliceAI run in inference over the Ensembl gene windows
     # (the base model is NOT retrained on Ensembl — it is a per-position sequence
     # scorer, so it emits scores over any region you point it at).
-    python 07_train_sequence_model.py --mode m2 --use-shards \
+    python examples/meta_layer/shared/01_train_sequence_model.py --mode m2 --use-shards \
         --bigwig-cache /path/to/bigwig_cache \
         --base-scores-dir data/ensembl/GRCh38/openspliceai_eval/precomputed \
         --output-dir output/meta_layer/m2s_v4_cleanannot
@@ -24,11 +24,11 @@ Usage (examples are real; adjust paths to your environment):
     # Quick smoke: tiny config (3 genes, 1 epoch) to verify the pipeline before
     # paying for pod time. --no-remove-paralogs skips the all-gene alignment and
     # --bigwig-cache avoids slow remote bigWig streaming, so it finishes fast.
-    python 07_train_sequence_model.py --mode m1 --smoke --no-remove-paralogs \
+    python examples/meta_layer/shared/01_train_sequence_model.py --mode m1 --smoke --no-remove-paralogs \
         --bigwig-cache /path/to/bigwig_cache
 
     # Resume from a checkpoint
-    python 07_train_sequence_model.py --mode m1 \
+    python examples/meta_layer/shared/01_train_sequence_model.py --mode m1 \
         --checkpoint output/meta_layer/m1s_v4_cleanannot/best.pt
 
     # M3-S: novel-site recognizer. Drops the junction modality and trains on
@@ -36,7 +36,7 @@ Usage (examples are real; adjust paths to your environment):
     # annotated sites MASKED out of the loss; long-read-confirmed positives
     # up-weighted via --confirmed-weight). Novelty itself is applied as a
     # post-filter (set subtraction) at inference, not learned.
-    python 07_train_sequence_model.py --mode m3 --use-shards \
+    python examples/meta_layer/shared/01_train_sequence_model.py --mode m3 --use-shards \
         --bigwig-cache /path/to/bigwig_cache --confirmed-weight 2.0 \
         --output-dir output/meta_layer/m3_v1
 
@@ -440,7 +440,7 @@ def main() -> int:
         help="M3 only: target fraction (0-1) of positive-loss mass the positivized "
              "disease anchors should occupy. Overrides --anchor-weight by deriving the "
              "per-anchor weight from the live positive-mass sum. The durable policy knob "
-             "(a fixed influence budget, not a raw multiplier). E.g. 0.05 for ~5%.",
+             "(a fixed influence budget, not a raw multiplier). E.g. 0.05 for ~5%%.",
     )
     parser.add_argument(
         "--anchor-positivize-sources", type=str,

@@ -14,12 +14,12 @@ help, and where?" rather than a standalone accuracy number.
 
 ## M1-S (and the M2-S yardstick)
 
-[`examples/meta_layer/08_evaluate_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/08_evaluate_sequence_model.py)
+[`examples/meta_layer/shared/02_evaluate_sequence_model.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/shared/02_evaluate_sequence_model.py)
 runs the streaming held-out evaluation on the SpliceAI test split (chr1, 3, 5, 7, 9 by default):
 
 ```bash
 # Build the test cache once, then it is reused on subsequent runs
-python examples/meta_layer/08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s_v4_cleanannot/best.pt \
     --build-cache \
     --bigwig-cache <bigwig-cache-dir>
@@ -57,10 +57,10 @@ For both the meta model and the base model, aggregated over the test gene set:
 
 The aggregate yardstick understates M2-S because most test positions are canonical. The point of M2-S
 is the **alternative sites** (Ensembl `\` MANE), evaluated by
-[`examples/meta_layer/09_evaluate_alternative_sites.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/09_evaluate_alternative_sites.py):
+[`examples/meta_layer/m2/01_evaluate_alternative_sites.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m2/01_evaluate_alternative_sites.py):
 
 ```bash
-python examples/meta_layer/09_evaluate_alternative_sites.py \
+python examples/meta_layer/m2/01_evaluate_alternative_sites.py \
     --checkpoint output/meta_layer/m2s_v4_cleanannot/best.pt \
     --annotation-source ensembl \
     --base-scores-dir data/ensembl/GRCh38/openspliceai_eval/precomputed \
@@ -76,19 +76,19 @@ and reports metrics **both overall and on the alternative subset**. `--annotatio
 ### Tissue-stratified recall (M2-S)
 
 Because alternative splicing is context-dependent, alternative-site recall can be stratified by the
-**GTEx tissue whose junctions support each site**. `16_evaluate_tissue_stratified.py` does this over
+**GTEx tissue whose junctions support each site**. `m2/02_evaluate_tissue_stratified.py` does this over
 the 5 DNase-matched tissues (brain cortex, heart, lung, muscle, liver): it derives the alternative
 sites, builds a per-tissue junction-support index from the GTEx v8 by-tissue table, and reports
 per-tissue recall for base and M2-S.
 
 Base recall runs locally from the precomputed base scores; **M2-S recall needs the neural eval**, so
-`09 --dump-site-outcomes` writes a per-site `(chrom, position, splice_type, base_detected,
-meta_detected)` parquet during the alt-site eval, which `16 --meta-outcomes` consumes:
+`m2/01_evaluate_alternative_sites.py --dump-site-outcomes` writes a per-site `(chrom, position, splice_type, base_detected,
+meta_detected)` parquet during the alt-site eval, which `m2/02_evaluate_tissue_stratified.py --meta-outcomes` consumes:
 
 ```bash
 # on a pod (dense features): 09 dumps per-site outcomes, then 16 stratifies
-09_evaluate_alternative_sites.py … --dump-site-outcomes site_outcomes.parquet
-16_evaluate_tissue_stratified.py --models base,meta --tissues dnase5 \
+m2/01_evaluate_alternative_sites.py … --dump-site-outcomes site_outcomes.parquet
+m2/02_evaluate_tissue_stratified.py --models base,meta --tissues dnase5 \
     --meta-outcomes site_outcomes.parquet
 # → tissue_stratified.json  (per tissue: n_alt_sites, base_recall, meta_recall)
 ```
@@ -105,7 +105,7 @@ meta_detected)` parquet during the alt-site eval, which `16 --meta-outcomes` con
 
 ## Slicing the results: genome-wide, per-chromosome, per-gene
 
-By default `08`/`09` report a **single genome-wide aggregate** over the test gene set. To slice:
+By default `shared/02_evaluate_sequence_model.py`/`m2/01_evaluate_alternative_sites.py` report a **single genome-wide aggregate** over the test gene set. To slice:
 
 | Granularity | How |
 |-------------|-----|
@@ -114,7 +114,7 @@ By default `08`/`09` report a **single genome-wide aggregate** over the test gen
 | Per-gene inference | `--genes BRCA1 TP53 CFTR` |
 
 Note that true **per-gene precision@k / recall@k** (a ranking metric per gene) is the design of the M3
-novel-site evaluator (`13_evaluate_m3_novel.py`), not of `08`/`09`. For M1-S/M2-S, per-gene means
+novel-site evaluator (`m3/01_evaluate_m3_novel.py`), not of `shared/02_evaluate_sequence_model.py`/`m2/01_evaluate_alternative_sites.py`. For M1-S/M2-S, per-gene means
 running inference on named genes, not a per-gene metric breakdown.
 
 ---
@@ -123,11 +123,11 @@ running inference on named genes, not a per-gene metric breakdown.
 
 | Goal | Command / flag |
 |------|----------------|
-| Sweep the decision threshold | `08 … --sweep-thresholds` |
-| Temperature-calibrate probabilities | `08 … --calibrate-temperature --val-cache-dir <dir>` → `eval_results_calibrated.json` |
-| Channel ablation (zero out a modality) | `08 … --zero-channels <group>` → `eval_ablation_<group>.json` |
-| Score arbitrary FASTA | `08 … --fasta <file> --output-format parquet` → `fasta_predictions.parquet` |
-| Base-score / calibration studies | `02_calibration_analysis.py`, `03_modality_ablation.py` (tabular `-P` line) |
+| Sweep the decision threshold | `shared/02_evaluate_sequence_model.py … --sweep-thresholds` |
+| Temperature-calibrate probabilities | `shared/02_evaluate_sequence_model.py … --calibrate-temperature --val-cache-dir <dir>` → `eval_results_calibrated.json` |
+| Channel ablation (zero out a modality) | `shared/02_evaluate_sequence_model.py … --zero-channels <group>` → `eval_ablation_<group>.json` |
+| Score arbitrary FASTA | `shared/02_evaluate_sequence_model.py … --fasta <file> --output-format parquet` → `fasta_predictions.parquet` |
+| Base-score / calibration studies | `m1/02_calibration_analysis.py`, `m1/03_modality_ablation.py` (tabular `-P` line) |
 
 !!! note "Calibration is a claim that needs evidence"
     Only describe a model as "calibrated" when you have the reliability curve / ECE from the

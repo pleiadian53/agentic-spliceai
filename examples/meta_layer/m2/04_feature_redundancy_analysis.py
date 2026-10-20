@@ -27,7 +27,7 @@ Substrate: the Phase-5A full-genome feature parquets
 analysis set is a valid proxy for the M2 (Ensembl) question.
 
 Usage:
-    python examples/meta_layer/12_feature_redundancy_analysis.py \
+    python examples/meta_layer/m2/04_feature_redundancy_analysis.py \
         --chromosomes chr22 chr21 chr19 --base-uncertain-threshold 0.5
 """
 

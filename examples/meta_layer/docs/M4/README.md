@@ -27,7 +27,7 @@ Model the **regulator → splicing map once**, conditioned on *which regulator i
 
 ## Data and scripts
 - Label + feature build: [`examples/data_preparation/m4/`](../../../data_preparation/m4/README.md) (`01` events, `03` site features, `04` regulator binding).
-- Benchmark: `examples/meta_layer/17_m4_fewshot_benchmark.py` (shared helpers `_m4_common.py`; pod driver `ops_m4_pod.sh`).
+- Benchmark: `examples/meta_layer/m4/01_m4_fewshot_benchmark.py` (shared helpers `m4/_m4_common.py`; pod driver `m4/ops_m4_pod.sh`).
 
 ## Related
 - `../meta_model_variants_m1_m4.md`: the M1–M4 variant overview.

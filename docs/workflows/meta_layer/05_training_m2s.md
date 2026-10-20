@@ -19,7 +19,7 @@ first; below is only what changes.
 ## The command
 
 ```bash
-python examples/meta_layer/07_train_sequence_model.py \
+python examples/meta_layer/shared/01_train_sequence_model.py \
     --mode m2 \
     --use-shards \
     --bigwig-cache <bigwig-cache-dir> \
@@ -33,7 +33,7 @@ directory explicitly with `--base-scores-dir`, because the base model scored the
 in [Stage 2](02_base_scoring.md#the-one-m2-s-wrinkle-same-model-different-windows).
 
 !!! note "A discrepancy to be aware of"
-    The pod runner `ops_train_m2s_pod.sh` invokes the trainer as `--mode m1 --annotation-source ensembl`.
+    The pod runner `m2/ops_train_m2s_pod.sh` invokes the trainer as `--mode m1 --annotation-source ensembl`.
     That trains on equivalent Ensembl data but stamps the config `variant = M1-S`. The promoted
     `m2s_v4_cleanannot` was produced with `--mode m2` (stamped `M2-S`). **Prefer `--mode m2`** — it
     sets the Ensembl label source for you and records the correct variant.
@@ -62,7 +62,7 @@ The motivation and the architecture-search lessons behind M2-S are worth reading
 
 Identical layout to [M1-S](04_training_m1s.md#artifacts-produced), under
 `output/meta_layer/m2s_v4_cleanannot/`. The companion alternative-site evaluation writes to a sibling
-`m2s_v4_cleanannot_alt_eval/` directory (produced by `09` in the next stage).
+`m2s_v4_cleanannot_alt_eval/` directory (produced by `m2/01_evaluate_alternative_sites.py` in the next stage).
 
 ---
 

@@ -97,10 +97,12 @@ agentic-spliceai/
 │   │   ├── configs/                     # 4 YAML profiles
 │   │   ├── docs/                        # Per-modality tutorials
 │   │   └── verify_feature_alignment.py  # Position alignment verification
-│   ├── meta_layer/                      # Meta-layer training scripts
-│   │   ├── 01_xgboost_baseline.py       # M1 XGBoost baseline
-│   │   ├── 02_calibration_analysis.py   # Calibration evaluation
-│   │   ├── 03_modality_ablation.py      # Leave-one-out ablation + SHAP
+│   ├── meta_layer/                      # Meta-layer training and evaluation, by variant
+│   │   ├── shared/                      # Sequence-model trainer/evaluator (M1-S, M2-S, M3-S), pod bootstrap
+│   │   ├── m1/                          # M1-P XGBoost baseline, calibration, modality ablation
+│   │   ├── m2/                          # Alternative-site and tissue-stratified evaluation
+│   │   ├── m3/                          # Novel-site evaluation, M3-R candidate refiner
+│   │   ├── m4/                          # Perturbation-response (knockdown ΔPSI) benchmark
 │   │   └── docs/                        # M1-M4 model variants guide
 │   ├── foundation_models/              # 7+ scripts: resource check → orchestrate
 │   └── data_preparation/               # Data prep & ground truth generation

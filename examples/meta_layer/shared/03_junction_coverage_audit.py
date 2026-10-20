@@ -35,8 +35,8 @@ Output layout (default ``output/meta_layer/junction_coverage_audit/``):
 
 Usage:
 
-    python examples/meta_layer/11_junction_coverage_audit.py
-    python examples/meta_layer/11_junction_coverage_audit.py \\
+    python examples/meta_layer/shared/03_junction_coverage_audit.py
+    python examples/meta_layer/shared/03_junction_coverage_audit.py \\
         --chroms all \\
         --output-dir output/meta_layer/junction_coverage_audit_fullgenome
 """

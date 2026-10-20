@@ -262,7 +262,7 @@ def _derive_job_name(run_command: str) -> str:
     match = re.search(r"python\s+\S*?(\w+)\.py", run_command)
     if match:
         name = match.group(1)
-        # Strip numeric prefix (e.g., "13_evaluate_m3_novel" -> "evaluate-m3-novel")
+        # Strip numeric prefix (e.g., "01_evaluate_m3_novel" -> "evaluate-m3-novel")
         name = re.sub(r"^\d+_?", "", name)
         name = name.replace("_", "-")
         return f"aspliceai-{name}"

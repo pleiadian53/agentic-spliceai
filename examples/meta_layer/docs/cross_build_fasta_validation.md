@@ -2,7 +2,7 @@
 
 ## Problem
 
-The meta-layer's FASTA inference mode (`08_evaluate_sequence_model.py --fasta`)
+The meta-layer's FASTA inference mode (`shared/02_evaluate_sequence_model.py --fasta`)
 produces `[L, 3]` splice site predictions on arbitrary sequences.  Without
 ground truth labels, these predictions cannot be evaluated quantitatively.
 
@@ -20,7 +20,7 @@ Custom GTF                             Custom FASTA
 (T2T-CHM13, pangenome, etc.)           (gene sequences from same build)
        │                                       │
        ▼                                       ▼
-04_generate_ground_truth.py            08_evaluate_sequence_model.py
+04_generate_ground_truth.py            shared/02_evaluate_sequence_model.py
   --gtf custom.gtf                       --fasta genes.fa
   --output data/custom/                  --checkpoint best.pt
        │                                       │
@@ -100,7 +100,7 @@ The FASTA header encodes the genomic coordinates needed for Step 3.
 ## Step 3: Run FASTA Inference
 
 ```bash
-python examples/meta_layer/08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/m1s/best.pt \
     --fasta data/t2t_chm13/genes.fa \
     --output-format parquet \

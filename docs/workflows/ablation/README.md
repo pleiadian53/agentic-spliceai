@@ -23,7 +23,7 @@ they do not measure the same thing.
 
 | | Retrain without it | Zero it at inference |
 |---|---|---|
-| **Script** | [`03_modality_ablation.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/03_modality_ablation.py) | [`08_evaluate_sequence_model.py --zero-channels`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/08_evaluate_sequence_model.py) |
+| **Script** | [`m1/03_modality_ablation.py`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/m1/03_modality_ablation.py) | [`shared/02_evaluate_sequence_model.py --zero-channels`](https://github.com/pleiadian53/agentic-spliceai/blob/main/examples/meta_layer/shared/02_evaluate_sequence_model.py) |
 | **Model** | XGBoost tabular baseline | the neural M\*-S checkpoints |
 | **Question** | *Would a model built without this signal be worse?* | *Does the trained model lean on this signal?* |
 | **Cost** | retrains per variant | one inference pass per variant |
@@ -61,7 +61,7 @@ a typo fails immediately instead of silently zeroing nothing.
 ### Locally, one variant
 
 ```bash
-python examples/meta_layer/08_evaluate_sequence_model.py \
+python examples/meta_layer/shared/02_evaluate_sequence_model.py \
     --checkpoint output/meta_layer/<model-dir>/best.pt \
     --cache-dir <test-cache>/test \
     --output-dir output/<model>_ablation \
@@ -80,10 +80,10 @@ Genome-scale caches make the full sweep a pod job. See
 ```bash
 # on the cluster
 cd ~/sky_workdir
-nohup bash examples/meta_layer/ops_ablation_m2s_pod.sh > <output-dir>/ablation.log 2>&1 &
+nohup bash examples/meta_layer/m2/ops_ablation_m2s_pod.sh > <output-dir>/ablation.log 2>&1 &
 ```
 
-`ops_ablation_m1s_pod.sh` does the same for M1-S against the MANE test cache. Both accept `CHECKPOINT`,
+`m1/ops_ablation_m1s_pod.sh` does the same for M1-S against the MANE test cache. Both accept `CHECKPOINT`,
 `CACHE_DIR` and `OUTPUT_DIR` as environment overrides, and both verify the checkpoint and cache exist
 before the first evaluation rather than failing partway through a long run.
 
