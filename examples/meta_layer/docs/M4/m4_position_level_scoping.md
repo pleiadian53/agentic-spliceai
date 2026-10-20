@@ -1,6 +1,6 @@
 # Scoping: a position-level M4 that finds induced splice sites
 
-**Status:** scoping, 2026-10-19. Nothing here is built yet. Data availability below was checked against the ENCODE portal API on 2026-10-19.
+**Status:** scoping, 2026-10-19; **P0 pilot done 2026-10-20** (section 10). Data availability below was checked against the ENCODE portal API on 2026-10-19.
 
 ## 1. The problem with the current M4
 
@@ -112,3 +112,33 @@ The same hiding logic as the current benchmark (held-out proteins, held-out chro
 | P3 second cell line | Add K562; test cross-cell transfer | pod | similar to P1 |
 
 The pilot answers the two questions that decide whether this is worth doing: are the junction counts clean enough, and do known knockdown effects (including induced sites) show up in them?
+
+## 10. P0 pilot results (2026-10-20)
+
+Junction reads were counted (`examples/data_preparation/m4/05_extract_kd_junctions.py`) in 20 ENCODE GRCh38 BAMs: 6 HepG2 knockdowns (U2AF1, U2AF2, QKI, PTBP1, TARDBP, SF3B1), two replicates each, and their 4 control experiments (QKI and PTBP1 share one, TARDBP and SF3B1 another). 119 GB streamed and discarded in 25 minutes on a pod; the junction tables total 41 MB. Analysis: `06_pilot_junction_usage.py`.
+
+**1. The counts are clean.** 48–124 million reads per BAM, about 190,000–200,000 junctions each, and 99.91–99.96% of junction reads carry a canonical splice motif.
+
+**2. They reproduce the existing labels.** On each knockdown's A3SS/A5SS events, ΔPSI recomputed from junction reads alone correlates with rMATS's ΔPSI at r = 0.73–0.78 (about 5,000–6,000 events each), and the direction agrees on 82–96% of significant events. rMATS also uses exon-body reads, so exact agreement is not expected.
+
+**3. Replicates agree moderately.** For sites whose usage changes, the change measured in replicate 1 vs replicate 2 (each against the pooled control) correlates at r = 0.73 (U2AF1, U2AF2), 0.63 (PTBP1), 0.58 (QKI), 0.55 (SF3B1), 0.43 (TARDBP). Strong regulators give reproducible position-level labels; weak ones are noisy.
+
+**4. Induced sites: real for some regulators, noise for others.** The simple rule "usage ≤ 0.01 in control, ≥ 0.10 after knockdown, ≥ 5 reads" was also applied to two replicates of the same control, where nothing was knocked down, to measure the noise floor. At matched depth (one replicate vs one replicate):
+
+| Knockdown | Induced sites (knockdown vs control) | Same rule, control vs control | Signal |
+|---|---|---|---|
+| U2AF1 | 536 / 605 | 39 / 122 | about 5× the noise floor |
+| U2AF2 | 871 / 1,058 | 278 / 347 | about 3× |
+| PTBP1 | 246 / 342 | 67 / 122 | about 3× |
+| QKI | 229 / 251 | 67 / 122 | about 2× |
+| SF3B1 | 168 / 124 | 113 / 132 | at the noise floor |
+| TARDBP | 135 / 117 | 113 / 132 | at the noise floor |
+
+Most induced sites for U2AF1/U2AF2 are in no annotation (595 of 938 and 733 of 1,255 with pooled replicates), consistent with loss of the 3′ splice-site recognition factor exposing cryptic acceptors.
+
+**Decision.** Go, with two requirements learned here:
+
+- **Labels need statistics, not thresholds.** A naive usage rule produces 39–347 "induced" sites between replicates of the same control. Labels and evaluation must use the read counts (beta-binomial likelihood, replicate consistency), as section 6 already proposed.
+- **TDP-43 gives no induced-site signal in HepG2.** Its knockdown is indistinguishable from the noise floor here (as is SF3B1's). The ALS application will need neuronal knockdown data; HepG2 cannot validate it.
+
+**Next (P1):** all HepG2 knockdowns. At the pilot's rate (20 BAMs in 25 minutes with 6 workers) the roughly 570 BAMs take about 12 hours with 6 workers, less with more parallel downloads.
