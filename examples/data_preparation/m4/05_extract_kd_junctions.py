@@ -28,6 +28,10 @@ Run on a pod (BAMs are ~4 GB each):
     python examples/data_preparation/m4/05_extract_kd_junctions.py \\
         --targets U2AF1 U2AF2 QKI PTBP1 TARDBP SF3B1 --cell-line HepG2 \\
         --tmp-dir /runpod-volume/tmp/bams --workers 6
+
+All HepG2 knockdowns (232 proteins + 26 shared controls, ~516 BAMs; reruns skip counted files):
+    python examples/data_preparation/m4/05_extract_kd_junctions.py --targets all \\
+        --cell-line HepG2 --tmp-dir /runpod-volume/tmp/bams --workers 16
 """
 
 from __future__ import annotations
@@ -86,6 +90,14 @@ def genome_bams(experiment: str) -> list[dict]:
     return [{"experiment": experiment, "file": f["accession"], "href": f["href"],
              "md5": f.get("md5sum"), "size": f.get("file_size"),
              "replicate": ",".join(map(str, rep))} for rep, f in sorted(best.items())]
+
+
+def all_targets(cell_line: str) -> list[str]:
+    """Every protein with a released shRNA RNA-seq knockdown in the cell line."""
+    q = (f"/search/?type=Experiment&assay_title=shRNA+RNA-seq&biosample_ontology.term_name="
+         f"{cell_line}&status=released&frame=object&format=json&limit=all&field=target")
+    hits = _get(q).get("@graph", [])
+    return sorted({_acc(e["target"]).rsplit("-", 1)[0] for e in hits if e.get("target")})
 
 
 def plan_downloads(targets: list[str], cell_line: str) -> list[dict]:
@@ -188,12 +200,16 @@ def process(job: dict, tmp_dir: str, out_dir: str, min_anchor: int, mapq: int) -
         return {**job, "status": "exists"}
     bam = Path(tmp_dir) / f"{job['file']}.bam"
     t0, md5 = time.time(), hashlib.md5()
-    with requests.get(PORTAL + job["href"], stream=True, timeout=600) as r:
-        r.raise_for_status()
-        with open(bam, "wb") as fh:
-            for chunk in r.iter_content(chunk_size=8 << 20):
-                fh.write(chunk)
-                md5.update(chunk)
+    try:
+        with requests.get(PORTAL + job["href"], stream=True, timeout=600) as r:
+            r.raise_for_status()
+            with open(bam, "wb") as fh:
+                for chunk in r.iter_content(chunk_size=8 << 20):
+                    fh.write(chunk)
+                    md5.update(chunk)
+    except Exception:
+        bam.unlink(missing_ok=True)  # never leave a partial BAM on the volume
+        raise
     if job.get("md5") and md5.hexdigest() != job["md5"]:
         bam.unlink(missing_ok=True)
         raise RuntimeError(f"md5 mismatch for {job['file']}")
@@ -213,7 +229,7 @@ def process(job: dict, tmp_dir: str, out_dir: str, min_anchor: int, mapq: int) -
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--targets", nargs="+", required=True, help="knocked-down protein names")
+    ap.add_argument("--targets", nargs="+", required=True, help="knocked-down protein names, or 'all' for every released knockdown")
     ap.add_argument("--cell-line", default="HepG2")
     ap.add_argument("--out-dir", type=Path, default=OUT)
     ap.add_argument("--tmp-dir", type=Path, required=True, help="scratch space for BAMs")
@@ -223,6 +239,8 @@ def main() -> int:
     ap.add_argument("--plan-only", action="store_true", help="list the BAMs and stop")
     args = ap.parse_args()
 
+    if args.targets == ["all"]:
+        args.targets = all_targets(args.cell_line)
     print(f"Planning {args.cell_line} downloads for {len(args.targets)} targets:")
     jobs = plan_downloads(args.targets, args.cell_line)
     gb = sum(j["size"] or 0 for j in jobs) / 1e9
@@ -247,6 +265,9 @@ def main() -> int:
                 res = fut.result()
             except Exception as exc:  # noqa: BLE001 — record and continue with other files
                 res = {**j, "status": f"failed: {exc}"}
+            if res["status"] == "exists" and any(m.get("file") == res["file"]
+                                                 and m.get("status") == "ok" for m in manifest):
+                continue  # counted by an earlier run; keep its stats
             manifest = [m for m in manifest if m.get("file") != res["file"]] + [res]
             manifest_path.write_text(json.dumps(manifest, indent=2))
             print(f"  [{i}/{len(jobs)}] {res['role']} {res['target']} {res['file']}: "
