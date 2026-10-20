@@ -13,6 +13,10 @@ Design notes and case studies for **M4**, the *conditional / counterfactual* met
 | [3. Training and evaluation](03_training_and_evaluation.md) | gene splits, control-batch-grouped regulator folds, settings S2/S3, few-shot protocol, metrics, results so far |
 | [4. TabPFN and in-context learning](04_tabpfn_in_context_learning.md) | how a tabular foundation model works and how M4 uses it |
 
+## Next direction
+
+- [`m4_position_level_scoping.md`](m4_position_level_scoping.md): scoping a position-level M4 that predicts, for any position and any knocked-down protein, the change in that site's usage, so it can find induced (cryptic) sites without a candidate list. Data checked on ENCODE: 233 HepG2 and 220 K562 knockdowns with GRCh38 alignments.
+
 ## Contents
 - [`m4_conditional_design.md`](m4_conditional_design.md): the core design: one conditional M4 (perturbation as input) instead of many per-gene variants; why it generalizes; what actually makes it work (perturbation-paired labels, not architecture); the current `rbp_n_bound` substrate and its limits; and the **TDP-43/ALS first-instance validation** (M2-S detects the UNC13A/STMN2 cryptic sites, but de-repression is not learned, and why).
 
