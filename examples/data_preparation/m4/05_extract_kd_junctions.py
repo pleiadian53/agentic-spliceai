@@ -229,7 +229,8 @@ def process(job: dict, tmp_dir: str, out_dir: str, min_anchor: int, mapq: int) -
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--targets", nargs="+", required=True, help="knocked-down protein names, or 'all' for every released knockdown")
+    ap.add_argument("--targets", nargs="+", required=True,
+                    help="knocked-down protein names, or 'all' for every released knockdown")
     ap.add_argument("--cell-line", default="HepG2")
     ap.add_argument("--out-dir", type=Path, default=OUT)
     ap.add_argument("--tmp-dir", type=Path, required=True, help="scratch space for BAMs")
