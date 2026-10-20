@@ -118,7 +118,7 @@ Formulation B invites using the experiment's own control PSI as $p_0$. That is t
 - the out-of-batch baseline already in $X$ (other control batches), or
 - a **replicate split**: estimate $p_0$ from some control replicates and the label from the others.
 
-With an independent $p_0$, the bound structure still carries honest signal: the same one-line rule using the out-of-batch baseline reaches direction accuracy 0.624.
+With an independent $p_0$, the bound structure still carries honest signal: the same one-line rule using the out-of-batch baseline reaches direction accuracy 0.624. In the v1 benchmark that is higher than every learned zero-shot or few-shot method on new genes (pooled 0.520, TabPFN with 256 examples 0.565), which is the strongest argument for building the bound into the model.
 
 ### 4.3 Refinement 3: train on read counts, not on ΔPSI
 

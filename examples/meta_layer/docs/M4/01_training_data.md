@@ -111,6 +111,38 @@ where $g_e$ is geometry, $s$ are site vectors, $b_e$ the baseline block, and $r_
 
 Notice what is **not** in $X$: the regulator's name. There is no one-hot vector or embedding of $R$. Only $r_{e,R}$ depends on the regulator, and for the 81 regulators without eCLIP it is empty. Part 2 discusses what that implies.
 
+### 4.5 One row, concretely
+
+Take the ZNF706 event from section 1 (partner donor at chr8:101,205,435; competing acceptors at 101,202,452 and 101,202,447; minus strand) under AATF knockdown.
+
+**What a site feature looks at.** Each site's base-score features summarise OpenSpliceAI's per-nucleotide predictions in a ±2 window. The partner donor is a textbook peak:
+
+```text
+Position (chr8)   101,205,433  101,205,434  101,205,435  101,205,436  101,205,437
+                      p−2          p−1           p           p+1          p+2
+Splice score          0.000        0.000        0.757        0.000        0.000
+```
+
+The *splice score* at each position is the larger of the donor and acceptor probabilities. From this profile the pipeline derives `donor_score = 0.757`, the neighbour scores `context_score_m2 … context_score_p2` (all 0), `donor_is_local_peak = 1`, the drop from the peak to each neighbour (`donor_diff_m1 = donor_diff_p1 = 0.757`), and ratios such as the peak height relative to its neighbours. The neighbours are taken in genomic order, so on the minus strand `m1` (the lower coordinate) lies downstream in transcript order.
+
+The long acceptor tells a different story: OpenSpliceAI scores all five positions around it as 0.000, yet its GTEx junction feature is high (`junction_log1p = 7.48`, about 1,770 supporting reads in normal tissues). The base model, trained on canonical MANE sites, misses this alternative acceptor; the junction evidence does not. Covering cases like this is why the feature vector combines several modalities.
+
+**The assembled row.** For this event under AATF, $y = +0.756$, and a few of its 229 features are:
+
+| Feature | Value | Meaning |
+|---|---:|---|
+| `is_a5ss` | 0 | an A3SS event |
+| `alt_dist` | 5 | the competing acceptors are 5 nt apart |
+| `junction_span_long`, `junction_span_short` | 2,983, 2,988 | intron lengths of the two choices |
+| `delta__phylop_score` | −0.44 | the long acceptor is less conserved than the short one |
+| `delta__junction_log1p` | −4.46 | normal tissues use the short acceptor far more |
+| `partner__donor_score` | 0.757 | the shared donor is a strong site |
+| `baseline_psi_loo` | 0.460 | long-form usage in other control batches |
+| `n_other_kd` | 61 | 61 other knockdowns also measured this event |
+| `has_eclip`, `R_long__dist` | 1, 10,000 | AATF has eCLIP, but no peak within 10 kb of the long acceptor |
+
+Every method in the benchmark sees exactly this row. The task is **regression**: $y$ is a continuous signed change, not a class label. Direction (the sign of $y$) is evaluated separately, as a derived quantity (part 3).
+
 ## 5. Columns that must never enter X
 
 | Column | Why |

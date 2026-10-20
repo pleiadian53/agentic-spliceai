@@ -32,20 +32,60 @@ $$
 
 If $R'$ is in training and $R$ is held out, the model can partly "predict" $R$ by recalling $R'$, through noise they share rather than biology they share. The 27 batches are inferred from identical control read counts (`control_batch` in the event table), and `regulator_folds(..., groups=...)` assigns whole batches to folds. The first benchmark split batches across folds, and its event prior read 0.742 direction accuracy; with batches kept whole it reads 0.669.
 
-## 4. Two settings
+## 4. The settings: what is known when predicting
 
-Every method is scored on the same rows: **the held-out regulator's events in test genes**. The settings differ in what is known about those test genes.
+Two things can be new at prediction time: the **regulator** (has M4 seen this knockdown before?) and the **genes** (has M4 seen these events respond to *any* knockdown?). Crossing them gives four settings, named S0 to S3:
 
-| Setting | Known about test genes | Real-world analogue |
+| | Genes seen (events profiled under other knockdowns) | Genes unseen (no knockdown measured on them) |
 |---|---|---|
-| **S3** | nothing: no knockdown has been measured on them | a new regulator, on genes never profiled |
-| **S2** | their responses to the *training* regulators | a new regulator, on targets profiled under other knockdowns |
+| **Regulator seen** | S0: in-sample fit, not a test | **S1**: a known regulator on new targets |
+| **Regulator unseen** | **S2**: a new regulator on profiled targets | **S3**: a new regulator on new targets |
 
-S3 is the headline. S2 asks whether knowing how an event behaves under other knockdowns helps predict a new one.
+The benchmark runs **S2 and S3**, because M4's purpose is to predict regulators it has not seen. S1 (predict a known regulator's effect on new genes) is a useful but easier question and is not implemented yet. There is no S4.
 
-## 5. Few-shot: k examples of the held-out regulator
+In both S2 and S3, every method is scored on the same rows: **the held-out regulator's events in test genes**. The settings differ only in what the methods may use about those test genes.
 
-For few-shot methods, $k$ events of the held-out regulator are revealed, drawn uniformly at random from its events in **training genes**, so no test gene is ever seen under that regulator. The benchmark uses $k \in \{16, 64, 256\}$ and three random draws per $k$, averaging the draws within each regulator.
+### S3: new regulator, new genes (the headline)
+
+- **What is withheld:** the held-out regulator entirely, and every knockdown measurement on test genes.
+- **What a method may use:** the training regulators' responses on *training* genes, the features of the test events (sequence, base scores, conservation, chromatin, GTEx usage, binding), and optionally $k$ examples of the held-out regulator from training genes.
+- **Real-world analogue:** a regulator nobody has profiled, acting on genes nobody has profiled under any knockdown.
+- **Goal:** test whether M4 has learned something transferable about how regulators act on events, rather than memorising responses.
+
+### S2: new regulator, profiled genes
+
+- **What is withheld:** the held-out regulator only.
+- **What a method may use:** everything in S3, plus how the *test* events responded to the training regulators. That enables the `volatility` prior (an event's average response to other knockdowns) and lets the pooled model train on test genes under other regulators.
+- **Real-world analogue:** a lab that has already profiled a panel of knockdowns in its cell line and adds one new regulator.
+- **Goal:** test how much an event's behaviour under other knockdowns predicts a new one, and whether anything regulator-specific adds to it.
+
+Comparing the two settings separates two sources of signal: *what kind of event this is* (available in both) and *how this event has behaved before* (S2 only).
+
+## 5. k: examples of the held-out regulator
+
+$k$ is the number of **labelled events of the held-out regulator** a method is allowed to see.
+
+- $k = 0$ is **zero-shot**: the method knows nothing about the new regulator except, where available, its eCLIP binding features.
+- $k = 16, 64, 256$ are **few-shot**: that many of the regulator's events, with their measured $\Delta$PSI, are revealed. They are drawn at random from its events in **training genes**, so no test gene is ever seen under that regulator. Each $k$ is drawn three times and the results averaged within each regulator.
+
+Only methods that can use examples have results at $k > 0$: `xgb` (trained on the $k$ examples alone), `tabpfn` (reads them as context), and `pooled_tabpfn` (corrects the pooled model with them). Methods at $k = 0$ (`zero`, `volatility`, `pooled`) are shown as single reference values.
+
+### Reading a results table
+
+```text
+S3: unseen regulator, unseen genes (direction accuracy on significant events; chance 0.5)
+
+Method                              k=0     k=16    k=64    k=256
+pooled model                        0.520
+XGBoost on the regulator's examples         0.516   0.525   0.529
+TabPFN v2                                   0.515   0.534   0.565
+rule, no learning (bound effect)    0.624
+```
+
+- Each cell is **direction accuracy**: among the held-out regulator's *significant* test events, the share where the predicted sign of $\Delta$PSI matches the measured sign; averaged over the 185 regulators. A coin flip scores 0.5.
+- Reading across a row is a **learning curve**: how much a method gains as it sees more of the new regulator.
+- Reading down a column compares methods with the **same information**.
+- The *rule* row is a reference with no learning: it predicts that events above average control PSI will fall and those below will rise. It knows nothing about the regulator, so any learned method should beat it; none does yet in S3.
 
 ## 6. How each method is trained
 
