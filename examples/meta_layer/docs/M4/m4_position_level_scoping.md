@@ -47,7 +47,23 @@ After removing protein X:
 
 **Usage** of a site is its share of the reads from its partner. A1 and A2 are a normal alternative choice, the kind the current M4 already models. **A3 is an induced site**: unused in control, used after the knockdown. A position-level model has a label for it; the current model never sees it.
 
-Every position gets a label this way. Positions with no reads in either condition have usage 0 before and after, so their change is 0, which is the correct answer for the vast majority of the genome. When a site has several partners, its usage is the read-weighted average over them. This is the same idea as LeafCutter's intron clusters, applied per site.
+A position gets a label only when it is **adequately observed**: its partner sites carry enough reads in both knockdown and control (for example, at least 20 each). Then a usage of 0 is a measured zero, as for A3 in control above. A position whose partners have few or no reads is **unknown**, not "no change": the gene may be unexpressed in those samples, coverage may be too low, or a rare isoform may be missed. Unknown positions are masked out of the loss; otherwise millions of unsupported zeros would dominate training. When a site has several partners, its usage is the read-weighted average over them (one of the label choices discussed in section 3.1). This is the same idea as LeafCutter's intron clusters, applied per site.
+
+### 3.1 Usage depends on the partner
+
+A site's usage is always relative to a comparison group: A1, A2, and A3 above share a denominator, the reads leaving donor D. So "predict at any position" still has to say what is predicted per position. Three options, each with different labels and architecture:
+
+| Option | What is predicted | Labels |
+|---|---|---|
+| Junction (site, partner) | usage of each connection, e.g. D→A3 | per junction; the model scores pairs |
+| Site marginal | a site's usage pooled over all its partners | per site; partner structure summarised |
+| Partner discovery | which partners a site connects to, and their usage | per site plus a set of partners |
+
+Reads measure junctions directly, so the junction is the natural unit for labels; a per-position scanner would output the site marginal and a pair scorer the junction usage. This choice is open.
+
+### 3.2 Junctions are not transcripts
+
+Predicting which junctions change does not determine complete transcripts: two junctions supported by different short reads need not occur on the same RNA molecule. Reconstructing transcripts requires working out which connections can coexist along a full path, with uncertainty when several paths fit, and long-read data helps there. That is a later objective, not part of this scope.
 
 ## 4. Is the data available? Yes
 
@@ -136,9 +152,9 @@ Junction reads were counted (`examples/data_preparation/m4/05_extract_kd_junctio
 
 Most induced sites for U2AF1/U2AF2 are in no annotation (595 of 938 and 733 of 1,255 with pooled replicates), consistent with loss of the 3′ splice-site recognition factor exposing cryptic acceptors.
 
-**Decision.** Go, with two requirements learned here:
+**Decision.** Go, with two requirements learned here. The excess over the control-vs-control floor is evidence that the set of candidates carries signal for those regulators; it does not validate any individual candidate.
 
 - **Labels need statistics, not thresholds.** A naive usage rule produces 39–347 "induced" sites between replicates of the same control. Labels and evaluation must use the read counts (beta-binomial likelihood, replicate consistency), as section 6 already proposed.
-- **TDP-43 gives no induced-site signal in HepG2.** Its knockdown is indistinguishable from the noise floor here (as is SF3B1's). The ALS application will need neuronal knockdown data; HepG2 cannot validate it.
+- **No excess of induced sites was detected for TARDBP (or SF3B1) under these criteria.** That is a non-detection in this pilot, not evidence that TDP-43 cannot induce cryptic splicing: knockdown efficiency, whether TDP-43 targets are expressed in HepG2, nonsense-mediated decay of cryptic transcripts, read depth, and the threshold rule could each hide a real effect. Neuronal knockdown data is the natural place to test the ALS-relevant behaviour.
 
 **Next (P1):** all HepG2 knockdowns. At the pilot's rate (20 BAMs in 25 minutes with 6 workers) the roughly 570 BAMs take about 12 hours with 6 workers, less with more parallel downloads.
