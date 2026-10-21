@@ -195,6 +195,13 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .cursor/
+# Track the Cloud Agent environment definition (and its install script) so the
+# dev environment is versioned with the code, while keeping other local
+# .cursor/ state (rules, caches, per-machine config) ignored.
+!.cursor/
+.cursor/*
+!.cursor/environment.json
+!.cursor/install.sh
 .windsurf/
 tasks/
 

@@ -37,7 +37,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Project paths
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+# This file lives at <repo>/server/splice_service.py, so the repo root is two
+# levels up. (An earlier layout nested it one directory deeper, hence the stale
+# three-parent walk that resolved to the filesystem root on a clean checkout.)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 OUTPUT_DIR = PROJECT_ROOT / "output" / "splice_charts"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

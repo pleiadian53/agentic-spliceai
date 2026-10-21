@@ -65,6 +65,13 @@ dependencies = [
     "matplotlib",
     "numpy",
     "pandas",
+    # polars and plotly are imported at module top level by shipped first-party
+    # code (e.g. splice_engine.agentic_layer.chart_agent.splice_analysis and the
+    # server.bio Lab UI), so a clean `pip install -e .` fails on import without
+    # them. They were declared only in environment.yml; declare them here too so
+    # the pip install path matches the conda path.
+    "polars",
+    "plotly",
     "pyarrow",
     "seaborn",
     "tabulate",
@@ -73,6 +80,10 @@ dependencies = [
     # === Machine Learning / NLP ===
     "jinja2",
     "scikit-learn",
+    # tqdm is imported at module top level by splice_engine.meta_layer (e.g.
+    # meta_layer.core.artifact_loader), which the package eagerly imports, so a
+    # clean install must provide it. Previously declared only in environment.yml.
+    "tqdm",
 ]
 
 [project.optional-dependencies]
