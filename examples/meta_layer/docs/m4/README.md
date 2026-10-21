@@ -12,6 +12,7 @@ Design notes and case studies for **M4**, the *conditional / counterfactual* met
 | [2. Model architecture](02_model_architecture.md) | the methods implemented today, the conditional target design ($h_e$, $z_R$, $c$, $p_0$), and why to predict perturbed PSI through a log-odds offset |
 | [3. Training and evaluation](03_training_and_evaluation.md) | gene splits, control-batch-grouped regulator folds, settings S2/S3, few-shot protocol, metrics, results so far |
 | [4. TabPFN and in-context learning](04_tabpfn_in_context_learning.md) | how a tabular foundation model works and how M4 uses it |
+| [5. Feature reference](05_feature_reference.md) | every one of the 229 input columns: calculation, units, site role, source, missing values, and its value in a real row; known quirks of the site features |
 
 ## Next direction
 

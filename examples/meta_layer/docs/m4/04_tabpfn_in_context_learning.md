@@ -126,3 +126,5 @@ The comparison with matrix factorisation (part 2) is the next experiment.
 - The context set acts as an implicit regulator representation, which is the piece the current M4 models otherwise lack.
 
 **References.** Müller et al., *Transformers Can Do Bayesian Inference*, ICLR 2022. Hollmann et al., *TabPFN: A Transformer That Solves Small Tabular Classification Problems in a Second*, ICLR 2023. Hollmann et al., *Accurate predictions on small data with a tabular foundation model*, *Nature* 2025.
+
+Next: [Part 5, the feature reference](05_feature_reference.md), every input column in one table.

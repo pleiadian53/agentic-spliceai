@@ -109,6 +109,8 @@ $$
 
 where $g_e$ is geometry, $s$ are site vectors, $b_e$ the baseline block, and $r_{e,R}$ the regulator's binding near the three sites. The long − short difference encodes the competition the label measures.
 
+Every one of the 229 columns (name, calculation, units, site role, data source, missing-value behaviour, and its value in the example row below) is listed in [part 5, the feature reference](05_feature_reference.md).
+
 Notice what is **not** in $X$: the regulator's name. There is no one-hot vector or embedding of $R$. Only $r_{e,R}$ depends on the regulator, and for the 81 regulators without eCLIP it is empty. Part 2 discusses what that implies.
 
 ### 4.5 One row, concretely
@@ -139,7 +141,9 @@ The long acceptor tells a different story: OpenSpliceAI scores all five position
 | `partner__donor_score` | 0.757 | the shared donor is a strong site |
 | `baseline_psi_loo` | 0.460 | long-form usage in other control batches |
 | `n_other_kd` | 61 | 61 other knockdowns also measured this event |
-| `has_eclip`, `R_long__dist` | 1, 10,000 | AATF has eCLIP, but no peak within 10 kb of the long acceptor |
+| `has_eclip`, `R_long__dist` | 1, 10,000 | AATF has eCLIP (from K562, so `eclip_hepg2` = 0), but no peak within 10 kb of the long acceptor |
+
+The full row, all 229 values, is in [part 5](05_feature_reference.md).
 
 Every method in the benchmark sees exactly this row. The task is **regression**: $y$ is a continuous signed change, not a class label. Direction (the sign of $y$) is evaluated separately, as a derived quantity (part 3).
 
